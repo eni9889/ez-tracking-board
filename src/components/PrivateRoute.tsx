@@ -1,16 +1,16 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { CircularProgress, Box } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
+import { CircularProgress, Box } from '@mui/material';
 
 interface PrivateRouteProps {
-  children: React.ReactElement;
+  children: React.ReactNode;
 }
 
 export const PrivateRoute: React.FC<PrivateRouteProps> = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+  const { user, isLoading } = useAuth();
 
-  if (loading) {
+  if (isLoading) {
     return (
       <Box
         display="flex"
@@ -23,5 +23,5 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({ children }) => {
     );
   }
 
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
+  return user ? <>{children}</> : <Navigate to="/login" replace />;
 }; 

@@ -1,317 +1,287 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import patientTrackingService from '../services/patientTracking.service';
 import {
-  Container,
-  Typography,
   Box,
+  Container,
   Paper,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography,
   Chip,
+  IconButton,
   CircularProgress,
   Alert,
-  Button,
-  IconButton,
-  Tooltip,
-  SelectChangeEvent,
   AppBar,
-  Toolbar
+  Toolbar,
+  Button,
+  Avatar,
+  Tooltip,
+  TextField,
+  InputAdornment
 } from '@mui/material';
 import {
-  Refresh,
-  Today,
   ExitToApp,
-  Dashboard as DashboardIcon
+  Refresh,
+  Person,
+  Phone,
+  AccessTime,
+  MeetingRoom,
+  Search,
+  LocalHospital
 } from '@mui/icons-material';
-import { format } from 'date-fns';
-import { useAuth } from '../contexts/AuthContext';
-import { PatientCard } from '../components/PatientCard';
-import patientTrackingService from '../services/patientTracking.service';
-import { SchedulerData, AppointmentStatus, ClinicInfo } from '../types/api.types';
+import { Encounter } from '../types/api.types';
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const [appointments, setAppointments] = useState<SchedulerData[]>([]);
+  const [encounters, setEncounters] = useState<Encounter[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedClinic, setSelectedClinic] = useState<string>('');
-  const [clinics, setClinics] = useState<ClinicInfo[]>([]);
-  const [statusFilter, setStatusFilter] = useState<AppointmentStatus | 'ALL'>('ALL');
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-  const [useMockData, setUseMockData] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [lastRefresh, setLastRefresh] = useState(new Date());
 
-  // Load clinics on mount
+  const fetchEncounters = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await patientTrackingService.getEncounters();
+      setEncounters(data);
+      setLastRefresh(new Date());
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch patient data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadClinics = async () => {
-      if (!user?.clinicIds || user.clinicIds.length === 0) {
-        // Use mock clinics if user has no clinics
-        setClinics([
-          { id: '1', name: 'Main Dermatology Clinic' },
-          { id: '2', name: 'West Side Clinic' }
-        ]);
-        setSelectedClinic('1');
-        return;
-      }
-
-      try {
-        const practiceInfo = await patientTrackingService.getPracticeInfo();
-        const userClinics = practiceInfo.clinics.filter(clinic => 
-          user.clinicIds.includes(clinic.id)
-        );
-        setClinics(userClinics);
-        if (userClinics.length > 0) {
-          setSelectedClinic(userClinics[0].id);
-        }
-      } catch (error) {
-        console.error('Failed to load clinics:', error);
-        // Use mock clinics on error
-        setClinics([
-          { id: '1', name: 'Main Dermatology Clinic' },
-          { id: '2', name: 'West Side Clinic' }
-        ]);
-        setSelectedClinic('1');
-      }
-    };
-
-    loadClinics();
-  }, [user]);
-
-  // Fetch appointments
-  const fetchAppointments = useCallback(async () => {
-    if (!selectedClinic) return;
-
-    setLoading(true);
-    setError(null);
-
-          try {
-        let data: SchedulerData[];
-        if (useMockData) {
-          // Use mock data for testing
-          data = patientTrackingService.generateMockSchedulerData(20);
-        } else {
-          // Fetch enhanced data that includes encounter information
-          data = await patientTrackingService.getEnhancedSchedulerData(selectedClinic, new Date());
-        }
-        setAppointments(data);
-        setLastUpdate(new Date());
-      } catch (error: any) {
-        console.error('Failed to fetch appointments:', error);
-        setError('Failed to load appointments. Using mock data instead.');
-        // Fall back to mock data
-        const mockData = patientTrackingService.generateMockSchedulerData(20);
-        setAppointments(mockData);
-        setUseMockData(true);
-      } finally {
-        setLoading(false);
-      }
-  }, [selectedClinic, useMockData, user]);
-
-  // Initial fetch and polling
-  useEffect(() => {
-    fetchAppointments();
-
-    // Poll for updates every 30 seconds
-    const interval = setInterval(fetchAppointments, 30000);
-
+    fetchEncounters();
+    
+    // Refresh data every 30 seconds
+    const interval = setInterval(fetchEncounters, 30000);
+    
     return () => clearInterval(interval);
-  }, [fetchAppointments]);
+  }, []);
 
-  // Filter appointments
-  const filteredAppointments = appointments.filter(apt => {
-    if (statusFilter === 'ALL') return true;
-    return apt.status === statusFilter;
-  });
-
-  // Count by status
-  const statusCounts = appointments.reduce((acc, apt) => {
-    acc[apt.status] = (acc[apt.status] || 0) + 1;
-    return acc;
-  }, {} as Record<AppointmentStatus, number>);
-
-  const handleClinicChange = (event: SelectChangeEvent) => {
-    setSelectedClinic(event.target.value);
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
   };
 
-  const handleStatusFilterChange = (event: SelectChangeEvent) => {
-    setStatusFilter(event.target.value as AppointmentStatus | 'ALL');
+  const getStatusChip = (status: string) => {
+    return (
+      <Chip
+        label={status.replace('_', ' ')}
+        size="small"
+        sx={{
+          backgroundColor: patientTrackingService.getStatusColor(status),
+          color: 'white',
+          fontWeight: 'bold'
+        }}
+      />
+    );
   };
 
-  const handleEditAppointment = (appointment: SchedulerData) => {
-    // TODO: Implement edit functionality
-    console.log('Edit appointment:', appointment);
-  };
-
-  const toggleMockData = () => {
-    setUseMockData(!useMockData);
-  };
+  const filteredEncounters = encounters.filter(encounter =>
+    encounter.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    encounter.patientInfo.medicalRecordNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    encounter.chiefComplaint.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <>
-      <AppBar position="static" elevation={0}>
+    <Box sx={{ flexGrow: 1 }}>
+      <AppBar position="static">
         <Toolbar>
-          <DashboardIcon sx={{ mr: 2 }} />
+          <LocalHospital sx={{ mr: 2 }} />
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            EZ Patient Tracking Dashboard
+            EZ Patient Tracking Board
           </Typography>
           <Typography variant="body2" sx={{ mr: 2 }}>
-            Welcome, {user?.firstName} {user?.lastName}
+            Welcome, {user?.username}
           </Typography>
-          <Tooltip title="Logout">
-            <IconButton color="inherit" onClick={logout}>
-              <ExitToApp />
-            </IconButton>
-          </Tooltip>
+          <Button color="inherit" onClick={handleLogout} startIcon={<ExitToApp />}>
+            Logout
+          </Button>
         </Toolbar>
       </AppBar>
 
       <Container maxWidth="xl" sx={{ mt: 3 }}>
-        {/* Header Section */}
-        <Paper elevation={1} sx={{ p: 3, mb: 3 }}>
-          <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
-            <Box display="flex" alignItems="center" gap={2}>
-              <Today color="primary" />
-              <Typography variant="h5">
-                {format(new Date(), 'EEEE, MMMM d, yyyy')}
+        <Paper elevation={3} sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Box>
+              <Typography variant="h4" gutterBottom>
+                Current Patients in Clinic
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Today: {new Date().toLocaleDateString()} • Last updated: {lastRefresh.toLocaleTimeString()}
               </Typography>
             </Box>
-
-            <Box display="flex" gap={2} alignItems="center">
-              <FormControl size="small" sx={{ minWidth: 200 }}>
-                <InputLabel>Clinic</InputLabel>
-                <Select
-                  value={selectedClinic}
-                  onChange={handleClinicChange}
-                  label="Clinic"
-                >
-                  {clinics.map(clinic => (
-                    <MenuItem key={clinic.id} value={clinic.id}>
-                      {clinic.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <FormControl size="small" sx={{ minWidth: 150 }}>
-                <InputLabel>Status Filter</InputLabel>
-                <Select
-                  value={statusFilter}
-                  onChange={handleStatusFilterChange}
-                  label="Status Filter"
-                >
-                  <MenuItem value="ALL">All Status</MenuItem>
-                  {Object.values(AppointmentStatus).map(status => (
-                    <MenuItem key={status} value={status}>
-                      {status.replace(/_/g, ' ')}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+              <TextField
+                size="small"
+                placeholder="Search patients..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{ width: 300 }}
+              />
               <Tooltip title="Refresh">
-                <IconButton onClick={fetchAppointments} disabled={loading}>
+                <IconButton onClick={fetchEncounters} disabled={loading}>
                   <Refresh />
                 </IconButton>
               </Tooltip>
-
-              {process.env.NODE_ENV === 'development' && (
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={toggleMockData}
-                  color={useMockData ? 'warning' : 'primary'}
-                >
-                  {useMockData ? 'Using Mock Data' : 'Using Live Data'}
-                </Button>
-              )}
             </Box>
           </Box>
 
-          {/* Status Summary */}
-          <Box display="flex" gap={1} mt={2} flexWrap="wrap">
-            <Chip
-              label={`Total: ${appointments.length}`}
-              size="small"
-              color="default"
-              variant={statusFilter === 'ALL' ? 'filled' : 'outlined'}
-              onClick={() => setStatusFilter('ALL')}
-            />
-            {Object.values(AppointmentStatus).map(status => {
-              const count = statusCounts[status] || 0;
-              if (count === 0) return null;
-              return (
-                <Chip
-                  key={status}
-                  label={`${status.replace(/_/g, ' ')}: ${count}`}
-                  size="small"
-                  color={statusFilter === status ? 'primary' : 'default'}
-                  variant={statusFilter === status ? 'filled' : 'outlined'}
-                  onClick={() => setStatusFilter(status)}
-                />
-              );
-            })}
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Time</TableCell>
+                    <TableCell>Patient</TableCell>
+                    <TableCell>MRN</TableCell>
+                    <TableCell>Chief Complaint</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Room</TableCell>
+                    <TableCell>Provider</TableCell>
+                    <TableCell>Wait Time</TableCell>
+                    <TableCell>Contact</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredEncounters.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} align="center">
+                        <Typography variant="body2" color="text.secondary">
+                          No patients found
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredEncounters.map((encounter) => (
+                      <TableRow key={encounter.id} hover>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <AccessTime fontSize="small" color="action" />
+                            {patientTrackingService.formatAppointmentTime(encounter.appointmentTime)}
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
+                              {encounter.patientInfo.firstName[0]}{encounter.patientInfo.lastName[0]}
+                            </Avatar>
+                            <Box>
+                              <Typography variant="body2" fontWeight="bold">
+                                {encounter.patientName}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {encounter.patientInfo.gender}, DOB: {new Date(encounter.patientInfo.dateOfBirth).toLocaleDateString()}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontFamily="monospace">
+                            {encounter.patientInfo.medicalRecordNumber}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
+                            {encounter.chiefComplaint}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          {getStatusChip(encounter.status)}
+                        </TableCell>
+                        <TableCell>
+                          {encounter.room !== 'N/A' && encounter.room !== 0 ? (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <MeetingRoom fontSize="small" color="action" />
+                              <Typography variant="body2" fontWeight="bold">
+                                {encounter.room}
+                              </Typography>
+                            </Box>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              -
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
+                            {patientTrackingService.getPrimaryProvider(encounter.providers)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color={encounter.arrivalTime ? 'text.primary' : 'text.secondary'}>
+                            {patientTrackingService.calculateWaitTime(encounter.arrivalTime)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          {encounter.patientInfo.phoneNumber && (
+                            <Tooltip title={encounter.patientInfo.phoneNumber}>
+                              <IconButton size="small">
+                                <Phone fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+
+          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="body2" color="text.secondary">
+              Total patients: {filteredEncounters.length}
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              {Object.entries({
+                'SCHEDULED': 0,
+                'CHECKED_IN': 0,
+                'IN_ROOM': 0,
+                'WITH_PROVIDER': 0
+              }).map(([status]) => {
+                const count = filteredEncounters.filter(e => e.status === status).length;
+                return count > 0 ? (
+                  <Box key={status} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    {getStatusChip(status)}
+                    <Typography variant="body2">{count}</Typography>
+                  </Box>
+                ) : null;
+              })}
+            </Box>
           </Box>
         </Paper>
-
-        {/* Error Alert */}
-        {error && (
-          <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setError(null)}>
-            {error}
-          </Alert>
-        )}
-
-        {/* Development Info */}
-        {process.env.NODE_ENV === 'development' && (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            <Typography variant="body2">
-              <strong>Development Mode:</strong> This dashboard is designed to work with the EZDerm API. 
-              {useMockData 
-                ? ' Currently displaying mock patient data for demonstration purposes.' 
-                : ' Connected to live API data.'
-              }
-            </Typography>
-            <Typography variant="body2" sx={{ mt: 1 }}>
-              Use the "Using Live/Mock Data" button to toggle between real API calls and mock data for testing.
-            </Typography>
-          </Alert>
-        )}
-
-        {/* Loading State */}
-        {loading && appointments.length === 0 ? (
-          <Box display="flex" justifyContent="center" alignItems="center" minHeight={400}>
-            <CircularProgress />
-          </Box>
-        ) : filteredAppointments.length === 0 ? (
-          <Paper elevation={1} sx={{ p: 4, textAlign: 'center' }}>
-            <Typography variant="h6" color="text.secondary">
-              No appointments found for the selected criteria
-            </Typography>
-          </Paper>
-        ) : (
-          <>
-            {/* Patient Cards */}
-            <Box>
-              {filteredAppointments.map(appointment => (
-                <PatientCard
-                  key={appointment.id}
-                  appointment={appointment}
-                  onEdit={handleEditAppointment}
-                />
-              ))}
-            </Box>
-
-            {/* Last Update */}
-            <Box mt={3} mb={2} textAlign="center">
-              <Typography variant="caption" color="text.secondary">
-                Last updated: {format(lastUpdate, 'h:mm:ss a')}
-                {!useMockData ? ' • Enhanced with encounter data' : ' • Using mock data'}
-                {process.env.NODE_ENV === 'development' && ' • Development Mode'}
-              </Typography>
-            </Box>
-          </>
-        )}
       </Container>
-    </>
+    </Box>
   );
 };
 
