@@ -52,6 +52,20 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // Sort encounters by room number
+  const sortedEncounters = [...encounters].sort((a, b) => {
+    // Convert room to number, handle 'N/A' and 0 as no room assigned
+    const getRoomNumber = (room: string | number) => {
+      if (room === 'N/A' || room === 0 || room === '0') return 999; // Put unassigned rooms at end
+      return typeof room === 'string' ? parseInt(room) || 999 : room;
+    };
+    
+    const roomA = getRoomNumber(a.room);
+    const roomB = getRoomNumber(b.room);
+    
+    return roomA - roomB;
+  });
+
   useEffect(() => {
     fetchEncounters();
     
@@ -81,15 +95,17 @@ const Dashboard: React.FC = () => {
     );
   };
 
-  // Get row styling based on wait time
+  // Get row styling based on wait time and status
   const getRowStyling = (encounter: Encounter) => {
     const isWaitingTooLong = patientTrackingService.isWaitingTooLong(encounter.arrivalTime);
+    const isDangerStatus = encounter.status === 'CHECKED_IN' || encounter.status === 'WITH_STAFF';
+    const shouldHighlight = isWaitingTooLong && isDangerStatus;
     
     return {
-      backgroundColor: isWaitingTooLong ? '#ffebee' : 'inherit',
-      borderLeft: isWaitingTooLong ? '5px solid #f44336' : 'none',
+      backgroundColor: shouldHighlight ? '#ffebee' : 'inherit',
+      borderLeft: shouldHighlight ? '5px solid #f44336' : 'none',
       '&:hover': {
-        backgroundColor: isWaitingTooLong ? '#ffcdd2' : '#f5f5f5'
+        backgroundColor: shouldHighlight ? '#ffcdd2' : '#f5f5f5'
       }
     };
   };
@@ -139,7 +155,7 @@ const Dashboard: React.FC = () => {
                 </IconButton>
               </Tooltip>
               <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
-                {encounters.length} Patients
+                {sortedEncounters.length} Patients
               </Typography>
             </Box>
           </Box>
@@ -150,7 +166,7 @@ const Dashboard: React.FC = () => {
             </Alert>
           )}
 
-          {loading && encounters.length === 0 ? (
+          {loading && sortedEncounters.length === 0 ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}>
               <CircularProgress size={60} />
             </Box>
@@ -159,29 +175,50 @@ const Dashboard: React.FC = () => {
               <Table sx={{ minWidth: 650 }}>
                 <TableHead>
                   <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                    <TableCell sx={{ fontSize: '1.3rem', fontWeight: 'bold', padding: '20px' }}>Room</TableCell>
                     <TableCell sx={{ fontSize: '1.3rem', fontWeight: 'bold', padding: '20px' }}>Time</TableCell>
                     <TableCell sx={{ fontSize: '1.3rem', fontWeight: 'bold', padding: '20px' }}>Patient</TableCell>
-                    <TableCell sx={{ fontSize: '1.3rem', fontWeight: 'bold', padding: '20px' }}>MRN</TableCell>
                     <TableCell sx={{ fontSize: '1.3rem', fontWeight: 'bold', padding: '20px' }}>Chief Complaint</TableCell>
                     <TableCell sx={{ fontSize: '1.3rem', fontWeight: 'bold', padding: '20px' }}>Status</TableCell>
-                    <TableCell sx={{ fontSize: '1.3rem', fontWeight: 'bold', padding: '20px' }}>Room</TableCell>
                     <TableCell sx={{ fontSize: '1.3rem', fontWeight: 'bold', padding: '20px' }}>Staff</TableCell>
                     <TableCell sx={{ fontSize: '1.3rem', fontWeight: 'bold', padding: '20px' }}>Wait Time</TableCell>
-                    <TableCell sx={{ fontSize: '1.3rem', fontWeight: 'bold', padding: '20px' }}>Contact</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {encounters.map((encounter) => (
+                  {sortedEncounters.map((encounter) => (
                     <TableRow
                       key={encounter.id}
                       sx={getRowStyling(encounter)}
                     >
+                      <TableCell sx={{ fontSize: '2rem', padding: '20px', fontWeight: 'bold', textAlign: 'center', minWidth: '100px' }}>
+                        <Typography variant="h3" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
+                          {encounter.room !== 'N/A' && encounter.room !== 0 ? encounter.room : '-'}
+                        </Typography>
+                      </TableCell>
                       <TableCell sx={{ fontSize: '1.2rem', padding: '20px', fontWeight: '500' }}>
-                        <Typography variant="h6" component="div">
+                        <Typography 
+                          variant="h6" 
+                          component="div"
+                          color={(() => {
+                            const isWaitingTooLong = patientTrackingService.isWaitingTooLong(encounter.arrivalTime);
+                            const isDangerStatus = encounter.status === 'CHECKED_IN' || encounter.status === 'WITH_STAFF';
+                            return (isWaitingTooLong && isDangerStatus) ? 'error' : 'text.primary';
+                          })()}
+                        >
                           {patientTrackingService.formatAppointmentTime(encounter.appointmentTime)}
                         </Typography>
                         {encounter.arrivalTime && (
-                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '1rem' }}>
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              fontSize: '1rem',
+                              color: (() => {
+                                const isWaitingTooLong = patientTrackingService.isWaitingTooLong(encounter.arrivalTime);
+                                const isDangerStatus = encounter.status === 'CHECKED_IN' || encounter.status === 'WITH_STAFF';
+                                return (isWaitingTooLong && isDangerStatus) ? 'error.main' : 'text.secondary';
+                              })()
+                            }}
+                          >
                             Arrived: {patientTrackingService.formatAppointmentTime(encounter.arrivalTime)}
                           </Typography>
                         )}
@@ -194,11 +231,6 @@ const Dashboard: React.FC = () => {
                           {new Date(encounter.patientInfo.dateOfBirth).toLocaleDateString()} • {encounter.patientInfo.gender}
                         </Typography>
                       </TableCell>
-                      <TableCell sx={{ fontSize: '1.2rem', padding: '20px', fontWeight: '500' }}>
-                        <Typography variant="h6">
-                          {encounter.patientInfo.medicalRecordNumber}
-                        </Typography>
-                      </TableCell>
                       <TableCell sx={{ fontSize: '1.1rem', padding: '20px' }}>
                         <Typography variant="body1">
                           {encounter.chiefComplaint}
@@ -206,15 +238,6 @@ const Dashboard: React.FC = () => {
                       </TableCell>
                       <TableCell sx={{ padding: '20px' }}>
                         {getStatusChip(encounter.status)}
-                      </TableCell>
-                      <TableCell sx={{ fontSize: '1.2rem', padding: '20px', fontWeight: '500' }}>
-                        <Typography variant="h6">
-                          {encounter.room !== 'N/A' && encounter.room !== 0 ? (
-                            `Room ${encounter.room}`
-                          ) : (
-                            '-'
-                          )}
-                        </Typography>
                       </TableCell>
                       <TableCell sx={{ fontSize: '1.1rem', padding: '20px' }}>
                         <Typography 
@@ -237,16 +260,6 @@ const Dashboard: React.FC = () => {
                           {patientTrackingService.calculateWaitTime(encounter.arrivalTime)}
                         </Typography>
                       </TableCell>
-                      <TableCell sx={{ fontSize: '1.1rem', padding: '20px' }}>
-                        <Typography variant="body1">
-                          {encounter.patientInfo.phoneNumber || 'N/A'}
-                        </Typography>
-                        {encounter.patientInfo.emailAddress && (
-                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
-                            {encounter.patientInfo.emailAddress}
-                          </Typography>
-                        )}
-                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -254,7 +267,7 @@ const Dashboard: React.FC = () => {
             </TableContainer>
           )}
 
-          {!loading && encounters.length === 0 && (
+          {!loading && sortedEncounters.length === 0 && (
             <Box sx={{ textAlign: 'center', py: 8 }}>
               <Person sx={{ fontSize: '4rem', color: 'text.secondary', mb: 2 }} />
               <Typography variant="h5" color="text.secondary">
@@ -266,7 +279,7 @@ const Dashboard: React.FC = () => {
           {/* Status Summary */}
           <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center', gap: 3 }}>
             {['CHECKED_IN', 'IN_ROOM', 'WITH_PROVIDER'].map((status) => {
-              const count = encounters.filter(e => e.status === status).length;
+              const count = sortedEncounters.filter(e => e.status === status).length;
               return (
                 <Paper key={status} elevation={2} sx={{ p: 3, textAlign: 'center', minWidth: 150 }}>
                   <Typography variant="h4" sx={{ fontWeight: 'bold', color: patientTrackingService.getStatusColor(status) }}>

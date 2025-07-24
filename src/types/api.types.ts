@@ -35,7 +35,7 @@ export interface Encounter {
   appointmentTime: string;
   arrivalTime?: string;
   chiefComplaint: string;
-  status: 'SCHEDULED' | 'CHECKED_IN' | 'IN_ROOM' | 'WITH_PROVIDER' | 'CHECKED_OUT';
+  status: 'SCHEDULED' | 'CONFIRMED' | 'CHECKED_IN' | 'ARRIVED' | 'IN_ROOM' | 'WITH_PROVIDER' | 'WITH_STAFF' | 'PENDING_COSIGN' | 'CHECKED_OUT' | 'CANCELLED' | 'NO_SHOW' | 'RESCHEDULED' | 'MESSAGE_LEFT' | 'NO_ANSWERED';
   room: string | number;
   providers: Provider[];
   clinicName: string;
