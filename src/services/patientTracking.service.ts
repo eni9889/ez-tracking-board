@@ -74,6 +74,38 @@ class PatientTrackingService {
     return 'No provider assigned';
   }
 
+  // Helper method to get all staff members
+  getAllStaff(providers: any[]): string {
+    if (!providers || providers.length === 0) {
+      return 'No staff assigned';
+    }
+
+    // Sort by role priority: PROVIDER first, then others
+    const roleOrder = ['PROVIDER', 'SECONDARY_PROVIDER', 'COSIGNING_PROVIDER', 'STAFF'];
+    const sortedProviders = [...providers].sort((a, b) => {
+      const aIndex = roleOrder.indexOf(a.role);
+      const bIndex = roleOrder.indexOf(b.role);
+      return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+    });
+
+    return sortedProviders.map(provider => {
+      const roleLabel = this.formatRole(provider.role);
+      const title = provider.title ? `, ${provider.title}` : '';
+      return `${provider.name}${title} (${roleLabel})`;
+    }).join('\n');
+  }
+
+  // Helper method to format role names
+  formatRole(role: string): string {
+    const roleMap: { [key: string]: string } = {
+      'PROVIDER': 'Provider',
+      'SECONDARY_PROVIDER': 'Secondary',
+      'COSIGNING_PROVIDER': 'Cosigning',
+      'STAFF': 'Staff'
+    };
+    return roleMap[role] || role;
+  }
+
   // Helper method to calculate wait time
   calculateWaitTime(arrivalTime?: string): string {
     if (!arrivalTime) return 'N/A';

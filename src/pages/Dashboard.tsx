@@ -166,7 +166,7 @@ const Dashboard: React.FC = () => {
                     <TableCell>Chief Complaint</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell>Room</TableCell>
-                    <TableCell>Provider</TableCell>
+                    <TableCell>Staff</TableCell>
                     <TableCell>Wait Time</TableCell>
                     <TableCell>Contact</TableCell>
                   </TableRow>
@@ -232,8 +232,12 @@ const Dashboard: React.FC = () => {
                           )}
                         </TableCell>
                         <TableCell>
-                          <Typography variant="body2">
-                            {patientTrackingService.getPrimaryProvider(encounter.providers)}
+                          <Typography 
+                            variant="body2" 
+                            component="div"
+                            style={{ whiteSpace: 'pre-line' }}
+                          >
+                            {patientTrackingService.getAllStaff(encounter.providers)}
                           </Typography>
                         </TableCell>
                         <TableCell>
