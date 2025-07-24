@@ -63,8 +63,8 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     fetchEncounters();
     
-    // Refresh data every 30 seconds
-    const interval = setInterval(fetchEncounters, 30000);
+    // Refresh data every 5 seconds
+    const interval = setInterval(fetchEncounters, 5000);
     
     return () => clearInterval(interval);
   }, []);

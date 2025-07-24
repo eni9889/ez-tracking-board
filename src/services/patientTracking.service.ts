@@ -122,6 +122,17 @@ class PatientTrackingService {
       return `${hours}h ${minutes}m`;
     }
   }
+
+  // Helper method to check if patient has been waiting too long (more than 10 minutes)
+  isWaitingTooLong(arrivalTime?: string): boolean {
+    if (!arrivalTime) return false;
+    
+    const arrival = new Date(arrivalTime);
+    const now = new Date();
+    const diffMinutes = Math.floor((now.getTime() - arrival.getTime()) / 60000);
+    
+    return diffMinutes > 10;
+  }
 }
 
 export default new PatientTrackingService(); 
