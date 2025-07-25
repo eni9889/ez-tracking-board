@@ -1,12 +1,24 @@
 import axios from 'axios';
 import { Encounter, EncountersRequest, EncountersResponse } from '../types/api.types';
 import authService from './auth.service';
+import { mockEncounters } from './mockData';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+const API_BASE_URL = 'http://localhost:5001/api';
+
+// Development flag - set to true to use mock data
+const USE_MOCK_DATA = process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_MOCK_DATA === 'true';
 
 class PatientTrackingService {
   async getEncounters(params?: Partial<EncountersRequest>): Promise<Encounter[]> {
     try {
+      // Return mock data in development mode if flag is set
+      if (USE_MOCK_DATA) {
+        console.log('🚧 Development Mode: Using mock data');
+        // Simulate API delay
+        await new Promise(resolve => setTimeout(resolve, 300));
+        return mockEncounters;
+      }
+
       const username = authService.getCurrentUser();
       if (!username) {
         throw new Error('User not authenticated');

@@ -38,6 +38,9 @@ const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  // Check if we're in mock data mode
+  const isUsingMockData = process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_MOCK_DATA === 'true';
+
   const fetchEncounters = async () => {
     try {
       setLoading(true);
@@ -117,6 +120,19 @@ const Dashboard: React.FC = () => {
           <LocalHospital sx={{ mr: 2, fontSize: '2rem' }} />
           <Typography variant="h4" component="div" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
             EZ Patient Tracking Board
+            {isUsingMockData && (
+              <Chip 
+                label="DEMO MODE" 
+                size="small" 
+                sx={{ 
+                  ml: 2, 
+                  backgroundColor: '#ff9800', 
+                  color: 'white',
+                  fontWeight: 'bold',
+                  fontSize: '0.8rem'
+                }} 
+              />
+            )}
           </Typography>
           <Typography variant="h6" sx={{ mr: 3 }}>
             Welcome, {user?.username}

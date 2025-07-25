@@ -1,3 +1,15 @@
+/**
+ * EZ Patient Tracking Board
+ * 
+ * DEVELOPMENT MODE:
+ * To use mock data instead of the real API (useful for development without backend):
+ * 1. Create a .env file in the project root
+ * 2. Add: REACT_APP_USE_MOCK_DATA=true
+ * 3. Restart the development server
+ * 
+ * When enabled, you'll see "DEMO MODE" in the header and can login with any credentials.
+ */
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
