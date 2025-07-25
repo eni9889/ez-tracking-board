@@ -218,7 +218,7 @@ const Dashboard: React.FC = () => {
             }
           }}
         >
-          <Table stickyHeader size="small" sx={{ tableLayout: 'fixed' }}>
+                     <Table stickyHeader size="small" sx={{ tableLayout: 'fixed', minWidth: '1200px' }}>
             <TableHead>
               <TableRow sx={{ '& th': { backgroundColor: '#f8f9fa', fontWeight: 'bold', py: 1.5 } }}>
                 <TableCell sx={{ width: '80px', textAlign: 'center', fontSize: '1rem' }}>Room</TableCell>
@@ -265,17 +265,17 @@ const Dashboard: React.FC = () => {
                         </Typography>
                       </TableCell>
 
-                      {/* Patient - Compact */}
-                      <TableCell sx={{ py: 1.5 }}>
-                        <Box>
-                          <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
-                            {encounter.patientName}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem' }}>
-                            {encounter.patientInfo.gender} • {encounter.appointmentType}
-                          </Typography>
-                        </Box>
-                      </TableCell>
+                                             {/* Patient - Compact */}
+                       <TableCell sx={{ py: 1.5 }}>
+                         <Box>
+                           <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
+                             {encounter.patientInfo.firstName?.charAt(0)}. {encounter.patientInfo.lastName}
+                           </Typography>
+                           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem' }}>
+                             {encounter.patientInfo.gender} • {encounter.appointmentType}
+                           </Typography>
+                         </Box>
+                       </TableCell>
 
                                              {/* Time - Compact */}
                        <TableCell sx={{ py: 1.5 }}>
