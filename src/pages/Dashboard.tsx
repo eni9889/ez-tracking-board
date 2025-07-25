@@ -181,7 +181,7 @@ const Dashboard: React.FC = () => {
                     <TableCell sx={{ fontSize: '1.3rem', fontWeight: 'bold', padding: '20px' }}>Chief Complaint</TableCell>
                     <TableCell sx={{ fontSize: '1.3rem', fontWeight: 'bold', padding: '20px' }}>Status</TableCell>
                     <TableCell sx={{ fontSize: '1.3rem', fontWeight: 'bold', padding: '20px' }}>Staff</TableCell>
-                    <TableCell sx={{ fontSize: '1.3rem', fontWeight: 'bold', padding: '20px' }}>Wait Time</TableCell>
+                    <TableCell sx={{ fontSize: '1.3rem', fontWeight: 'bold', padding: '20px' }}>Visit Length</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -251,10 +251,22 @@ const Dashboard: React.FC = () => {
                       <TableCell sx={{ fontSize: '1.2rem', padding: '20px' }}>
                         <Typography 
                           variant="h6" 
-                          color={patientTrackingService.isWaitingTooLong(encounter.arrivalTime) ? 'error' : 'text.primary'}
+                          color={(() => {
+                            const isWaitingTooLong = patientTrackingService.isWaitingTooLong(encounter.arrivalTime);
+                            const isDangerStatus = encounter.status === 'CHECKED_IN' || encounter.status === 'WITH_STAFF';
+                            return (isWaitingTooLong && isDangerStatus) ? 'error' : 'text.primary';
+                          })()}
                           sx={{ 
-                            fontWeight: patientTrackingService.isWaitingTooLong(encounter.arrivalTime) ? 'bold' : '500',
-                            fontSize: patientTrackingService.isWaitingTooLong(encounter.arrivalTime) ? '1.4rem' : '1.2rem'
+                            fontWeight: (() => {
+                              const isWaitingTooLong = patientTrackingService.isWaitingTooLong(encounter.arrivalTime);
+                              const isDangerStatus = encounter.status === 'CHECKED_IN' || encounter.status === 'WITH_STAFF';
+                              return (isWaitingTooLong && isDangerStatus) ? 'bold' : '500';
+                            })(),
+                            fontSize: (() => {
+                              const isWaitingTooLong = patientTrackingService.isWaitingTooLong(encounter.arrivalTime);
+                              const isDangerStatus = encounter.status === 'CHECKED_IN' || encounter.status === 'WITH_STAFF';
+                              return (isWaitingTooLong && isDangerStatus) ? '1.4rem' : '1.2rem';
+                            })()
                           }}
                         >
                           {patientTrackingService.calculateWaitTime(encounter.arrivalTime)}
