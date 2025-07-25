@@ -277,32 +277,33 @@ const Dashboard: React.FC = () => {
                         </Box>
                       </TableCell>
 
-                      {/* Time - Compact */}
-                      <TableCell sx={{ py: 1.5 }}>
-                        <Box>
-                          <Typography 
-                            variant="body1" 
-                            sx={{ 
-                              fontWeight: 'bold',
-                              lineHeight: 1.2,
-                              color: shouldHighlight ? 'error.main' : 'text.primary'
-                            }}
-                          >
-                            {patientTrackingService.formatAppointmentTime(encounter.appointmentTime)}
-                          </Typography>
-                          {encounter.arrivalTime && (
-                            <Typography 
-                              variant="body2" 
-                              sx={{ 
-                                fontSize: '0.8rem',
-                                color: shouldHighlight ? 'error.main' : 'text.secondary'
-                              }}
-                            >
-                              Arrived: {patientTrackingService.formatAppointmentTime(encounter.arrivalTime)}
-                            </Typography>
-                          )}
-                        </Box>
-                      </TableCell>
+                                             {/* Time - Compact */}
+                       <TableCell sx={{ py: 1.5 }}>
+                         <Box>
+                           <Typography 
+                             variant="h6" 
+                             sx={{ 
+                               fontWeight: 'bold',
+                               lineHeight: 1.2,
+                               fontSize: '1.1rem',
+                               color: shouldHighlight ? 'error.main' : 'text.primary'
+                             }}
+                           >
+                             {patientTrackingService.formatAppointmentTime(encounter.appointmentTime)}
+                           </Typography>
+                           {encounter.arrivalTime && (
+                             <Typography 
+                               variant="body2" 
+                               sx={{ 
+                                 fontSize: '0.9rem',
+                                 color: shouldHighlight ? 'error.main' : 'text.secondary'
+                               }}
+                             >
+                               Arrived: {patientTrackingService.formatAppointmentTime(encounter.arrivalTime)}
+                             </Typography>
+                           )}
+                         </Box>
+                       </TableCell>
 
                       {/* Status - Compact */}
                       <TableCell sx={{ py: 1.5 }}>
@@ -330,17 +331,17 @@ const Dashboard: React.FC = () => {
                         </Typography>
                       </TableCell>
 
-                      {/* Chief Complaint - Compact */}
-                      <TableCell sx={{ py: 1.5 }}>
-                        <Typography variant="body2" sx={{ 
-                          fontSize: '0.9rem',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {encounter.chiefComplaint}
-                        </Typography>
-                      </TableCell>
+                                             {/* Chief Complaint - Compact */}
+                       <TableCell sx={{ py: 1.5 }}>
+                         <Typography variant="body1" sx={{ 
+                           fontSize: '1rem',
+                           overflow: 'hidden',
+                           textOverflow: 'ellipsis',
+                           whiteSpace: 'nowrap'
+                         }}>
+                           {encounter.chiefComplaint}
+                         </Typography>
+                       </TableCell>
                     </TableRow>
                   );
                 })
