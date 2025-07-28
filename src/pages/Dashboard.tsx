@@ -18,7 +18,16 @@ import {
   LocalHospital,
   ExitToApp,
   Refresh,
-  Person
+  Person,
+  Schedule,
+  CheckCircle,
+  Login,
+  MeetingRoom,
+  PersonAdd,
+  Group,
+  PendingActions,
+  PersonPin,
+  Verified
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -79,17 +88,39 @@ const Dashboard: React.FC = () => {
   };
 
   const getStatusChip = (status: string) => {
+    const statusConfig = {
+      'SCHEDULED': { color: '#2196F3', background: '#E3F2FD', icon: Schedule, tooltip: 'Scheduled' },
+      'CONFIRMED': { color: '#4CAF50', background: '#E8F5E8', icon: Verified, tooltip: 'Confirmed' },
+      'CHECKED_IN': { color: '#FF9800', background: '#FFF3E0', icon: PersonPin, tooltip: 'Checked In' },
+      'IN_ROOM': { color: '#9C27B0', background: '#F3E5F5', icon: MeetingRoom, tooltip: 'In Room' },
+      'WITH_PROVIDER': { color: '#F44336', background: '#FFEBEE', icon: PersonAdd, tooltip: 'With Provider' },
+      'WITH_STAFF': { color: '#607D8B', background: '#ECEFF1', icon: Group, tooltip: 'With Staff' },
+      'PENDING_COSIGN': { color: '#795548', background: '#EFEBE9', icon: PendingActions, tooltip: 'Pending Cosign' },
+      'ARRIVED': { color: '#FF9800', background: '#FFF3E0', icon: Login, tooltip: 'Arrived' }
+    } as const;
+
+    const config = statusConfig[status as keyof typeof statusConfig] || 
+                  { color: '#757575', background: '#F5F5F5', icon: Person, tooltip: status };
+
+    const IconComponent = config.icon;
+
     return (
-      <Chip
-        label={status.replace('_', ' ')}
-        size="medium"
-        sx={{
-          backgroundColor: patientTrackingService.getStatusColor(status),
-          color: 'white',
-          fontWeight: 'bold',
-          fontSize: '1rem'
-        }}
-      />
+      <Tooltip title={config.tooltip} arrow>
+        <Chip
+          icon={<IconComponent sx={{ fontSize: '1.2rem !important' }} />}
+          size="medium"
+          sx={{
+            backgroundColor: config.background,
+            color: config.color,
+            fontWeight: 'bold',
+            minWidth: '60px',
+            '& .MuiChip-icon': {
+              marginLeft: '8px',
+              marginRight: '-4px'
+            }
+          }}
+        />
+      </Tooltip>
     );
   };
 
@@ -224,7 +255,7 @@ const Dashboard: React.FC = () => {
                 <TableCell sx={{ width: '80px', textAlign: 'center', fontSize: '1rem' }}>Room</TableCell>
                 <TableCell sx={{ width: '220px', fontSize: '1rem' }}>Patient</TableCell>
                 <TableCell sx={{ width: '140px', fontSize: '1rem' }}>Time</TableCell>
-                <TableCell sx={{ width: '120px', fontSize: '1rem' }}>Status</TableCell>
+                <TableCell sx={{ width: '80px', fontSize: '1rem', textAlign: 'center' }}>Status</TableCell>
                 <TableCell sx={{ width: '200px', fontSize: '1rem' }}>Provider</TableCell>
                 <TableCell sx={{ width: '120px', fontSize: '1rem' }}>Visit Length</TableCell>
                 <TableCell sx={{ width: '300px', fontSize: '1rem' }}>Chief Complaint</TableCell>
@@ -305,10 +336,10 @@ const Dashboard: React.FC = () => {
                          </Box>
                        </TableCell>
 
-                      {/* Status - Compact */}
-                      <TableCell sx={{ py: 1.5 }}>
-                        {getStatusChip(encounter.status)}
-                      </TableCell>
+                                             {/* Status - Compact */}
+                       <TableCell sx={{ py: 1.5, textAlign: 'center' }}>
+                         {getStatusChip(encounter.status)}
+                       </TableCell>
 
                       {/* Provider - Compact */}
                       <TableCell sx={{ py: 1.5 }}>

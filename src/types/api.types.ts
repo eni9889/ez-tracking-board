@@ -24,7 +24,7 @@ export interface PatientInfo {
 export interface Provider {
   id: string;
   name: string;
-  role: 'PROVIDER' | 'SECONDARY_PROVIDER' | 'STAFF';
+  role: 'PROVIDER' | 'SECONDARY_PROVIDER' | 'COSIGNING_PROVIDER' | 'STAFF';
   title?: string;
 }
 
