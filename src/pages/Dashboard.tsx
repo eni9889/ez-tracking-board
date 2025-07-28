@@ -239,7 +239,7 @@ const Dashboard: React.FC = () => {
       borderLeft = '5px solid #4caf50';
       animation = 'pulse 2s ease-in-out';
     } else if (shouldHighlight) {
-      backgroundColor = '#ffebee';
+      backgroundColor = 'inherit';
       borderLeft = '5px solid #f44336';
       animation = 'none';
     } else {
@@ -298,9 +298,7 @@ const Dashboard: React.FC = () => {
             ? '#bbdefb'
             : isChanged
               ? '#dcedc8'
-              : shouldHighlight 
-                ? '#ffcdd2' 
-                : '#f5f5f5'
+              : '#f5f5f5'
       }
     };
   };
