@@ -26,7 +26,7 @@ import {
   PersonAdd,
   Group,
   PendingActions,
-  PersonPin,
+  HowToReg,
   Verified
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -91,7 +91,7 @@ const Dashboard: React.FC = () => {
     const statusConfig = {
       'SCHEDULED': { color: '#2196F3', background: '#E3F2FD', icon: Schedule, tooltip: 'Scheduled' },
       'CONFIRMED': { color: '#4CAF50', background: '#E8F5E8', icon: Verified, tooltip: 'Confirmed' },
-      'CHECKED_IN': { color: '#FF9800', background: '#FFF3E0', icon: PersonPin, tooltip: 'Checked In' },
+      'CHECKED_IN': { color: '#FF9800', background: '#FFF3E0', icon: HowToReg, tooltip: 'Checked In' },
       'IN_ROOM': { color: '#9C27B0', background: '#F3E5F5', icon: MeetingRoom, tooltip: 'In Room' },
       'WITH_PROVIDER': { color: '#F44336', background: '#FFEBEE', icon: PersonAdd, tooltip: 'With Provider' },
       'WITH_STAFF': { color: '#607D8B', background: '#ECEFF1', icon: Group, tooltip: 'With Staff' },
@@ -107,17 +107,17 @@ const Dashboard: React.FC = () => {
     return (
       <Tooltip title={config.tooltip} arrow>
         <Chip
-          icon={<IconComponent sx={{ fontSize: '1.2rem !important' }} />}
+          icon={<IconComponent sx={{ fontSize: '1.2rem !important', color: config.color }} />}
           size="medium"
           sx={{
             backgroundColor: config.background,
-            color: config.color,
             fontWeight: 'bold',
             minWidth: '60px',
             display: 'flex',
             justifyContent: 'center',
             '& .MuiChip-icon': {
-              margin: '0 auto'
+              margin: '0 auto',
+              color: config.color
             },
             '& .MuiChip-label': {
               display: 'none'
@@ -257,7 +257,7 @@ const Dashboard: React.FC = () => {
               <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>Confirmed</Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <PersonPin sx={{ fontSize: '1.2rem', color: '#FF9800' }} />
+              <HowToReg sx={{ fontSize: '1.2rem', color: '#FF9800' }} />
               <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>Checked In</Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
