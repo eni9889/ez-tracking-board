@@ -12,7 +12,9 @@ import {
   Chip,
   Alert,
   Tooltip,
-  IconButton
+  IconButton,
+  CircularProgress,
+  Fade
 } from '@mui/material';
 import {
   LocalHospital,
@@ -37,25 +39,65 @@ import { Encounter } from '../types/api.types';
 const Dashboard: React.FC = () => {
   const [encounters, setEncounters] = useState<Encounter[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [previousEncounters, setPreviousEncounters] = useState<Encounter[]>([]);
+  const [changedRows, setChangedRows] = useState<Set<string>>(new Set());
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   // Check if we're in mock data mode
   const isUsingMockData = process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_MOCK_DATA === 'true';
 
-  const fetchEncounters = async () => {
+  const fetchEncounters = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
       const data = await patientTrackingService.getEncounters();
+      
+      // Compare with previous data to identify changes
+      if (isRefresh && encounters.length > 0) {
+        const newChangedRows = new Set<string>();
+        
+        data.forEach(newEncounter => {
+          const oldEncounter = encounters.find(old => old.id === newEncounter.id);
+          if (!oldEncounter) {
+            // New patient
+            newChangedRows.add(newEncounter.id);
+          } else {
+            // Check for changes in key fields
+            if (
+              oldEncounter.status !== newEncounter.status ||
+              oldEncounter.room !== newEncounter.room ||
+              oldEncounter.arrivalTime !== newEncounter.arrivalTime ||
+              JSON.stringify(oldEncounter.providers) !== JSON.stringify(newEncounter.providers)
+            ) {
+              newChangedRows.add(newEncounter.id);
+            }
+          }
+        });
+        
+        setChangedRows(newChangedRows);
+        setPreviousEncounters(encounters);
+        
+        // Clear changed rows after animation
+        setTimeout(() => {
+          setChangedRows(new Set());
+        }, 2000);
+      }
+      
       setEncounters(data);
       setLastRefresh(new Date());
     } catch (err: any) {
       setError(err.message || 'Failed to fetch patient data');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -74,10 +116,10 @@ const Dashboard: React.FC = () => {
   });
 
   useEffect(() => {
-    fetchEncounters();
+    fetchEncounters(false);
     
     // Refresh data every 5 seconds
-    const interval = setInterval(fetchEncounters, 5000);
+    const interval = setInterval(() => fetchEncounters(true), 5000);
     
     return () => clearInterval(interval);
   }, []);
@@ -128,17 +170,46 @@ const Dashboard: React.FC = () => {
     );
   };
 
-  // Get row styling based on wait time and status
+  // Get row styling based on wait time, status, and changes
   const getRowStyling = (encounter: Encounter) => {
     const isWaitingTooLong = patientTrackingService.isWaitingTooLong(encounter.arrivalTime);
     const isDangerStatus = encounter.status === 'CHECKED_IN' || encounter.status === 'WITH_STAFF';
     const shouldHighlight = isWaitingTooLong && isDangerStatus;
+    const isChanged = changedRows.has(encounter.id);
     
     return {
-      backgroundColor: shouldHighlight ? '#ffebee' : 'inherit',
-      borderLeft: shouldHighlight ? '5px solid #f44336' : 'none',
+      backgroundColor: isChanged 
+        ? '#e8f5e8' 
+        : shouldHighlight 
+          ? '#ffebee' 
+          : 'inherit',
+      borderLeft: isChanged
+        ? '5px solid #4caf50'
+        : shouldHighlight 
+          ? '5px solid #f44336' 
+          : 'none',
+      transition: 'all 0.5s ease-in-out',
+      animation: isChanged ? 'pulse 2s ease-in-out' : 'none',
+      '@keyframes pulse': {
+        '0%': {
+          backgroundColor: '#c8e6c9',
+          transform: 'scale(1)'
+        },
+        '50%': {
+          backgroundColor: '#e8f5e8',
+          transform: 'scale(1.01)'
+        },
+        '100%': {
+          backgroundColor: isChanged ? '#e8f5e8' : (shouldHighlight ? '#ffebee' : 'inherit'),
+          transform: 'scale(1)'
+        }
+      },
       '&:hover': {
-        backgroundColor: shouldHighlight ? '#ffcdd2' : '#f5f5f5'
+        backgroundColor: isChanged
+          ? '#dcedc8'
+          : shouldHighlight 
+            ? '#ffcdd2' 
+            : '#f5f5f5'
       }
     };
   };
@@ -218,11 +289,15 @@ const Dashboard: React.FC = () => {
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Tooltip title="Refresh">
               <IconButton 
-                onClick={fetchEncounters} 
-                disabled={loading}
+                onClick={() => fetchEncounters(true)} 
+                disabled={loading || refreshing}
                 sx={{ color: 'white' }}
               >
-                <Refresh sx={{ fontSize: '1.5rem' }} />
+                {refreshing ? (
+                  <CircularProgress size={24} sx={{ color: 'white' }} />
+                ) : (
+                  <Refresh sx={{ fontSize: '1.5rem' }} />
+                )}
               </IconButton>
             </Tooltip>
             <Tooltip title="Logout">
@@ -305,13 +380,7 @@ const Dashboard: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
-                    <Typography variant="h6">Loading patients...</Typography>
-                  </TableCell>
-                </TableRow>
-              ) : sortedEncounters.length === 0 ? (
+              {sortedEncounters.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
                     <Typography variant="h6">No patients currently in clinic</Typography>
@@ -323,11 +392,11 @@ const Dashboard: React.FC = () => {
                   const isDangerStatus = encounter.status === 'CHECKED_IN' || encounter.status === 'WITH_STAFF';
                   const shouldHighlight = isWaitingTooLong && isDangerStatus;
 
-                  return (
-                    <TableRow 
-                      key={encounter.id} 
-                      sx={getRowStyling(encounter)}
-                    >
+                                     return (
+                     <Fade in={true} timeout={500} key={encounter.id}>
+                       <TableRow 
+                         sx={getRowStyling(encounter)}
+                       >
                       {/* Room - Compact */}
                       <TableCell sx={{ textAlign: 'center', py: 1.5 }}>
                         <Typography variant="h4" sx={{ 
@@ -417,6 +486,7 @@ const Dashboard: React.FC = () => {
                          </Typography>
                        </TableCell>
                     </TableRow>
+                       </Fade>
                   );
                 })
               )}
