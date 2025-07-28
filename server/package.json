@@ -2,10 +2,12 @@
   "name": "ez-tracking-board-server",
   "version": "1.0.0",
   "description": "Backend server for EZ Tracking Board",
-  "main": "index.js",
+  "main": "dist/tracking-server.js",
   "scripts": {
-    "start": "node tracking-server.js",
-    "dev": "nodemon tracking-server.js",
+    "start": "node dist/tracking-server.js",
+    "dev": "nodemon src/tracking-server.ts",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
@@ -17,8 +19,14 @@
     "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
     "@types/jest": "^29.5.11",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "^20.10.5",
     "jest": "^29.7.0",
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
   }
 }

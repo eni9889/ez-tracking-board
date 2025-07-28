@@ -1,7 +1,8 @@
 {
-  "watch": ["*.js", ".env"],
-  "ext": "js,json",
-  "ignore": ["node_modules/**", "*.test.js"],
+  "watch": ["src/**/*.ts"],
+  "ext": "ts,json",
+  "ignore": ["node_modules/**", "dist/**", "*.test.ts"],
+  "exec": "ts-node src/tracking-server.ts",
   "delay": "1000",
   "env": {
     "NODE_ENV": "development"

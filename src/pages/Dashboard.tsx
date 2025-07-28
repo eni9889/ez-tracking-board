@@ -520,7 +520,7 @@ const Dashboard: React.FC = () => {
                                fontWeight: 'bold',
                                lineHeight: 1.2,
                                fontSize: '1.1rem',
-                               color: shouldHighlight ? 'error.main' : 'text.primary'
+                               color: 'black'
                              }}
                            >
                              {patientTrackingService.formatAppointmentTime(encounter.appointmentTime)}
@@ -530,7 +530,7 @@ const Dashboard: React.FC = () => {
                                variant="body2" 
                                sx={{ 
                                  fontSize: '0.9rem',
-                                 color: shouldHighlight ? 'error.main' : 'text.secondary'
+                                 color: 'black'
                                }}
                              >
                                Arrived: {patientTrackingService.formatAppointmentTime(encounter.arrivalTime)}
