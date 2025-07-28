@@ -14,7 +14,9 @@ import {
   Tooltip,
   IconButton,
   CircularProgress,
-  Fade
+  Fade,
+  Slide,
+  Collapse
 } from '@mui/material';
 import {
   LocalHospital,
@@ -25,7 +27,7 @@ import {
   CheckCircle,
   Login,
   MeetingRoom,
-  PersonAdd,
+  MedicalServices,
   Group,
   PendingActions,
   HowToReg,
@@ -44,6 +46,8 @@ const Dashboard: React.FC = () => {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [previousEncounters, setPreviousEncounters] = useState<Encounter[]>([]);
   const [changedRows, setChangedRows] = useState<Set<string>>(new Set());
+  const [newRows, setNewRows] = useState<Set<string>>(new Set());
+  const [deletingRows, setDeletingRows] = useState<Set<string>>(new Set());
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -63,12 +67,15 @@ const Dashboard: React.FC = () => {
       // Compare with previous data to identify changes
       if (isRefresh && encounters.length > 0) {
         const newChangedRows = new Set<string>();
+        const newNewRows = new Set<string>();
+        const toDeleteRows = new Set<string>();
         
+        // Find new and changed patients
         data.forEach(newEncounter => {
           const oldEncounter = encounters.find(old => old.id === newEncounter.id);
           if (!oldEncounter) {
             // New patient
-            newChangedRows.add(newEncounter.id);
+            newNewRows.add(newEncounter.id);
           } else {
             // Check for changes in key fields
             if (
@@ -82,16 +89,41 @@ const Dashboard: React.FC = () => {
           }
         });
         
-        setChangedRows(newChangedRows);
-        setPreviousEncounters(encounters);
+        // Find patients that were removed
+        encounters.forEach(oldEncounter => {
+          if (!data.find(newEnc => newEnc.id === oldEncounter.id)) {
+            toDeleteRows.add(oldEncounter.id);
+          }
+        });
         
-        // Clear changed rows after animation
+        // Handle deletions with animation
+        if (toDeleteRows.size > 0) {
+          setDeletingRows(toDeleteRows);
+          // Wait for deletion animation, then update data
+          setTimeout(() => {
+            setEncounters(data);
+            setDeletingRows(new Set());
+            setNewRows(newNewRows);
+            setChangedRows(newChangedRows);
+            setPreviousEncounters(data);
+          }, 500);
+        } else {
+          // No deletions, update immediately
+          setNewRows(newNewRows);
+          setChangedRows(newChangedRows);
+          setPreviousEncounters(encounters);
+          setEncounters(data);
+        }
+        
+        // Clear animations after their duration
         setTimeout(() => {
+          setNewRows(new Set());
           setChangedRows(new Set());
         }, 2000);
+      } else {
+        setEncounters(data);
       }
       
-      setEncounters(data);
       setLastRefresh(new Date());
     } catch (err: any) {
       setError(err.message || 'Failed to fetch patient data');
@@ -101,8 +133,20 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Sort encounters by room number
-  const sortedEncounters = [...encounters].sort((a, b) => {
+  // Sort encounters by room number, including those being deleted for animation
+  const getAllEncounters = () => {
+    const currentEncounters = [...encounters];
+    
+    // Add encounters that are being deleted for animation purposes
+    if (deletingRows.size > 0 && previousEncounters.length > 0) {
+      const deletingEncounters = previousEncounters.filter(enc => deletingRows.has(enc.id));
+      currentEncounters.push(...deletingEncounters);
+    }
+    
+    return currentEncounters;
+  };
+
+  const sortedEncounters = getAllEncounters().sort((a, b) => {
     // Convert room to number, handle 'N/A' and 0 as no room assigned
     const getRoomNumber = (room: string | number) => {
       if (room === 'N/A' || room === 0 || room === '0') return 999; // Put unassigned rooms at end
@@ -135,7 +179,7 @@ const Dashboard: React.FC = () => {
       'CONFIRMED': { color: '#4CAF50', background: '#E8F5E8', icon: Verified, tooltip: 'Confirmed' },
       'CHECKED_IN': { color: '#FF9800', background: '#FFF3E0', icon: HowToReg, tooltip: 'Checked In' },
       'IN_ROOM': { color: '#9C27B0', background: '#F3E5F5', icon: MeetingRoom, tooltip: 'In Room' },
-      'WITH_PROVIDER': { color: '#F44336', background: '#FFEBEE', icon: PersonAdd, tooltip: 'With Provider' },
+      'WITH_PROVIDER': { color: '#F44336', background: '#FFEBEE', icon: MedicalServices, tooltip: 'With Provider' },
       'WITH_STAFF': { color: '#607D8B', background: '#ECEFF1', icon: Group, tooltip: 'With Staff' },
       'PENDING_COSIGN': { color: '#795548', background: '#EFEBE9', icon: PendingActions, tooltip: 'Pending Cosign' },
       'ARRIVED': { color: '#FF9800', background: '#FFF3E0', icon: Login, tooltip: 'Arrived' }
@@ -176,20 +220,63 @@ const Dashboard: React.FC = () => {
     const isDangerStatus = encounter.status === 'CHECKED_IN' || encounter.status === 'WITH_STAFF';
     const shouldHighlight = isWaitingTooLong && isDangerStatus;
     const isChanged = changedRows.has(encounter.id);
+    const isNew = newRows.has(encounter.id);
+    const isDeleting = deletingRows.has(encounter.id);
+    
+    // Priority: Deleting > New > Changed > Danger > Normal
+    let backgroundColor, borderLeft, animation;
+    
+    if (isDeleting) {
+      backgroundColor = '#ffebee';
+      borderLeft = '5px solid #f44336';
+      animation = 'slideOut 0.5s ease-in-out forwards';
+    } else if (isNew) {
+      backgroundColor = '#e3f2fd';
+      borderLeft = '5px solid #2196f3';
+      animation = 'slideIn 0.5s ease-in-out';
+    } else if (isChanged) {
+      backgroundColor = '#e8f5e8';
+      borderLeft = '5px solid #4caf50';
+      animation = 'pulse 2s ease-in-out';
+    } else if (shouldHighlight) {
+      backgroundColor = '#ffebee';
+      borderLeft = '5px solid #f44336';
+      animation = 'none';
+    } else {
+      backgroundColor = 'inherit';
+      borderLeft = 'none';
+      animation = 'none';
+    }
     
     return {
-      backgroundColor: isChanged 
-        ? '#e8f5e8' 
-        : shouldHighlight 
-          ? '#ffebee' 
-          : 'inherit',
-      borderLeft: isChanged
-        ? '5px solid #4caf50'
-        : shouldHighlight 
-          ? '5px solid #f44336' 
-          : 'none',
-      transition: 'all 0.5s ease-in-out',
-      animation: isChanged ? 'pulse 2s ease-in-out' : 'none',
+      backgroundColor,
+      borderLeft,
+      transition: 'all 0.3s ease-in-out',
+      animation,
+      '@keyframes slideIn': {
+        '0%': {
+          opacity: 0,
+          transform: 'translateX(-20px) scale(0.95)',
+          backgroundColor: '#bbdefb'
+        },
+        '100%': {
+          opacity: 1,
+          transform: 'translateX(0) scale(1)',
+          backgroundColor: '#e3f2fd'
+        }
+      },
+      '@keyframes slideOut': {
+        '0%': {
+          opacity: 1,
+          transform: 'translateX(0) scale(1)',
+          backgroundColor: '#ffebee'
+        },
+        '100%': {
+          opacity: 0,
+          transform: 'translateX(20px) scale(0.95)',
+          backgroundColor: '#ffcdd2'
+        }
+      },
       '@keyframes pulse': {
         '0%': {
           backgroundColor: '#c8e6c9',
@@ -200,22 +287,28 @@ const Dashboard: React.FC = () => {
           transform: 'scale(1.01)'
         },
         '100%': {
-          backgroundColor: isChanged ? '#e8f5e8' : (shouldHighlight ? '#ffebee' : 'inherit'),
+          backgroundColor: '#e8f5e8',
           transform: 'scale(1)'
         }
       },
       '&:hover': {
-        backgroundColor: isChanged
-          ? '#dcedc8'
-          : shouldHighlight 
-            ? '#ffcdd2' 
-            : '#f5f5f5'
+        backgroundColor: isDeleting
+          ? '#ffcdd2'
+          : isNew
+            ? '#bbdefb'
+            : isChanged
+              ? '#dcedc8'
+              : shouldHighlight 
+                ? '#ffcdd2' 
+                : '#f5f5f5'
       }
     };
   };
 
-  const dangerCount = sortedEncounters.filter(e => patientTrackingService.isWaitingTooLong(e.arrivalTime)).length;
-  const occupiedRooms = sortedEncounters.filter(e => e.room !== 'N/A' && e.room !== 0).length;
+  // Calculate stats only from current encounters (excluding those being deleted)
+  const currentEncountersForStats = encounters.filter(e => !deletingRows.has(e.id));
+  const dangerCount = currentEncountersForStats.filter(e => patientTrackingService.isWaitingTooLong(e.arrivalTime)).length;
+  const occupiedRooms = currentEncountersForStats.filter(e => e.room !== 'N/A' && e.room !== 0).length;
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f5f5f5' }}>
@@ -263,7 +356,7 @@ const Dashboard: React.FC = () => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <Box sx={{ textAlign: 'center' }}>
             <Typography variant="h4" sx={{ fontWeight: 'bold', lineHeight: 1 }}>
-              {sortedEncounters.length}
+              {currentEncountersForStats.length}
             </Typography>
             <Typography variant="caption" sx={{ fontSize: '0.8rem', opacity: 0.9 }}>
               Total Patients
@@ -340,7 +433,7 @@ const Dashboard: React.FC = () => {
               <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>In Room</Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <PersonAdd sx={{ fontSize: '1.2rem', color: '#F44336' }} />
+              <MedicalServices sx={{ fontSize: '1.2rem', color: '#F44336' }} />
               <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>With Provider</Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -393,8 +486,8 @@ const Dashboard: React.FC = () => {
                   const shouldHighlight = isWaitingTooLong && isDangerStatus;
 
                                      return (
-                     <Fade in={true} timeout={500} key={encounter.id}>
                        <TableRow 
+                         key={encounter.id}
                          sx={getRowStyling(encounter)}
                        >
                       {/* Room - Compact */}
@@ -486,7 +579,6 @@ const Dashboard: React.FC = () => {
                          </Typography>
                        </TableCell>
                     </TableRow>
-                       </Fade>
                   );
                 })
               )}
