@@ -114,9 +114,13 @@ const Dashboard: React.FC = () => {
             color: config.color,
             fontWeight: 'bold',
             minWidth: '60px',
+            display: 'flex',
+            justifyContent: 'center',
             '& .MuiChip-icon': {
-              marginLeft: '8px',
-              marginRight: '-4px'
+              margin: '0 auto'
+            },
+            '& .MuiChip-label': {
+              display: 'none'
             }
           }}
         />
@@ -236,6 +240,45 @@ const Dashboard: React.FC = () => {
           {error}
         </Alert>
       )}
+
+      {/* Status Legend */}
+      <Box sx={{ px: 3, py: 1 }}>
+        <Paper sx={{ p: 2, backgroundColor: '#f8f9fa' }}>
+          <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1, color: '#666' }}>
+            Status Legend:
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Schedule sx={{ fontSize: '1.2rem', color: '#2196F3' }} />
+              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>Scheduled</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Verified sx={{ fontSize: '1.2rem', color: '#4CAF50' }} />
+              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>Confirmed</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <PersonPin sx={{ fontSize: '1.2rem', color: '#FF9800' }} />
+              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>Checked In</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <MeetingRoom sx={{ fontSize: '1.2rem', color: '#9C27B0' }} />
+              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>In Room</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <PersonAdd sx={{ fontSize: '1.2rem', color: '#F44336' }} />
+              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>With Provider</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Group sx={{ fontSize: '1.2rem', color: '#607D8B' }} />
+              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>With Staff</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <PendingActions sx={{ fontSize: '1.2rem', color: '#795548' }} />
+              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>Pending</Typography>
+            </Box>
+          </Box>
+        </Paper>
+      </Box>
 
       {/* Compact Table */}
       <Box sx={{ flex: 1, overflow: 'hidden', px: 2, py: 1 }}>
