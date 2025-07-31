@@ -13,9 +13,13 @@ declare class VitalSignsService {
      */
     private getHistoricalEncounters;
     /**
-     * Get vital signs for a specific encounter
+     * Get full encounter details including vital signs
      */
-    private getVitalSigns;
+    private getEncounterById;
+    /**
+     * Extract vital signs from encounter response
+     */
+    private extractVitalSigns;
     /**
      * Update vital signs for an encounter
      */
@@ -24,6 +28,14 @@ declare class VitalSignsService {
      * Check if vital signs contain height and weight data
      */
     private hasHeightAndWeight;
+    /**
+     * Find the most recent encounter with height and weight data
+     */
+    private findMostRecentVitalSigns;
+    /**
+     * Calculate BMI from height and weight
+     */
+    private calculateBMI;
     /**
      * Process vital signs carryforward for a single encounter
      */

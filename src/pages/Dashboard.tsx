@@ -31,7 +31,8 @@ import {
   Group,
   PendingActions,
   HowToReg,
-  Verified
+  Verified,
+  AssignmentTurnedIn
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -48,11 +49,71 @@ const Dashboard: React.FC = () => {
   const [changedRows, setChangedRows] = useState<Set<string>>(new Set());
   const [newRows, setNewRows] = useState<Set<string>>(new Set());
   const [deletingRows, setDeletingRows] = useState<Set<string>>(new Set());
+  const [processedVitalSigns, setProcessedVitalSigns] = useState<Set<string>>(new Set());
+  const [processingVitalSigns, setProcessingVitalSigns] = useState<Set<string>>(new Set());
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   // Check if we're in mock data mode
   const isUsingMockData = process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_MOCK_DATA === 'true';
+
+  // Process vital signs for READY_FOR_STAFF patients who haven't been processed yet
+  const processUnhandledVitalSigns = async (encounterData: Encounter[]) => {
+    try {
+      // Find READY_FOR_STAFF patients who haven't been processed
+      const readyForStaffPatients = encounterData.filter(
+        encounter => encounter.status === 'READY_FOR_STAFF' && !processedVitalSigns.has(encounter.id)
+      );
+
+      if (readyForStaffPatients.length === 0) {
+        return;
+      }
+
+      console.log(`Found ${readyForStaffPatients.length} READY_FOR_STAFF patients needing vital signs processing`);
+
+      // Process each patient individually
+      for (const patient of readyForStaffPatients) {
+        try {
+          console.log(`Processing vital signs for ${patient.patientName} (${patient.id})`);
+          
+          // Mark as currently processing
+          setProcessingVitalSigns(prev => new Set(Array.from(prev).concat(patient.id)));
+          
+          const success = await patientTrackingService.triggerVitalSignsProcessing(patient.id);
+          
+          // Remove from processing
+          setProcessingVitalSigns(prev => {
+            const newSet = new Set(Array.from(prev));
+            newSet.delete(patient.id);
+            return newSet;
+          });
+          
+          if (success) {
+            console.log(`✅ Vital signs processed successfully for ${patient.patientName}`);
+            setProcessedVitalSigns(prev => new Set(Array.from(prev).concat(patient.id)));
+          } else {
+            console.log(`ℹ️ Vital signs not applicable or already processed for ${patient.patientName}`);
+            // Still mark as processed to avoid repeated attempts
+            setProcessedVitalSigns(prev => new Set(Array.from(prev).concat(patient.id)));
+          }
+        } catch (error) {
+          console.error(`❌ Error processing vital signs for ${patient.patientName}:`, error);
+          
+          // Remove from processing
+          setProcessingVitalSigns(prev => {
+            const newSet = new Set(Array.from(prev));
+            newSet.delete(patient.id);
+            return newSet;
+          });
+          
+          // Mark as processed to avoid repeated attempts for this session
+          setProcessedVitalSigns(prev => new Set(Array.from(prev).concat(patient.id)));
+        }
+      }
+    } catch (error) {
+      console.error('Error in processUnhandledVitalSigns:', error);
+    }
+  };
 
   const fetchEncounters = async (isRefresh = false) => {
     try {
@@ -93,6 +154,12 @@ const Dashboard: React.FC = () => {
         encounters.forEach(oldEncounter => {
           if (!data.find(newEnc => newEnc.id === oldEncounter.id)) {
             toDeleteRows.add(oldEncounter.id);
+            // Remove from processed vital signs to prevent memory leaks
+            setProcessedVitalSigns(prev => {
+              const newSet = new Set(Array.from(prev));
+              newSet.delete(oldEncounter.id);
+              return newSet;
+            });
           }
         });
         
@@ -122,6 +189,11 @@ const Dashboard: React.FC = () => {
         }, 2000);
       } else {
         setEncounters(data);
+      }
+      
+      // Process vital signs for READY_FOR_STAFF patients who haven't been processed
+      if (!isUsingMockData) {
+        await processUnhandledVitalSigns(data);
       }
       
       setLastRefresh(new Date());
@@ -181,6 +253,7 @@ const Dashboard: React.FC = () => {
       'IN_ROOM': { color: '#9C27B0', background: '#F3E5F5', icon: MeetingRoom, tooltip: 'In Room' },
       'WITH_PROVIDER': { color: '#F44336', background: '#FFEBEE', icon: MedicalServices, tooltip: 'With Provider' },
       'WITH_STAFF': { color: '#607D8B', background: '#ECEFF1', icon: Group, tooltip: 'With Staff' },
+      'READY_FOR_STAFF': { color: '#00C853', background: '#E8F5E8', icon: AssignmentTurnedIn, tooltip: 'Ready for Staff' },
       'PENDING_COSIGN': { color: '#795548', background: '#EFEBE9', icon: PendingActions, tooltip: 'Pending Cosign' },
       'ARRIVED': { color: '#FF9800', background: '#FFF3E0', icon: Login, tooltip: 'Arrived' }
     } as const;
@@ -499,17 +572,30 @@ const Dashboard: React.FC = () => {
                         </Typography>
                       </TableCell>
 
-                                             {/* Patient - Compact */}
-                       <TableCell sx={{ py: 1.5 }}>
-                         <Box>
-                           <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
-                             {encounter.patientInfo.firstName?.charAt(0)}. {encounter.patientInfo.lastName}
-                           </Typography>
-                           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem' }}>
-                             {encounter.patientInfo.gender} • {encounter.appointmentType}
-                           </Typography>
-                         </Box>
-                       </TableCell>
+                                                                   {/* Patient - Compact */}
+                      <TableCell sx={{ py: 1.5 }}>
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
+                              {encounter.patientInfo.firstName?.charAt(0)}. {encounter.patientInfo.lastName}
+                            </Typography>
+                            {encounter.status === 'READY_FOR_STAFF' && (
+                              <Box>
+                                {processingVitalSigns.has(encounter.id) ? (
+                                  <CircularProgress size={16} sx={{ color: '#FF9800' }} />
+                                ) : processedVitalSigns.has(encounter.id) ? (
+                                  <Tooltip title="Vital signs processed" arrow>
+                                    <CheckCircle sx={{ fontSize: 16, color: '#4CAF50' }} />
+                                  </Tooltip>
+                                ) : null}
+                              </Box>
+                            )}
+                          </Box>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem' }}>
+                            {encounter.patientInfo.gender} • {encounter.appointmentType}
+                          </Typography>
+                        </Box>
+                      </TableCell>
 
                                              {/* Time - Compact */}
                        <TableCell sx={{ py: 1.5 }}>

@@ -251,20 +251,35 @@ app.post('/api/vital-signs/process/:encounterId', async (req, res) => {
             tokenStore.delete(username);
             return res.status(401).json({ error: 'Session expired. Please login again.' });
         }
-        // Note: For now, we'll create a mock encounter for testing
-        // In a real implementation, you would fetch the specific encounter from EZDerm API
-        const mockEncounter = {
-            id: encounterId,
-            status: 'READY_FOR_STAFF',
-            establishedPatient: true,
-            patientInfo: {
-                id: 'test-patient-id',
-                firstName: 'Test',
-                lastName: 'Patient',
-                dateOfBirth: '1990-01-01'
-            }
+        // Get today's encounters to find the specific encounter
+        const today = new Date();
+        const encounterData = {
+            dateOfServiceRangeHigh: formatDateWithOffset(new Date(today.getTime() + 24 * 60 * 60 * 1000)),
+            clinicId: DEFAULT_CLINIC_ID,
+            providerIds: [],
+            practiceId: DEFAULT_PRACTICE_ID,
+            dateOfServiceRangeLow: formatDateWithOffset(today),
+            lightBean: true,
+            dateSelection: 'SPECIFY_RANGE'
         };
-        const result = await vitalSignsService_1.vitalSignsService.processVitalSignsCarryforward(mockEncounter, userTokens.accessToken);
+        // Make request to EZDerm encounters API
+        const encountersResponse = await axios_1.default.post(`${userTokens.serverUrl}ezderm-webservice/rest/encounter/getByFilter`, encounterData, {
+            headers: {
+                'Host': 'srvprod.ezinfra.net',
+                'accept': 'application/json',
+                'content-type': 'application/json',
+                'authorization': `Bearer ${userTokens.accessToken}`,
+                'user-agent': 'ezDerm/4.28.0 (build:132.19; macOS(Catalyst) 15.5.0)',
+                'accept-language': 'en-US;q=1.0'
+            }
+        });
+        // Transform encounters and find the specific one
+        const allEncounters = encountersResponse.data.map(transformEZDermEncounter);
+        const encounter = allEncounters.find(enc => enc.id === encounterId);
+        if (!encounter) {
+            return res.status(404).json({ error: 'Encounter not found' });
+        }
+        const result = await vitalSignsService_1.vitalSignsService.processVitalSignsCarryforward(encounter, userTokens.accessToken);
         if (result) {
             res.json({
                 success: true,
@@ -305,33 +320,31 @@ app.post('/api/vital-signs/process-all', async (req, res) => {
             tokenStore.delete(username);
             return res.status(401).json({ error: 'Session expired. Please login again.' });
         }
-        // Note: For now, we'll use mock encounters for testing
-        // In a real implementation, you would fetch all today's encounters from EZDerm API
-        const mockEncounters = [
-            {
-                id: 'encounter-1',
-                status: 'READY_FOR_STAFF',
-                establishedPatient: true,
-                patientInfo: {
-                    id: 'patient-1',
-                    firstName: 'John',
-                    lastName: 'Doe',
-                    dateOfBirth: '1985-03-15'
-                }
-            },
-            {
-                id: 'encounter-2',
-                status: 'READY_FOR_STAFF',
-                establishedPatient: true,
-                patientInfo: {
-                    id: 'patient-2',
-                    firstName: 'Jane',
-                    lastName: 'Smith',
-                    dateOfBirth: '1990-07-22'
-                }
+        // Get today's encounters for vital signs processing
+        const today = new Date();
+        const encounterData = {
+            dateOfServiceRangeHigh: formatDateWithOffset(new Date(today.getTime() + 24 * 60 * 60 * 1000)),
+            clinicId: DEFAULT_CLINIC_ID,
+            providerIds: [],
+            practiceId: DEFAULT_PRACTICE_ID,
+            dateOfServiceRangeLow: formatDateWithOffset(today),
+            lightBean: true,
+            dateSelection: 'SPECIFY_RANGE'
+        };
+        // Make request to EZDerm encounters API
+        const encountersResponse = await axios_1.default.post(`${userTokens.serverUrl}ezderm-webservice/rest/encounter/getByFilter`, encounterData, {
+            headers: {
+                'Host': 'srvprod.ezinfra.net',
+                'accept': 'application/json',
+                'content-type': 'application/json',
+                'authorization': `Bearer ${userTokens.accessToken}`,
+                'user-agent': 'ezDerm/4.28.0 (build:132.19; macOS(Catalyst) 15.5.0)',
+                'accept-language': 'en-US;q=1.0'
             }
-        ];
-        const result = await vitalSignsService_1.vitalSignsService.processMultipleEncounters(mockEncounters, userTokens.accessToken);
+        });
+        // Transform encounters
+        const allEncounters = encountersResponse.data.map(transformEZDermEncounter);
+        const result = await vitalSignsService_1.vitalSignsService.processMultipleEncounters(allEncounters, userTokens.accessToken);
         res.json({
             success: true,
             message: 'Vital signs carryforward processing completed',

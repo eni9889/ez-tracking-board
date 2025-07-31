@@ -145,6 +145,72 @@ class PatientTrackingService {
     
     return diffMinutes > 10;
   }
+
+  // Trigger vital signs carryforward for a specific encounter
+  async triggerVitalSignsProcessing(encounterId: string): Promise<boolean> {
+    try {
+      const username = authService.getCurrentUser();
+      if (!username) {
+        throw new Error('User not authenticated');
+      }
+
+      const response = await axios.post(
+        `${API_BASE_URL}/vital-signs/process/${encounterId}`,
+        { username }
+      );
+
+      return response.data.success || false;
+    } catch (error: any) {
+      console.error(`Failed to trigger vital signs processing for encounter ${encounterId}:`, error);
+      if (error.response?.status === 401) {
+        // Session expired, redirect to login
+        await authService.logout();
+        window.location.href = '/login';
+      }
+      return false;
+    }
+  }
+
+  // Get vital signs processing statistics
+  async getVitalSignsStats(): Promise<any> {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/vital-signs/stats`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Failed to fetch vital signs stats:', error);
+      if (error.response?.status === 401) {
+        // Session expired, redirect to login
+        await authService.logout();
+        window.location.href = '/login';
+      }
+      return null;
+    }
+  }
+
+  // Process vital signs for all eligible encounters
+  async processAllVitalSigns(): Promise<any> {
+    try {
+      const username = authService.getCurrentUser();
+      if (!username) {
+        throw new Error('User not authenticated');
+      }
+
+      const response = await axios.post(
+        `${API_BASE_URL}/vital-signs/process-all`,
+        { username }
+      );
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Failed to process all vital signs:', error);
+      if (error.response?.status === 401) {
+        // Session expired, redirect to login
+        await authService.logout();
+        window.location.href = '/login';
+      }
+      return null;
+    }
+  }
 }
 
 export default new PatientTrackingService(); 
