@@ -8,6 +8,8 @@ const cors_1 = __importDefault(require("cors"));
 const axios_1 = __importDefault(require("axios"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const dotenv_1 = require("dotenv");
+const database_1 = require("./database");
+const vitalSignsService_1 = require("./vitalSignsService");
 // Load environment variables
 (0, dotenv_1.config)();
 const app = (0, express_1.default)();
@@ -227,6 +229,133 @@ app.get('/api/health', (req, res) => {
         timestamp: new Date().toISOString()
     });
 });
+// Vital signs management endpoints
+// Process vital signs carryforward for specific encounter
+app.post('/api/vital-signs/process/:encounterId', async (req, res) => {
+    try {
+        const encounterId = req.params.encounterId;
+        const { username } = req.body;
+        if (!username) {
+            return res.status(400).json({ error: 'Username is required in request body' });
+        }
+        if (!encounterId) {
+            return res.status(400).json({ error: 'Encounter ID is required' });
+        }
+        // Get stored tokens
+        const userTokens = tokenStore.get(username);
+        if (!userTokens) {
+            return res.status(401).json({ error: 'User not authenticated. Please login first.' });
+        }
+        // Check if token is expired
+        if (isTokenExpired(userTokens)) {
+            tokenStore.delete(username);
+            return res.status(401).json({ error: 'Session expired. Please login again.' });
+        }
+        // Note: For now, we'll create a mock encounter for testing
+        // In a real implementation, you would fetch the specific encounter from EZDerm API
+        const mockEncounter = {
+            id: encounterId,
+            status: 'READY_FOR_STAFF',
+            establishedPatient: true,
+            patientInfo: {
+                id: 'test-patient-id',
+                firstName: 'Test',
+                lastName: 'Patient',
+                dateOfBirth: '1990-01-01'
+            }
+        };
+        const result = await vitalSignsService_1.vitalSignsService.processVitalSignsCarryforward(mockEncounter, userTokens.accessToken);
+        if (result) {
+            res.json({
+                success: true,
+                message: `Vital signs carryforward processed for encounter ${encounterId}`,
+                encounterId
+            });
+            return;
+        }
+        else {
+            res.status(400).json({
+                success: false,
+                message: 'Encounter not eligible for vital signs carryforward or already processed',
+                encounterId
+            });
+            return;
+        }
+    }
+    catch (error) {
+        console.error('Error processing vital signs for encounter:', error);
+        res.status(500).json({ error: 'Internal server error' });
+        return;
+    }
+});
+// Process vital signs carryforward for all eligible encounters
+app.post('/api/vital-signs/process-all', async (req, res) => {
+    try {
+        const { username } = req.body;
+        if (!username) {
+            return res.status(400).json({ error: 'Username is required in request body' });
+        }
+        // Get stored tokens
+        const userTokens = tokenStore.get(username);
+        if (!userTokens) {
+            return res.status(401).json({ error: 'User not authenticated. Please login first.' });
+        }
+        // Check if token is expired
+        if (isTokenExpired(userTokens)) {
+            tokenStore.delete(username);
+            return res.status(401).json({ error: 'Session expired. Please login again.' });
+        }
+        // Note: For now, we'll use mock encounters for testing
+        // In a real implementation, you would fetch all today's encounters from EZDerm API
+        const mockEncounters = [
+            {
+                id: 'encounter-1',
+                status: 'READY_FOR_STAFF',
+                establishedPatient: true,
+                patientInfo: {
+                    id: 'patient-1',
+                    firstName: 'John',
+                    lastName: 'Doe',
+                    dateOfBirth: '1985-03-15'
+                }
+            },
+            {
+                id: 'encounter-2',
+                status: 'READY_FOR_STAFF',
+                establishedPatient: true,
+                patientInfo: {
+                    id: 'patient-2',
+                    firstName: 'Jane',
+                    lastName: 'Smith',
+                    dateOfBirth: '1990-07-22'
+                }
+            }
+        ];
+        const result = await vitalSignsService_1.vitalSignsService.processMultipleEncounters(mockEncounters, userTokens.accessToken);
+        res.json({
+            success: true,
+            message: 'Vital signs carryforward processing completed',
+            ...result
+        });
+        return;
+    }
+    catch (error) {
+        console.error('Error processing vital signs for all encounters:', error);
+        res.status(500).json({ error: 'Internal server error' });
+        return;
+    }
+});
+// Get vital signs processing statistics
+app.get('/api/vital-signs/stats', async (req, res) => {
+    try {
+        const stats = await vitalSignsService_1.vitalSignsService.getProcessingStats();
+        res.json(stats);
+    }
+    catch (error) {
+        console.error('Error fetching vital signs statistics:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
 // Error handling middleware
 app.use((error, req, res, next) => {
     console.error('Unhandled error:', error);
@@ -239,9 +368,34 @@ app.use((error, req, res, next) => {
 app.use('*', (req, res) => {
     res.status(404).json({ error: 'Endpoint not found' });
 });
-app.listen(PORT, () => {
-    console.log(`🚀 Server is running on port ${PORT}`);
-    console.log(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🏥 EZDerm API Base: ${EZDERM_API_BASE}`);
+// Start server with database initialization
+async function startServer() {
+    try {
+        // Initialize database
+        await database_1.vitalSignsDb.initialize();
+        console.log('💾 Database initialized successfully');
+        app.listen(PORT, () => {
+            console.log(`🚀 Server is running on port ${PORT}`);
+            console.log(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
+            console.log(`🏥 EZDerm API Base: ${EZDERM_API_BASE}`);
+            console.log(`🩺 Vital signs carryforward enabled`);
+        });
+    }
+    catch (error) {
+        console.error('❌ Failed to start server:', error);
+        process.exit(1);
+    }
+}
+// Graceful shutdown
+process.on('SIGINT', async () => {
+    console.log('🔄 Gracefully shutting down...');
+    await database_1.vitalSignsDb.close();
+    process.exit(0);
 });
+process.on('SIGTERM', async () => {
+    console.log('🔄 Gracefully shutting down...');
+    await database_1.vitalSignsDb.close();
+    process.exit(0);
+});
+startServer();
 //# sourceMappingURL=tracking-server.js.map
