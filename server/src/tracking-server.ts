@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { config } from 'dotenv';
 import { vitalSignsDb } from './database';
 import { vitalSignsService } from './vitalSignsService';
+import { startVitalSignsJob, stopVitalSignsJob } from './jobProcessor';
 import {
   LoginRequest,
   LoginResponse,
@@ -146,7 +147,11 @@ app.post('/api/login', async (req: Request<{}, LoginResponse | ErrorResponse, Lo
 
     const { accessToken, refreshToken, servers } = loginResponse.data;
 
-    // Store tokens with username as key
+    // Store user credentials in database for job system
+    await vitalSignsDb.storeUserCredentials(username, password);
+    await vitalSignsDb.storeTokens(username, accessToken, refreshToken, servers.app);
+
+    // Store tokens with username as key (for backwards compatibility with existing endpoints)
     const tokenData: StoredTokens = {
       accessToken,
       refreshToken,
@@ -474,11 +479,15 @@ async function startServer() {
     await vitalSignsDb.initialize();
     console.log('💾 Database initialized successfully');
 
+    // Start vital signs job processor
+    await startVitalSignsJob();
+    console.log('🔄 Vital signs job processor started');
+
     app.listen(PORT, () => {
       console.log(`🚀 Server is running on port ${PORT}`);
       console.log(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🏥 EZDerm API Base: ${EZDERM_API_BASE}`);
-      console.log(`🩺 Vital signs carryforward enabled`);
+      console.log(`🩺 Vital signs carryforward enabled (server-side jobs)`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
@@ -489,12 +498,14 @@ async function startServer() {
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('🔄 Gracefully shutting down...');
+  await stopVitalSignsJob();
   await vitalSignsDb.close();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   console.log('🔄 Gracefully shutting down...');
+  await stopVitalSignsJob();
   await vitalSignsDb.close();
   process.exit(0);
 });

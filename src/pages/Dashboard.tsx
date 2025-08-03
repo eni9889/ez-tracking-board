@@ -49,71 +49,14 @@ const Dashboard: React.FC = () => {
   const [changedRows, setChangedRows] = useState<Set<string>>(new Set());
   const [newRows, setNewRows] = useState<Set<string>>(new Set());
   const [deletingRows, setDeletingRows] = useState<Set<string>>(new Set());
-  const [processedVitalSigns, setProcessedVitalSigns] = useState<Set<string>>(new Set());
-  const [processingVitalSigns, setProcessingVitalSigns] = useState<Set<string>>(new Set());
+
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   // Check if we're in mock data mode
   const isUsingMockData = process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_MOCK_DATA === 'true';
 
-  // Process vital signs for READY_FOR_STAFF patients who haven't been processed yet
-  const processUnhandledVitalSigns = async (encounterData: Encounter[]) => {
-    try {
-      // Find READY_FOR_STAFF patients who haven't been processed
-      const readyForStaffPatients = encounterData.filter(
-        encounter => encounter.status === 'READY_FOR_STAFF' && !processedVitalSigns.has(encounter.id)
-      );
 
-      if (readyForStaffPatients.length === 0) {
-        return;
-      }
-
-      console.log(`Found ${readyForStaffPatients.length} READY_FOR_STAFF patients needing vital signs processing`);
-
-      // Process each patient individually
-      for (const patient of readyForStaffPatients) {
-        try {
-          console.log(`Processing vital signs for ${patient.patientName} (${patient.id})`);
-          
-          // Mark as currently processing
-          setProcessingVitalSigns(prev => new Set(Array.from(prev).concat(patient.id)));
-          
-          const success = await patientTrackingService.triggerVitalSignsProcessing(patient.id);
-          
-          // Remove from processing
-          setProcessingVitalSigns(prev => {
-            const newSet = new Set(Array.from(prev));
-            newSet.delete(patient.id);
-            return newSet;
-          });
-          
-          if (success) {
-            console.log(`✅ Vital signs processed successfully for ${patient.patientName}`);
-            setProcessedVitalSigns(prev => new Set(Array.from(prev).concat(patient.id)));
-          } else {
-            console.log(`ℹ️ Vital signs not applicable or already processed for ${patient.patientName}`);
-            // Still mark as processed to avoid repeated attempts
-            setProcessedVitalSigns(prev => new Set(Array.from(prev).concat(patient.id)));
-          }
-        } catch (error) {
-          console.error(`❌ Error processing vital signs for ${patient.patientName}:`, error);
-          
-          // Remove from processing
-          setProcessingVitalSigns(prev => {
-            const newSet = new Set(Array.from(prev));
-            newSet.delete(patient.id);
-            return newSet;
-          });
-          
-          // Mark as processed to avoid repeated attempts for this session
-          setProcessedVitalSigns(prev => new Set(Array.from(prev).concat(patient.id)));
-        }
-      }
-    } catch (error) {
-      console.error('Error in processUnhandledVitalSigns:', error);
-    }
-  };
 
   const fetchEncounters = async (isRefresh = false) => {
     try {
@@ -154,12 +97,6 @@ const Dashboard: React.FC = () => {
         encounters.forEach(oldEncounter => {
           if (!data.find(newEnc => newEnc.id === oldEncounter.id)) {
             toDeleteRows.add(oldEncounter.id);
-            // Remove from processed vital signs to prevent memory leaks
-            setProcessedVitalSigns(prev => {
-              const newSet = new Set(Array.from(prev));
-              newSet.delete(oldEncounter.id);
-              return newSet;
-            });
           }
         });
         
@@ -189,11 +126,6 @@ const Dashboard: React.FC = () => {
         }, 2000);
       } else {
         setEncounters(data);
-      }
-      
-      // Process vital signs for READY_FOR_STAFF patients who haven't been processed
-      if (!isUsingMockData) {
-        await processUnhandledVitalSigns(data);
       }
       
       setLastRefresh(new Date());
