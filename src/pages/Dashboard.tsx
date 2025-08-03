@@ -507,22 +507,9 @@ const Dashboard: React.FC = () => {
                                                                    {/* Patient - Compact */}
                       <TableCell sx={{ py: 1.5 }}>
                         <Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
-                              {encounter.patientInfo.firstName?.charAt(0)}. {encounter.patientInfo.lastName}
-                            </Typography>
-                            {encounter.status === 'READY_FOR_STAFF' && (
-                              <Box>
-                                {processingVitalSigns.has(encounter.id) ? (
-                                  <CircularProgress size={16} sx={{ color: '#FF9800' }} />
-                                ) : processedVitalSigns.has(encounter.id) ? (
-                                  <Tooltip title="Vital signs processed" arrow>
-                                    <CheckCircle sx={{ fontSize: 16, color: '#4CAF50' }} />
-                                  </Tooltip>
-                                ) : null}
-                              </Box>
-                            )}
-                          </Box>
+                          <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
+                            {encounter.patientInfo.firstName?.charAt(0)}. {encounter.patientInfo.lastName}
+                          </Typography>
                           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem' }}>
                             {encounter.patientInfo.gender} • {encounter.appointmentType}
                           </Typography>
