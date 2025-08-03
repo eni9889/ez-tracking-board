@@ -24,16 +24,8 @@ class PatientTrackingService {
         throw new Error('User not authenticated');
       }
 
-      // Set default date range to today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-
       const request: EncountersRequest = {
         username,
-        dateRangeStart: params?.dateRangeStart || today.toISOString(),
-        dateRangeEnd: params?.dateRangeEnd || tomorrow.toISOString(),
         clinicId: params?.clinicId,
         providerIds: params?.providerIds
       };

@@ -315,6 +315,7 @@ class VitalSignsService {
         accessToken,
         encounter.id
       );
+      console.log('historicalEncounters', historicalEncounters);
 
       if (historicalEncounters.length === 0) {
         console.log(`No historical encounters found for patient ${encounter.patientInfo.id}`);
@@ -338,6 +339,7 @@ class VitalSignsService {
         encounter.patientInfo.id,
         accessToken
       );
+      console.log('recentVitalSigns', recentVitalSigns);
 
       if (!recentVitalSigns) {
         console.log(`No historical vital signs found for patient ${encounter.patientInfo.id}`);

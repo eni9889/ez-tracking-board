@@ -65,11 +65,18 @@ const ACTIVE_STATUSES: EncounterStatus[] = [
 ];
 
 // Utility functions
-const formatDateWithOffset = (date: Date): string => {
+const formatDateStartOfDay = (date: Date): string => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}T00:00:00-0400`;
+};
+
+const formatDateEndOfDay = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}T23:59:59-0400`;
 };
 
 const isTokenExpired = (tokens: StoredTokens): boolean => {
@@ -190,18 +197,16 @@ app.post('/api/encounters', async (req: Request<{}, EncountersResponse | ErrorRe
       return;
     }
 
-    // Get today's date for default range
+    // Get today's date for default range (start of day to end of day)
     const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
 
     // Prepare request data exactly like the curl command
     const encounterData: EZDermEncounterFilter = {
-      dateOfServiceRangeHigh: dateRangeEnd || formatDateWithOffset(tomorrow),
+      dateOfServiceRangeHigh: dateRangeEnd || formatDateEndOfDay(today),
       clinicId: clinicId || DEFAULT_CLINIC_ID,
       providerIds: providerIds || [],
       practiceId: DEFAULT_PRACTICE_ID,
-      dateOfServiceRangeLow: dateRangeStart || formatDateWithOffset(today),
+      dateOfServiceRangeLow: dateRangeStart || formatDateStartOfDay(today),
       lightBean: true,
       dateSelection: 'SPECIFY_RANGE'
     };
@@ -226,6 +231,7 @@ app.post('/api/encounters', async (req: Request<{}, EncountersResponse | ErrorRe
 
     // Process and format the encounters data
     const allEncounters: Encounter[] = encountersResponse.data.map(transformEZDermEncounter);
+    console.log('allEncounters', allEncounters);
 
     // Filter to only show patients currently in clinic (not checked out)
     const activeEncounters = allEncounters.filter(encounter => {
@@ -312,11 +318,11 @@ app.post('/api/vital-signs/process/:encounterId', async (req: Request, res: Resp
     // Get today's encounters to find the specific encounter
     const today = new Date();
     const encounterData: EZDermEncounterFilter = {
-      dateOfServiceRangeHigh: formatDateWithOffset(new Date(today.getTime() + 24 * 60 * 60 * 1000)),
+      dateOfServiceRangeHigh: formatDateEndOfDay(today),
       clinicId: DEFAULT_CLINIC_ID,
       providerIds: [],
       practiceId: DEFAULT_PRACTICE_ID,
-      dateOfServiceRangeLow: formatDateWithOffset(today),
+      dateOfServiceRangeLow: formatDateStartOfDay(today),
       lightBean: true,
       dateSelection: 'SPECIFY_RANGE'
     };
@@ -393,11 +399,11 @@ app.post('/api/vital-signs/process-all', async (req: Request, res: Response) => 
     // Get today's encounters for vital signs processing
     const today = new Date();
     const encounterData: EZDermEncounterFilter = {
-      dateOfServiceRangeHigh: formatDateWithOffset(new Date(today.getTime() + 24 * 60 * 60 * 1000)),
+      dateOfServiceRangeHigh: formatDateEndOfDay(today),
       clinicId: DEFAULT_CLINIC_ID,
       providerIds: [],
       practiceId: DEFAULT_PRACTICE_ID,
-      dateOfServiceRangeLow: formatDateWithOffset(today),
+      dateOfServiceRangeLow: formatDateStartOfDay(today),
       lightBean: true,
       dateSelection: 'SPECIFY_RANGE'
     };
