@@ -89,15 +89,11 @@ const TOKEN_EXPIRY_MS = 600000; // 10 minutes
 const DEFAULT_CLINIC_ID = '44b62760-50a1-488c-92ed-e0c7aa3cde92';
 const DEFAULT_PRACTICE_ID = '4cc96922-4d83-4183-863b-748d69de621f';
 const ACTIVE_STATUSES: EncounterStatus[] = [
-  'SCHEDULED',
-  'CONFIRMED', 
-  'MESSAGE_LEFT',
   'CHECKED_IN', 
   'IN_ROOM', 
   'WITH_PROVIDER',
   'WITH_STAFF',
-  'READY_FOR_STAFF',
-  'PENDING_COSIGN'
+  'READY_FOR_STAFF'
 ];
 
 // Utility functions
@@ -312,6 +308,34 @@ app.post('/api/encounters', validateSession, async (req: Request<{}, EncountersR
       details: error.response?.data?.message || error.message 
     });
     return;
+  }
+});
+
+// Session validation endpoint
+app.post('/api/validate-session', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const sessionToken = req.headers.authorization?.replace('Bearer ', '');
+    
+    if (!sessionToken) {
+      res.status(401).json({ valid: false, error: 'No session token provided' });
+      return;
+    }
+
+    const session = await vitalSignsDb.validateSession(sessionToken);
+    
+    if (!session) {
+      res.status(401).json({ valid: false, error: 'Invalid or expired session' });
+      return;
+    }
+
+    res.json({ 
+      valid: true, 
+      username: session.username,
+      expiresAt: session.expiresAt.toISOString()
+    });
+  } catch (error) {
+    console.error('Session validation error:', error);
+    res.status(500).json({ valid: false, error: 'Session validation failed' });
   }
 });
 

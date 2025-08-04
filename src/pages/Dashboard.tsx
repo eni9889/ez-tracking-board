@@ -151,9 +151,9 @@ const Dashboard: React.FC = () => {
   };
 
   const sortedEncounters = getAllEncounters().sort((a, b) => {
-    // Convert room to number, handle 'N/A' and 0 as no room assigned
-    const getRoomNumber = (room: string | number) => {
-      if (room === 'N/A' || room === 0 || room === '0') return 999; // Put unassigned rooms at end
+    // Convert room to number, handle undefined, 'N/A' and 0 as no room assigned
+    const getRoomNumber = (room: string | number | undefined) => {
+      if (!room || room === 'N/A' || room === 0 || room === '0' || room === 'TBD') return 999; // Put unassigned rooms at end
       return typeof room === 'string' ? parseInt(room) || 999 : room;
     };
     

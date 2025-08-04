@@ -12,6 +12,13 @@ export interface LoginResponse {
   expiresAt?: string;
 }
 
+export interface SessionValidationResponse {
+  valid: boolean;
+  username?: string;
+  expiresAt?: string;
+  error?: string;
+}
+
 // Patient and encounter types
 export interface PatientInfo {
   id: string;

@@ -198,24 +198,8 @@ async function processVitalSignsCarryforward(job: Job): Promise<{ processed: num
       TARGET_STATUSES.includes(encounter.status)
     );
 
-    // In development, only process the specific test patient
-    if (IS_DEVELOPMENT) {
-      const devFilteredEncounters = targetEncounters.filter(encounter => 
-        encounter.patientInfo.medicalRecordNumber === DEV_PATIENT_MRN
-      );
-      
-      if (targetEncounters.length > 0 && devFilteredEncounters.length === 0) {
-        console.log(`🚧 Development Mode: Found ${targetEncounters.length} eligible patients, but filtering to only patient MRN: ${DEV_PATIENT_MRN}`);
-        console.log('🚧 Available patient MRNs:', targetEncounters.map(e => `${e.patientName} (MRN: ${e.patientInfo.medicalRecordNumber})`).join(', '));
-      }
-      
-      targetEncounters = devFilteredEncounters;
-    }
-
     if (targetEncounters.length === 0) {
-      const statusMsg = IS_DEVELOPMENT 
-        ? `No patients found with READY_FOR_STAFF or WITH_STAFF status matching dev patient MRN: ${DEV_PATIENT_MRN}`
-        : 'No patients found with READY_FOR_STAFF or WITH_STAFF status';
+      const statusMsg = 'No patients found with READY_FOR_STAFF or WITH_STAFF status';
       console.log(`ℹ️ ${statusMsg}`);
       return { processed: 0, successful: 0, failed: 0 };
     }
@@ -229,9 +213,7 @@ async function processVitalSignsCarryforward(job: Job): Promise<{ processed: num
     let failed = 0;
 
     for (const encounter of targetEncounters) {
-      console.log('encounter', encounter);
-      console.log('encounter.patientInfo', encounter.patientInfo);
-    try {
+      try {
         // Check if already processed
         const alreadyProcessed = await vitalSignsDb.hasBeenProcessed(encounter.id);
         if (alreadyProcessed) {

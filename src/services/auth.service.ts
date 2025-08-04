@@ -19,11 +19,13 @@ class AuthService {
   private readonly SESSION_STORAGE_KEY = 'ez_tracking_session';
 
   constructor() {
-    // Restore session from localStorage on service initialization
-    this.restoreSession();
+    // Restore session from localStorage on service initialization (async)
+    this.restoreSession().catch(error => {
+      console.error('Failed to restore session:', error);
+    });
   }
 
-  private restoreSession(): void {
+  private async restoreSession(): Promise<void> {
     try {
       const storedData = localStorage.getItem(this.SESSION_STORAGE_KEY);
       if (storedData) {
@@ -31,11 +33,19 @@ class AuthService {
         const now = new Date();
         const expiresAt = new Date(sessionData.expiresAt);
         
-        // Check if session is still valid
+        // Check if session is still valid locally
         if (expiresAt > now) {
-          this.currentUser = sessionData.username;
-          this.sessionToken = sessionData.sessionToken;
-          console.log('🔄 Session restored for user:', sessionData.username);
+          // Validate session with server
+          const isValidOnServer = await this.validateSessionWithServer(sessionData.sessionToken);
+          
+          if (isValidOnServer) {
+            this.currentUser = sessionData.username;
+            this.sessionToken = sessionData.sessionToken;
+            console.log('🔄 Session restored and validated for user:', sessionData.username);
+          } else {
+            console.log('🚫 Session invalid on server, clearing stored data');
+            this.clearStoredSession();
+          }
         } else {
           // Session expired, clear stored data
           console.log('⏰ Session expired, clearing stored data');
@@ -68,6 +78,27 @@ class AuthService {
 
   getSessionToken(): string | null {
     return this.sessionToken;
+  }
+
+  private async validateSessionWithServer(sessionToken: string): Promise<boolean> {
+    try {
+      // In development with mock data, skip server validation
+      if (USE_MOCK_DATA) {
+        console.log('🚧 Development Mode: Skipping server session validation');
+        return true;
+      }
+
+      const response = await axios.post(`${API_BASE_URL}/validate-session`, {}, {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`
+        }
+      });
+
+      return response.data.valid === true;
+    } catch (error) {
+      console.error('Session validation failed:', error);
+      return false;
+    }
   }
 
   async login(username: string, password: string): Promise<LoginResponse> {

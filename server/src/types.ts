@@ -25,6 +25,13 @@ export interface LoginResponse {
   expiresAt?: string;
 }
 
+export interface SessionValidationResponse {
+  valid: boolean;
+  username?: string;
+  expiresAt?: string;
+  error?: string;
+}
+
 export interface EncountersResponse {
   encounters: Encounter[];
 }
