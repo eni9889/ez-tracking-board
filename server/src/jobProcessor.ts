@@ -16,7 +16,7 @@ import {
 const redis = new IORedis({
   host: process.env.REDIS_HOST || 'localhost',
   port: parseInt(process.env.REDIS_PORT || '6379'),
-  maxRetriesPerRequest: 3,
+  maxRetriesPerRequest: null, // Required by BullMQ
 });
 
 // Create queue for vital signs processing
@@ -40,6 +40,10 @@ const DEFAULT_PRACTICE_ID = '4cc96922-4d83-4183-863b-748d69de621f';
 
 // Active statuses that should be processed
 const TARGET_STATUSES: EncounterStatus[] = ['READY_FOR_STAFF', 'WITH_STAFF'];
+
+// Development filter - only process this specific patient in dev mode
+const DEV_PATIENT_ID = 'EE3FEDA1-4EC5-48F3-9FE4-C8C3E1A66299';
+const IS_DEVELOPMENT = process.env.NODE_ENV === 'development';
 
 // Date formatting utilities
 const formatDateStartOfDay = (date: Date): string => {
@@ -140,7 +144,7 @@ async function getTodaysEncounters(accessToken: string, serverUrl: string): Prom
     };
 
     const response: AxiosResponse<EZDermEncounter[]> = await axios.post(
-      `${serverUrl}/ezderm-webservice/rest/encounter/getByFilter`,
+      `${serverUrl}ezderm-webservice/rest/encounter/getByFilter`,
       encounterData,
       {
         headers: {
@@ -189,16 +193,34 @@ async function processVitalSignsCarryforward(job: Job): Promise<{ processed: num
     const allEncounters = await getTodaysEncounters(authData.accessToken, authData.serverUrl);
     
     // Filter to target statuses (READY_FOR_STAFF, WITH_STAFF)
-    const targetEncounters = allEncounters.filter(encounter => 
+    let targetEncounters = allEncounters.filter(encounter => 
       TARGET_STATUSES.includes(encounter.status)
     );
 
+    // In development, only process the specific test patient
+    if (IS_DEVELOPMENT) {
+      const devFilteredEncounters = targetEncounters.filter(encounter => 
+        encounter.id === DEV_PATIENT_ID
+      );
+      
+      if (targetEncounters.length > 0 && devFilteredEncounters.length === 0) {
+        console.log(`🚧 Development Mode: Found ${targetEncounters.length} eligible patients, but filtering to only patient ID: ${DEV_PATIENT_ID}`);
+        console.log('🚧 Available patient IDs:', targetEncounters.map(e => `${e.patientName} (${e.id})`).join(', '));
+      }
+      
+      targetEncounters = devFilteredEncounters;
+    }
+
     if (targetEncounters.length === 0) {
-      console.log('ℹ️ No patients found with READY_FOR_STAFF or WITH_STAFF status');
+      const statusMsg = IS_DEVELOPMENT 
+        ? `No patients found with READY_FOR_STAFF or WITH_STAFF status matching dev patient ID: ${DEV_PATIENT_ID}`
+        : 'No patients found with READY_FOR_STAFF or WITH_STAFF status';
+      console.log(`ℹ️ ${statusMsg}`);
       return { processed: 0, successful: 0, failed: 0 };
     }
 
-    console.log(`📋 Found ${targetEncounters.length} patients to process for vital signs carryforward`);
+    const modeMsg = IS_DEVELOPMENT ? ' (development mode - filtered to specific patient)' : '';
+    console.log(`📋 Found ${targetEncounters.length} patients to process for vital signs carryforward${modeMsg}`);
 
     // Process each encounter
     let processed = 0;
