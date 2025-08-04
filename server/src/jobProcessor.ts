@@ -69,6 +69,7 @@ const transformEZDermEncounter = (encounter: EZDermEncounter): Encounter => {
       firstName: encounter.patientInfo.firstName,
       lastName: encounter.patientInfo.lastName,
       dateOfBirth: encounter.patientInfo.dateOfBirth,
+      id: encounter.patientInfo.id,
       gender: encounter.patientInfo.gender,
       medicalRecordNumber: encounter.patientInfo.medicalRecordNumber,
       ...(encounter.patientInfo.phoneNumber && { phoneNumber: encounter.patientInfo.phoneNumber }),
@@ -228,7 +229,9 @@ async function processVitalSignsCarryforward(job: Job): Promise<{ processed: num
     let failed = 0;
 
     for (const encounter of targetEncounters) {
-      try {
+      console.log('encounter', encounter);
+      console.log('encounter.patientInfo', encounter.patientInfo);
+    try {
         // Check if already processed
         const alreadyProcessed = await vitalSignsDb.hasBeenProcessed(encounter.id);
         if (alreadyProcessed) {
@@ -238,6 +241,7 @@ async function processVitalSignsCarryforward(job: Job): Promise<{ processed: num
 
         processed++;
         console.log(`🩺 Processing vital signs for ${encounter.patientName} (${encounter.status})`);
+        console.log(`📋 Encounter data: ID=${encounter.id}, PatientID=${(encounter.patientInfo as any)?.id}, PatientName=${encounter.patientInfo?.firstName} ${encounter.patientInfo?.lastName}`);
         
         const result = await vitalSignsService.processVitalSignsCarryforward(encounter, authData.accessToken);
         

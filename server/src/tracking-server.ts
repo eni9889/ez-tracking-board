@@ -3,6 +3,7 @@ import cors from 'cors';
 import axios, { AxiosResponse } from 'axios';
 import rateLimit from 'express-rate-limit';
 import { config } from 'dotenv';
+import crypto from 'crypto';
 import { vitalSignsDb } from './database';
 import { vitalSignsService } from './vitalSignsService';
 import { startVitalSignsJob, stopVitalSignsJob } from './jobProcessor';
@@ -44,6 +45,40 @@ app.use('/api/', limiter);
 
 // Store tokens in memory (in production, use Redis or a database)
 const tokenStore: TokenStore = new Map<string, StoredTokens>();
+
+// Session configuration
+const SESSION_DURATION = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+
+// Generate secure session token
+function generateSessionToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+// Session validation middleware
+async function validateSession(req: Request, res: Response, next: any): Promise<void> {
+  try {
+    const sessionToken = req.headers.authorization?.replace('Bearer ', '');
+    
+    if (!sessionToken) {
+      res.status(401).json({ error: 'No session token provided' });
+      return;
+    }
+
+    const session = await vitalSignsDb.validateSession(sessionToken);
+    
+    if (!session) {
+      res.status(401).json({ error: 'Invalid or expired session' });
+      return;
+    }
+
+    // Add user info to request
+    (req as any).user = { username: session.username };
+    next();
+  } catch (error) {
+    console.error('Session validation error:', error);
+    res.status(500).json({ error: 'Session validation failed' });
+  }
+}
 
 // EZDerm API endpoints
 const EZDERM_LOGIN_URL = 'https://login.ezinfra.net/api/login';
@@ -89,6 +124,7 @@ const transformEZDermEncounter = (encounter: EZDermEncounter): Encounter => {
     id: encounter.id,
     patientName: `${encounter.patientInfo.firstName} ${encounter.patientInfo.lastName}`,
     patientInfo: {
+      id: encounter.patientInfo.id,
       firstName: encounter.patientInfo.firstName,
       lastName: encounter.patientInfo.lastName,
       dateOfBirth: encounter.patientInfo.dateOfBirth,
@@ -161,11 +197,21 @@ app.post('/api/login', async (req: Request<{}, LoginResponse | ErrorResponse, Lo
     
     tokenStore.set(username, tokenData);
 
-    // Return success response
+    // Create session
+    const sessionToken = generateSessionToken();
+    const expiresAt = new Date(Date.now() + SESSION_DURATION);
+    const userAgent = req.headers['user-agent'];
+    const ipAddress = req.ip || req.connection.remoteAddress;
+
+    await vitalSignsDb.createSession(sessionToken, username, expiresAt, userAgent, ipAddress);
+
+    // Return success response with session token
     res.json({
       success: true,
       username,
-      serverUrl: servers.app
+      serverUrl: servers.app,
+      sessionToken,
+      expiresAt: expiresAt.toISOString()
     });
 
   } catch (error: any) {
@@ -179,14 +225,10 @@ app.post('/api/login', async (req: Request<{}, LoginResponse | ErrorResponse, Lo
 });
 
 // Get encounters endpoint
-app.post('/api/encounters', async (req: Request<{}, EncountersResponse | ErrorResponse, EncountersRequest>, res: Response<EncountersResponse | ErrorResponse>) => {
+app.post('/api/encounters', validateSession, async (req: Request<{}, EncountersResponse | ErrorResponse, EncountersRequest>, res: Response<EncountersResponse | ErrorResponse>) => {
   try {
-    const { username, dateRangeStart, dateRangeEnd, clinicId, providerIds } = req.body;
-
-    if (!username) {
-      res.status(400).json({ error: 'Username is required' });
-      return;
-    }
+    const username = (req as any).user.username; // From session validation middleware
+    const { dateRangeStart, dateRangeEnd, clinicId, providerIds } = req.body;
 
     // Get stored tokens
     const userTokens = tokenStore.get(username);
@@ -274,12 +316,29 @@ app.post('/api/encounters', async (req: Request<{}, EncountersResponse | ErrorRe
 });
 
 // Logout endpoint
-app.post('/api/logout', (req: Request<{}, { success: boolean }, LogoutRequest>, res: Response<{ success: boolean }>) => {
-  const { username } = req.body;
-  if (username) {
-    tokenStore.delete(username);
+app.post('/api/logout', async (req: Request<{}, { success: boolean }, LogoutRequest>, res: Response<{ success: boolean }>) => {
+  try {
+    const sessionToken = req.headers.authorization?.replace('Bearer ', '');
+    const { username } = req.body;
+    
+    if (sessionToken) {
+      // Delete specific session
+      await vitalSignsDb.deleteSession(sessionToken);
+    } else if (username) {
+      // Fallback: delete all sessions for user
+      await vitalSignsDb.deleteAllUserSessions(username);
+    }
+    
+    // Also clean up memory store for backwards compatibility
+    if (username) {
+      tokenStore.delete(username);
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.json({ success: true }); // Still return success to avoid client issues
   }
-  res.json({ success: true });
 });
 
 // Health check endpoint
@@ -293,14 +352,10 @@ app.get('/api/health', (req: Request, res: Response<HealthResponse>) => {
 // Vital signs management endpoints
 
 // Process vital signs carryforward for specific encounter
-app.post('/api/vital-signs/process/:encounterId', async (req: Request, res: Response) => {
+app.post('/api/vital-signs/process/:encounterId', validateSession, async (req: Request, res: Response) => {
   try {
     const encounterId = req.params.encounterId;
-    const { username } = req.body;
-    
-    if (!username) {
-      return res.status(400).json({ error: 'Username is required in request body' });
-    }
+    const username = (req as any).user.username; // From session validation middleware
     
     if (!encounterId) {
       return res.status(400).json({ error: 'Encounter ID is required' });
@@ -379,13 +434,9 @@ app.post('/api/vital-signs/process/:encounterId', async (req: Request, res: Resp
 });
 
 // Process vital signs carryforward for all eligible encounters
-app.post('/api/vital-signs/process-all', async (req: Request, res: Response) => {
+app.post('/api/vital-signs/process-all', validateSession, async (req: Request, res: Response) => {
   try {
-    const { username } = req.body;
-    
-    if (!username) {
-      return res.status(400).json({ error: 'Username is required in request body' });
-    }
+    const username = (req as any).user.username; // From session validation middleware
     
     // Get stored tokens
     const userTokens = tokenStore.get(username);
@@ -480,6 +531,19 @@ async function startServer() {
     // Start vital signs job processor
     await startVitalSignsJob();
     console.log('🔄 Vital signs job processor started');
+
+    // Set up periodic session cleanup (every hour)
+    setInterval(async () => {
+      try {
+        await vitalSignsDb.cleanupExpiredSessions();
+      } catch (error) {
+        console.error('Session cleanup error:', error);
+      }
+    }, 60 * 60 * 1000); // 1 hour
+    console.log('🔧 Session cleanup scheduled');
+
+    // Clean up sessions on startup
+    await vitalSignsDb.cleanupExpiredSessions();
 
     app.listen(PORT, () => {
       console.log(`🚀 Server is running on port ${PORT}`);

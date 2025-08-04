@@ -80,6 +80,21 @@ class VitalSignsDatabase {
         )
       `;
 
+      // Create user_sessions table
+      const createUserSessionsTableQuery = `
+        CREATE TABLE IF NOT EXISTS user_sessions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          session_token TEXT UNIQUE NOT NULL,
+          username TEXT NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          expires_at DATETIME NOT NULL,
+          last_accessed DATETIME DEFAULT CURRENT_TIMESTAMP,
+          user_agent TEXT,
+          ip_address TEXT,
+          is_active BOOLEAN DEFAULT 1
+        )
+      `;
+
       // Run both table creation queries
       this.db.run(createVitalSignsTableQuery, (err) => {
         if (err) {
@@ -95,8 +110,16 @@ class VitalSignsDatabase {
             return;
           }
 
-          console.log('Database tables created/verified: vital_signs_tracking, user_credentials');
-          resolve();
+          this.db!.run(createUserSessionsTableQuery, (err) => {
+            if (err) {
+              console.error('Error creating user sessions table:', err);
+              reject(err);
+              return;
+            }
+
+            console.log('Database tables created/verified: vital_signs_tracking, user_credentials, user_sessions');
+            resolve();
+          });
         });
       });
     });
@@ -317,6 +340,164 @@ class VitalSignsDatabase {
           refreshToken: row.refresh_token,
           serverUrl: row.server_url
         });
+      });
+    });
+  }
+
+  // Session management methods
+  async createSession(sessionToken: string, username: string, expiresAt: Date, userAgent?: string, ipAddress?: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+
+      const query = `
+        INSERT INTO user_sessions 
+        (session_token, username, expires_at, user_agent, ip_address) 
+        VALUES (?, ?, ?, ?, ?)
+      `;
+
+      this.db.run(query, [sessionToken, username, expiresAt.toISOString(), userAgent, ipAddress], (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        console.log(`Created session for user: ${username}`);
+        resolve();
+      });
+    });
+  }
+
+  async validateSession(sessionToken: string): Promise<{ username: string; expiresAt: Date } | null> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+
+      const query = `
+        SELECT username, expires_at 
+        FROM user_sessions 
+        WHERE session_token = ? AND is_active = 1 AND expires_at > datetime('now')
+      `;
+      
+      this.db.get(query, [sessionToken], (err, row: any) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        if (!row) {
+          resolve(null);
+          return;
+        }
+
+        // Update last accessed time
+        this.updateSessionAccess(sessionToken).catch(console.error);
+
+        resolve({
+          username: row.username,
+          expiresAt: new Date(row.expires_at)
+        });
+      });
+    });
+  }
+
+  async updateSessionAccess(sessionToken: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+
+      const query = `
+        UPDATE user_sessions 
+        SET last_accessed = CURRENT_TIMESTAMP 
+        WHERE session_token = ? AND is_active = 1
+      `;
+
+      this.db.run(query, [sessionToken], (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve();
+      });
+    });
+  }
+
+  async deleteSession(sessionToken: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+
+      const query = `
+        UPDATE user_sessions 
+        SET is_active = 0 
+        WHERE session_token = ?
+      `;
+
+      this.db.run(query, [sessionToken], (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        console.log(`Deleted session: ${sessionToken}`);
+        resolve();
+      });
+    });
+  }
+
+  async deleteAllUserSessions(username: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+
+      const query = `
+        UPDATE user_sessions 
+        SET is_active = 0 
+        WHERE username = ?
+      `;
+
+      this.db.run(query, [username], (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        console.log(`Deleted all sessions for user: ${username}`);
+        resolve();
+      });
+    });
+  }
+
+  async cleanupExpiredSessions(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+
+      const query = `
+        DELETE FROM user_sessions 
+        WHERE expires_at < datetime('now') OR is_active = 0
+      `;
+
+      this.db.run(query, [], (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        console.log('Cleaned up expired sessions');
+        resolve();
       });
     });
   }

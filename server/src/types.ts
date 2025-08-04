@@ -21,6 +21,8 @@ export interface LoginResponse {
   success: boolean;
   username: string;
   serverUrl: string;
+  sessionToken?: string;
+  expiresAt?: string;
 }
 
 export interface EncountersResponse {
@@ -66,6 +68,7 @@ export interface EZDermEncounterFilter {
 
 // Patient and encounter types
 export interface PatientInfo {
+  id: string;
   firstName: string;
   lastName: string;
   dateOfBirth: string;
@@ -119,6 +122,7 @@ export type EncounterStatus =
 export interface EZDermEncounter {
   id: string;
   patientInfo: {
+    id: string;
     firstName: string;
     lastName: string;
     dateOfBirth: string;

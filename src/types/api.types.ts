@@ -8,10 +8,13 @@ export interface LoginResponse {
   success: boolean;
   username: string;
   serverUrl: string;
+  sessionToken?: string;
+  expiresAt?: string;
 }
 
 // Patient and encounter types
 export interface PatientInfo {
+  id: string;
   firstName: string;
   lastName: string;
   dateOfBirth: string;

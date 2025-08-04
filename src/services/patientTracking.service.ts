@@ -19,20 +19,25 @@ class PatientTrackingService {
         return mockEncounters;
       }
 
-      const username = authService.getCurrentUser();
-      if (!username) {
+      const sessionToken = authService.getSessionToken();
+      if (!sessionToken) {
         throw new Error('User not authenticated');
       }
 
       const request: EncountersRequest = {
-        username,
+        username: '', // No longer needed, but kept for type compatibility
         clinicId: params?.clinicId,
         providerIds: params?.providerIds
       };
 
       const response = await axios.post<EncountersResponse>(
         `${API_BASE_URL}/encounters`,
-        request
+        request,
+        {
+          headers: {
+            'Authorization': `Bearer ${sessionToken}`
+          }
+        }
       );
 
       return response.data.encounters;

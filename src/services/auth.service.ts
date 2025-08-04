@@ -6,16 +6,17 @@ const API_BASE_URL = 'http://localhost:5001/api';
 // Development flag - matches the one in patientTracking.service.ts
 const USE_MOCK_DATA = process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_MOCK_DATA === 'true';
 
-interface StoredAuthData {
+interface SessionData {
+  sessionToken: string;
   username: string;
-  loginTime: number;
+  expiresAt: string;
   serverUrl?: string;
 }
 
 class AuthService {
   private currentUser: string | null = null;
-  private readonly AUTH_STORAGE_KEY = 'ez_tracking_auth';
-  private readonly SESSION_DURATION = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+  private sessionToken: string | null = null;
+  private readonly SESSION_STORAGE_KEY = 'ez_tracking_session';
 
   constructor() {
     // Restore session from localStorage on service initialization
@@ -24,15 +25,17 @@ class AuthService {
 
   private restoreSession(): void {
     try {
-      const storedData = localStorage.getItem(this.AUTH_STORAGE_KEY);
+      const storedData = localStorage.getItem(this.SESSION_STORAGE_KEY);
       if (storedData) {
-        const authData: StoredAuthData = JSON.parse(storedData);
-        const now = Date.now();
+        const sessionData: SessionData = JSON.parse(storedData);
+        const now = new Date();
+        const expiresAt = new Date(sessionData.expiresAt);
         
-        // Check if session is still valid (within session duration)
-        if (now - authData.loginTime < this.SESSION_DURATION) {
-          this.currentUser = authData.username;
-          console.log('🔄 Session restored for user:', authData.username);
+        // Check if session is still valid
+        if (expiresAt > now) {
+          this.currentUser = sessionData.username;
+          this.sessionToken = sessionData.sessionToken;
+          console.log('🔄 Session restored for user:', sessionData.username);
         } else {
           // Session expired, clear stored data
           console.log('⏰ Session expired, clearing stored data');
@@ -45,15 +48,10 @@ class AuthService {
     }
   }
 
-  private storeSession(username: string, serverUrl?: string): void {
+  private storeSession(sessionData: SessionData): void {
     try {
-      const authData: StoredAuthData = {
-        username,
-        loginTime: Date.now(),
-        serverUrl
-      };
-      localStorage.setItem(this.AUTH_STORAGE_KEY, JSON.stringify(authData));
-      console.log('💾 Session stored for user:', username);
+      localStorage.setItem(this.SESSION_STORAGE_KEY, JSON.stringify(sessionData));
+      console.log('💾 Session stored for user:', sessionData.username);
     } catch (error) {
       console.error('Error storing session:', error);
     }
@@ -61,10 +59,15 @@ class AuthService {
 
   private clearStoredSession(): void {
     try {
-      localStorage.removeItem(this.AUTH_STORAGE_KEY);
+      localStorage.removeItem(this.SESSION_STORAGE_KEY);
+      this.sessionToken = null;
     } catch (error) {
       console.error('Error clearing stored session:', error);
     }
+  }
+
+  getSessionToken(): string | null {
+    return this.sessionToken;
   }
 
   async login(username: string, password: string): Promise<LoginResponse> {
@@ -73,13 +76,27 @@ class AuthService {
       if (USE_MOCK_DATA) {
         console.log('🚧 Development Mode: Mock login successful');
         this.currentUser = username;
-        this.storeSession(username, 'http://localhost:5001');
+        
+        // Create mock session
+        const mockSessionToken = 'mock_session_' + Date.now();
+        const mockExpiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(); // 8 hours
+        this.sessionToken = mockSessionToken;
+        
+        this.storeSession({
+          sessionToken: mockSessionToken,
+          username,
+          expiresAt: mockExpiresAt,
+          serverUrl: 'http://localhost:5001'
+        });
+        
         // Simulate API delay
         await new Promise(resolve => setTimeout(resolve, 500));
         return {
           success: true,
           username,
-          serverUrl: 'http://localhost:5001'
+          serverUrl: 'http://localhost:5001',
+          sessionToken: mockSessionToken,
+          expiresAt: mockExpiresAt
         };
       }
 
@@ -88,9 +105,16 @@ class AuthService {
         password
       });
 
-      if (response.data.success) {
+      if (response.data.success && response.data.sessionToken && response.data.expiresAt) {
         this.currentUser = username;
-        this.storeSession(username, response.data.serverUrl);
+        this.sessionToken = response.data.sessionToken;
+        
+        this.storeSession({
+          sessionToken: response.data.sessionToken,
+          username,
+          expiresAt: response.data.expiresAt,
+          serverUrl: response.data.serverUrl
+        });
       }
 
       return response.data;
@@ -137,11 +161,12 @@ class AuthService {
   // Get session info (useful for debugging)
   getSessionInfo(): { username: string | null; timeRemaining: number | null } {
     try {
-      const storedData = localStorage.getItem(this.AUTH_STORAGE_KEY);
+      const storedData = localStorage.getItem(this.SESSION_STORAGE_KEY);
       if (storedData && this.currentUser) {
-        const authData: StoredAuthData = JSON.parse(storedData);
-        const now = Date.now();
-        const timeRemaining = this.SESSION_DURATION - (now - authData.loginTime);
+        const sessionData: SessionData = JSON.parse(storedData);
+        const now = new Date();
+        const expiresAt = new Date(sessionData.expiresAt);
+        const timeRemaining = expiresAt.getTime() - now.getTime();
         return {
           username: this.currentUser,
           timeRemaining: timeRemaining > 0 ? timeRemaining : 0

@@ -67,6 +67,18 @@ class VitalSignsService {
    * Check if patient is eligible for vital signs carryforward
    */
   private isEligibleForCarryforward(encounter: any): boolean {
+    // Must have basic encounter structure
+    if (!encounter || !encounter.id) {
+      console.log('Invalid encounter structure - missing encounter ID');
+      return false;
+    }
+
+    // Must have patient info with ID
+    if (!encounter.patientInfo?.id) {
+      console.log('Invalid encounter structure - missing patient ID');
+      return false;
+    }
+
     // Must be READY_FOR_STAFF status
     console.log('encounter.status', encounter.status);
     if (encounter.status !== 'READY_FOR_STAFF' && encounter.status !== 'WITH_STAFF') {
@@ -97,7 +109,14 @@ class VitalSignsService {
    * Get historical encounters for a patient
    */
   private async getHistoricalEncounters(patientId: string, accessToken: string, currentEncounterId: string): Promise<HistoricalEncounter[]> {
+    // Validate inputs
+    if (!patientId) {
+      throw new Error('Patient ID is required for historical encounters lookup');
+    }
+    
     try {
+      console.log(`Fetching historical encounters for patient: ${patientId}`);
+      
       const response = await axios.post(
         `${this.EZDERM_BASE_URL}/ezderm-webservice/rest/encounter/getByFilter`,
         {
@@ -151,9 +170,16 @@ class VitalSignsService {
       );
 
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error fetching encounter ${encounterId}:`, error);
-      return null;
+      
+      // If it's a 404, the encounter doesn't exist (business logic issue)
+      if (error.response?.status === 404) {
+        return null; // This will be handled as a business logic failure
+      }
+      
+      // For other errors (network, auth, server errors), re-throw to allow retry
+      throw error;
     }
   }
 
@@ -311,6 +337,23 @@ class VitalSignsService {
 
       console.log(`Processing vital signs carryforward for encounter ${encounter.id} - Patient: ${encounter.patientInfo.firstName} ${encounter.patientInfo.lastName}`);
 
+      // Validate patient ID before proceeding
+      if (!encounter.patientInfo?.id) {
+        console.log(`Encounter ${encounter.id} has no patient ID - marking as processed`);
+        await vitalSignsDb.markAsProcessed(
+          encounter.id,
+          'unknown',
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          false,
+          'No patient ID found in encounter'
+        );
+        return false;
+      }
+
       // Get historical encounters
       const historicalEncounters = await this.getHistoricalEncounters(
         encounter.patientInfo.id,
@@ -367,7 +410,7 @@ class VitalSignsService {
       );
 
       if (!currentEncounter) {
-        console.log(`Could not get current encounter ${encounter.id}`);
+        console.log(`Current encounter ${encounter.id} not found (404) - marking as processed`);
         await vitalSignsDb.markAsProcessed(
           encounter.id,
           encounter.patientInfo.id,
@@ -377,7 +420,7 @@ class VitalSignsService {
           undefined,
           undefined,
           false,
-          'Could not get current encounter'
+          'Current encounter not found (404)'
         );
         return false;
       }
@@ -470,17 +513,9 @@ class VitalSignsService {
     } catch (error) {
       console.error(`Error processing vital signs carryforward for encounter ${encounter.id}:`, error);
       
-      await vitalSignsDb.markAsProcessed(
-        encounter.id,
-        encounter.patientInfo?.id || 'unknown',
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        false,
-        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+      // DO NOT mark as processed on server errors - allow retries
+      // Only mark as processed for definitive business logic failures (handled above)
+      console.log(`⚠️ Not marking encounter ${encounter.id} as processed due to server error - will retry on next job run`);
       
       return false;
     }
