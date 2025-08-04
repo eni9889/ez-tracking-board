@@ -105,6 +105,7 @@ class AuthService {
       if (USE_MOCK_DATA) {
         console.log('🚧 Development Mode: Mock logout');
         this.currentUser = null;
+        this.clearStoredSession();
         return;
       }
 
@@ -117,6 +118,7 @@ class AuthService {
       // Ignore logout errors
     } finally {
       this.currentUser = null;
+      this.clearStoredSession();
     }
   }
 
@@ -130,6 +132,32 @@ class AuthService {
       return this.currentUser !== null;
     }
     return this.currentUser !== null;
+  }
+
+  // Get session info (useful for debugging)
+  getSessionInfo(): { username: string | null; timeRemaining: number | null } {
+    try {
+      const storedData = localStorage.getItem(this.AUTH_STORAGE_KEY);
+      if (storedData && this.currentUser) {
+        const authData: StoredAuthData = JSON.parse(storedData);
+        const now = Date.now();
+        const timeRemaining = this.SESSION_DURATION - (now - authData.loginTime);
+        return {
+          username: this.currentUser,
+          timeRemaining: timeRemaining > 0 ? timeRemaining : 0
+        };
+      }
+    } catch (error) {
+      console.error('Error getting session info:', error);
+    }
+    return { username: this.currentUser, timeRemaining: null };
+  }
+
+  // Check if session is close to expiring (within 30 minutes)
+  isSessionExpiringSoon(): boolean {
+    const sessionInfo = this.getSessionInfo();
+    if (sessionInfo.timeRemaining === null) return false;
+    return sessionInfo.timeRemaining < (30 * 60 * 1000); // 30 minutes
   }
 }
 
