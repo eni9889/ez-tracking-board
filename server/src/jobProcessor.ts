@@ -42,7 +42,7 @@ const DEFAULT_PRACTICE_ID = '4cc96922-4d83-4183-863b-748d69de621f';
 const TARGET_STATUSES: EncounterStatus[] = ['READY_FOR_STAFF', 'WITH_STAFF'];
 
 // Development filter - only process this specific patient in dev mode
-const DEV_PATIENT_ID = 'EE3FEDA1-4EC5-48F3-9FE4-C8C3E1A66299';
+const DEV_PATIENT_MRN = 'EZTE0000';
 const IS_DEVELOPMENT = process.env.NODE_ENV === 'development';
 
 // Date formatting utilities
@@ -200,12 +200,12 @@ async function processVitalSignsCarryforward(job: Job): Promise<{ processed: num
     // In development, only process the specific test patient
     if (IS_DEVELOPMENT) {
       const devFilteredEncounters = targetEncounters.filter(encounter => 
-        encounter.id === DEV_PATIENT_ID
+        encounter.patientInfo.medicalRecordNumber === DEV_PATIENT_MRN
       );
       
       if (targetEncounters.length > 0 && devFilteredEncounters.length === 0) {
-        console.log(`🚧 Development Mode: Found ${targetEncounters.length} eligible patients, but filtering to only patient ID: ${DEV_PATIENT_ID}`);
-        console.log('🚧 Available patient IDs:', targetEncounters.map(e => `${e.patientName} (${e.id})`).join(', '));
+        console.log(`🚧 Development Mode: Found ${targetEncounters.length} eligible patients, but filtering to only patient MRN: ${DEV_PATIENT_MRN}`);
+        console.log('🚧 Available patient MRNs:', targetEncounters.map(e => `${e.patientName} (MRN: ${e.patientInfo.medicalRecordNumber})`).join(', '));
       }
       
       targetEncounters = devFilteredEncounters;
@@ -213,7 +213,7 @@ async function processVitalSignsCarryforward(job: Job): Promise<{ processed: num
 
     if (targetEncounters.length === 0) {
       const statusMsg = IS_DEVELOPMENT 
-        ? `No patients found with READY_FOR_STAFF or WITH_STAFF status matching dev patient ID: ${DEV_PATIENT_ID}`
+        ? `No patients found with READY_FOR_STAFF or WITH_STAFF status matching dev patient MRN: ${DEV_PATIENT_MRN}`
         : 'No patients found with READY_FOR_STAFF or WITH_STAFF status';
       console.log(`ℹ️ ${statusMsg}`);
       return { processed: 0, successful: 0, failed: 0 };

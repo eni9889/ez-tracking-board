@@ -68,7 +68,8 @@ class VitalSignsService {
    */
   private isEligibleForCarryforward(encounter: any): boolean {
     // Must be READY_FOR_STAFF status
-    if (encounter.status !== 'READY_FOR_STAFF') {
+    console.log('encounter.status', encounter.status);
+    if (encounter.status !== 'READY_FOR_STAFF' && encounter.status !== 'WITH_STAFF') {
       return false;
     }
 
@@ -297,6 +298,7 @@ class VitalSignsService {
     try {
       // Check if encounter is eligible
       if (!this.isEligibleForCarryforward(encounter)) {
+        console.log(`Encounter ${encounter.id} is not eligible for vital signs carryforward`);
         return false;
       }
 

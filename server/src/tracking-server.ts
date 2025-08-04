@@ -236,11 +236,9 @@ app.post('/api/encounters', async (req: Request<{}, EncountersResponse | ErrorRe
 
     // Process and format the encounters data
     const allEncounters: Encounter[] = encountersResponse.data.map(transformEZDermEncounter);
-    console.log('allEncounters', allEncounters);
 
     // Filter to only show patients currently in clinic (not checked out)
     const activeEncounters = allEncounters.filter(encounter => {
-      console.log('encounter.status', encounter.status);
       return ACTIVE_STATUSES.includes(encounter.status);
     });
 
