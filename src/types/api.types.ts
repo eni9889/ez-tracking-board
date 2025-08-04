@@ -38,8 +38,8 @@ export interface Encounter {
   appointmentTime: string;
   arrivalTime?: string;
   chiefComplaint: string;
-  status: 'SCHEDULED' | 'CONFIRMED' | 'CHECKED_IN' | 'ARRIVED' | 'IN_ROOM' | 'WITH_PROVIDER' | 'WITH_STAFF' | 'READY_FOR_STAFF' | 'PENDING_COSIGN' | 'CHECKED_OUT' | 'CANCELLED' | 'NO_SHOW' | 'RESCHEDULED' | 'MESSAGE_LEFT' | 'NO_ANSWERED';
-  room: string | number;
+  status: 'SCHEDULED' | 'CONFIRMED' | 'CHECKED_IN' | 'ARRIVED' | 'IN_ROOM' | 'WITH_PROVIDER' | 'WITH_STAFF' | 'READY_FOR_STAFF' | 'PENDING_COSIGN' | 'CHECKED_OUT' | 'CANCELLED' | 'NO_SHOW' | 'RESCHEDULED' | 'MESSAGE_LEFT' | 'NO_ANSWERED' | 'NOT_ARRIVED' | 'ENCOUNTER_COMPLETED';
+  room?: string | number;
   providers: Provider[];
   clinicName: string;
   appointmentType: string;
