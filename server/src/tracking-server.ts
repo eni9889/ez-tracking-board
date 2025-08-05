@@ -57,9 +57,13 @@ function generateSessionToken(): string {
 // Session validation middleware
 async function validateSession(req: Request, res: Response, next: any): Promise<void> {
   try {
+    console.log(`🔐 validateSession middleware called for ${req.method} ${req.path}`);
     const sessionToken = req.headers.authorization?.replace('Bearer ', '');
     
+    console.log('🔑 Session token in request:', sessionToken ? sessionToken.substring(0, 20) + '...' : 'NONE');
+    
     if (!sessionToken) {
+      console.log('❌ No session token provided in Authorization header');
       res.status(401).json({ error: 'No session token provided' });
       return;
     }
@@ -67,15 +71,17 @@ async function validateSession(req: Request, res: Response, next: any): Promise<
     const session = await vitalSignsDb.validateSession(sessionToken);
     
     if (!session) {
+      console.log('❌ Session validation failed - session not found or expired');
       res.status(401).json({ error: 'Invalid or expired session' });
       return;
     }
 
+    console.log('✅ Session validation successful for user:', session.username);
     // Add user info to request
     (req as any).user = { username: session.username };
     next();
   } catch (error) {
-    console.error('Session validation error:', error);
+    console.error('💥 Session validation middleware error:', error);
     res.status(500).json({ error: 'Session validation failed' });
   }
 }
@@ -233,17 +239,10 @@ app.post('/api/encounters', validateSession, async (req: Request<{}, EncountersR
     const username = (req as any).user.username; // From session validation middleware
     const { dateRangeStart, dateRangeEnd, clinicId, providerIds } = req.body;
 
-    // Get stored tokens
-    const userTokens = tokenStore.get(username);
+    // Get stored tokens from database (handles expiry checking internally)
+    const userTokens = await vitalSignsDb.getStoredTokens(username);
     if (!userTokens) {
-      res.status(401).json({ error: 'User not authenticated. Please login first.' });
-      return;
-    }
-
-    // Check if token is expired
-    if (isTokenExpired(userTokens)) {
-      tokenStore.delete(username);
-      res.status(401).json({ error: 'Session expired. Please login again.' });
+      res.status(401).json({ error: 'User tokens not found or expired. Please login again.' });
       return;
     }
 
@@ -261,7 +260,6 @@ app.post('/api/encounters', validateSession, async (req: Request<{}, EncountersR
       dateSelection: 'SPECIFY_RANGE'
     };
 
-    console.log('Sending request to EZDerm API:', encounterData);
 
     // Make request to EZDerm encounters API
     const encountersResponse: AxiosResponse<EZDermEncounter[]> = await axios.post(
@@ -419,16 +417,10 @@ app.post('/api/vital-signs/process/:encounterId', validateSession, async (req: R
       return res.status(400).json({ error: 'Encounter ID is required' });
     }
     
-    // Get stored tokens
-    const userTokens = tokenStore.get(username);
+    // Get stored tokens from database (handles expiry checking internally)
+    const userTokens = await vitalSignsDb.getStoredTokens(username);
     if (!userTokens) {
-      return res.status(401).json({ error: 'User not authenticated. Please login first.' });
-    }
-    
-    // Check if token is expired
-    if (isTokenExpired(userTokens)) {
-      tokenStore.delete(username);
-      return res.status(401).json({ error: 'Session expired. Please login again.' });
+      return res.status(401).json({ error: 'User tokens not found or expired. Please login again.' });
     }
     
     // Get today's encounters to find the specific encounter
@@ -496,16 +488,10 @@ app.post('/api/vital-signs/process-all', validateSession, async (req: Request, r
   try {
     const username = (req as any).user.username; // From session validation middleware
     
-    // Get stored tokens
-    const userTokens = tokenStore.get(username);
+    // Get stored tokens from database (handles expiry checking internally)
+    const userTokens = await vitalSignsDb.getStoredTokens(username);
     if (!userTokens) {
-      return res.status(401).json({ error: 'User not authenticated. Please login first.' });
-    }
-    
-    // Check if token is expired
-    if (isTokenExpired(userTokens)) {
-      tokenStore.delete(username);
-      return res.status(401).json({ error: 'Session expired. Please login again.' });
+      return res.status(401).json({ error: 'User tokens not found or expired. Please login again.' });
     }
     
     // Get today's encounters for vital signs processing

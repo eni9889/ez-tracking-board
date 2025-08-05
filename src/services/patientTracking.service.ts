@@ -27,6 +27,8 @@ class PatientTrackingService {
         throw new Error('User not authenticated');
       }
 
+      console.log('📡 Making encounters request with session token:', sessionToken.substring(0, 20) + '...');
+
       const request: EncountersRequest = {
         username: '', // No longer needed, but kept for type compatibility
         clinicId: params?.clinicId,
@@ -43,10 +45,20 @@ class PatientTrackingService {
         }
       );
 
+      console.log('✅ Encounters request successful, got', response.data.encounters.length, 'encounters');
+
       return response.data.encounters;
     } catch (error: any) {
-      console.error('Failed to fetch encounters:', error);
+      console.error('💥 Failed to fetch encounters:', error);
+      console.error('📊 Error details:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        headers: error.response?.headers
+      });
+      
       if (error.response?.status === 401) {
+        console.log('🚨 Got 401 from encounters API - triggering logout');
         // Session expired, redirect to login
         await authService.logout();
         window.location.href = '/login';

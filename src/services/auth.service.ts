@@ -187,6 +187,9 @@ class AuthService {
 
   async logout(): Promise<void> {
     try {
+      console.log('🚪 LOGOUT CALLED - Current user:', this.currentUser);
+      console.trace('🔍 Logout call stack:'); // This will show us where logout was called from
+      
       // Mock logout in development mode
       if (USE_MOCK_DATA) {
         console.log('🚧 Development Mode: Mock logout');
@@ -196,13 +199,20 @@ class AuthService {
       }
 
       if (this.currentUser) {
+        const sessionToken = this.sessionToken;
+        console.log('📡 Calling logout API with session token:', sessionToken ? sessionToken.substring(0, 20) + '...' : 'NONE');
         await axios.post(`${API_BASE_URL}/logout`, {
           username: this.currentUser
+        }, {
+          headers: sessionToken ? {
+            'Authorization': `Bearer ${sessionToken}`
+          } : {}
         });
       }
     } catch (error) {
-      // Ignore logout errors
+      console.error('💥 Logout error:', error);
     } finally {
+      console.log('🧹 Clearing local session data');
       this.currentUser = null;
       this.clearStoredSession();
     }
