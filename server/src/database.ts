@@ -377,6 +377,8 @@ class VitalSignsDatabase {
         return;
       }
 
+      console.log('🔍 DB: Validating session token:', sessionToken.substring(0, 20) + '...');
+
       const query = `
         SELECT username, expires_at 
         FROM user_sessions 
@@ -385,14 +387,38 @@ class VitalSignsDatabase {
       
       this.db.get(query, [sessionToken], (err, row: any) => {
         if (err) {
+          console.error('💥 DB: Error querying session:', err);
           reject(err);
           return;
         }
 
         if (!row) {
+          console.log('❌ DB: No valid session found for token');
+          // Let's also check if the session exists at all (without expiry check)
+          const debugQuery = 'SELECT username, expires_at, is_active FROM user_sessions WHERE session_token = ?';
+          this.db!.get(debugQuery, [sessionToken], (debugErr, debugRow: any) => {
+            if (debugErr) {
+              console.error('💥 DB: Error in debug query:', debugErr);
+            } else if (debugRow) {
+              console.log('🔍 DB: Session exists but invalid:', {
+                username: debugRow.username,
+                expires_at: debugRow.expires_at,
+                is_active: debugRow.is_active,
+                current_time: new Date().toISOString()
+              });
+            } else {
+              console.log('🚫 DB: Session token not found in database at all');
+            }
+          });
+          
           resolve(null);
           return;
         }
+
+        console.log('✅ DB: Valid session found:', {
+          username: row.username,
+          expires_at: row.expires_at
+        });
 
         // Update last accessed time
         this.updateSessionAccess(sessionToken).catch(console.error);
@@ -498,6 +524,36 @@ class VitalSignsDatabase {
 
         console.log('Cleaned up expired sessions');
         resolve();
+      });
+    });
+  }
+
+  async getAllSessions(): Promise<any[]> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+
+      const query = `
+        SELECT session_token, username, created_at, expires_at, last_accessed, is_active
+        FROM user_sessions 
+        ORDER BY created_at DESC
+      `;
+
+      this.db.all(query, [], (err, rows: any[]) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        // Truncate session tokens for security
+        const safeSessions = rows.map(row => ({
+          ...row,
+          session_token: row.session_token.substring(0, 20) + '...'
+        }));
+
+        resolve(safeSessions);
       });
     });
   }

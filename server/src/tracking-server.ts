@@ -199,7 +199,14 @@ app.post('/api/login', async (req: Request<{}, LoginResponse | ErrorResponse, Lo
     const userAgent = req.headers['user-agent'];
     const ipAddress = req.ip || req.connection.remoteAddress;
 
+    console.log('💾 Creating session in database:', {
+      username,
+      sessionToken: sessionToken.substring(0, 20) + '...',
+      expiresAt: expiresAt.toISOString()
+    });
+
     await vitalSignsDb.createSession(sessionToken, username, expiresAt, userAgent, ipAddress);
+    console.log('✅ Session created successfully');
 
     // Return success response with session token
     res.json({
@@ -316,17 +323,28 @@ app.post('/api/validate-session', async (req: Request, res: Response): Promise<v
   try {
     const sessionToken = req.headers.authorization?.replace('Bearer ', '');
     
+    console.log('🔍 Session validation request received');
+    console.log('🔑 Session token (first 20 chars):', sessionToken ? sessionToken.substring(0, 20) + '...' : 'NONE');
+    
     if (!sessionToken) {
+      console.log('❌ No session token provided');
       res.status(401).json({ valid: false, error: 'No session token provided' });
       return;
     }
 
+    console.log('📊 Checking session in database...');
     const session = await vitalSignsDb.validateSession(sessionToken);
     
     if (!session) {
+      console.log('❌ Session not found or expired in database');
       res.status(401).json({ valid: false, error: 'Invalid or expired session' });
       return;
     }
+
+    console.log('✅ Session found:', {
+      username: session.username,
+      expiresAt: session.expiresAt
+    });
 
     res.json({ 
       valid: true, 
@@ -334,8 +352,24 @@ app.post('/api/validate-session', async (req: Request, res: Response): Promise<v
       expiresAt: session.expiresAt.toISOString()
     });
   } catch (error) {
-    console.error('Session validation error:', error);
+    console.error('💥 Session validation error:', error);
     res.status(500).json({ valid: false, error: 'Session validation failed' });
+  }
+});
+
+// Debug endpoint to check sessions in database (development only)
+app.get('/api/debug/sessions', async (req: Request, res: Response) => {
+  if (process.env.NODE_ENV === 'production') {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+
+  try {
+    const sessions = await vitalSignsDb.getAllSessions();
+    res.json({ sessions });
+  } catch (error) {
+    console.error('Error getting sessions:', error);
+    res.status(500).json({ error: 'Failed to get sessions' });
   }
 });
 

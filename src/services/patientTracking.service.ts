@@ -19,6 +19,9 @@ class PatientTrackingService {
         return mockEncounters;
       }
 
+      // Wait for session restoration to complete
+      await authService.waitForSessionRestore();
+
       const sessionToken = authService.getSessionToken();
       if (!sessionToken) {
         throw new Error('User not authenticated');

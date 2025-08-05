@@ -22,12 +22,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check if user is already logged in
-    const username = authService.getCurrentUser();
-    if (username) {
-      setUser({ username });
-    }
-    setIsLoading(false);
+    // Wait for session restoration to complete before checking auth status
+    const initializeAuth = async () => {
+      try {
+        console.log('🔄 AuthContext: Waiting for session restoration...');
+        await authService.waitForSessionRestore();
+        
+        const username = authService.getCurrentUser();
+        console.log('🔍 AuthContext: Session restoration complete, current user:', username);
+        
+        if (username) {
+          setUser({ username });
+          console.log('✅ AuthContext: User authenticated');
+        } else {
+          console.log('❌ AuthContext: No authenticated user');
+        }
+      } catch (error) {
+        console.error('💥 AuthContext: Error during session restoration:', error);
+        setError('Failed to restore session');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeAuth();
   }, []);
 
   const login = async (username: string, password: string) => {

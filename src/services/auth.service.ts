@@ -18,42 +18,60 @@ class AuthService {
   private sessionToken: string | null = null;
   private readonly SESSION_STORAGE_KEY = 'ez_tracking_session';
 
+  private sessionRestorePromise: Promise<void>;
+
   constructor() {
     // Restore session from localStorage on service initialization (async)
-    this.restoreSession().catch(error => {
+    this.sessionRestorePromise = this.restoreSession().catch(error => {
       console.error('Failed to restore session:', error);
     });
   }
 
+  // Ensure session restoration is complete before checking auth status
+  async waitForSessionRestore(): Promise<void> {
+    await this.sessionRestorePromise;
+  }
+
   private async restoreSession(): Promise<void> {
     try {
+      console.log('🔍 Starting session restoration...');
       const storedData = localStorage.getItem(this.SESSION_STORAGE_KEY);
-      if (storedData) {
-        const sessionData: SessionData = JSON.parse(storedData);
-        const now = new Date();
-        const expiresAt = new Date(sessionData.expiresAt);
+      
+      if (!storedData) {
+        console.log('📭 No stored session data found');
+        return;
+      }
+      
+      console.log('📦 Found stored session data');
+      const sessionData: SessionData = JSON.parse(storedData);
+      const now = new Date();
+      const expiresAt = new Date(sessionData.expiresAt);
+      
+      console.log('⏰ Session expires at:', expiresAt.toISOString());
+      console.log('🕐 Current time:', now.toISOString());
+      
+      // Check if session is still valid locally
+      if (expiresAt > now) {
+        console.log('✅ Session is still valid locally, checking with server...');
         
-        // Check if session is still valid locally
-        if (expiresAt > now) {
-          // Validate session with server
-          const isValidOnServer = await this.validateSessionWithServer(sessionData.sessionToken);
-          
-          if (isValidOnServer) {
-            this.currentUser = sessionData.username;
-            this.sessionToken = sessionData.sessionToken;
-            console.log('🔄 Session restored and validated for user:', sessionData.username);
-          } else {
-            console.log('🚫 Session invalid on server, clearing stored data');
-            this.clearStoredSession();
-          }
+        // Validate session with server
+        const isValidOnServer = await this.validateSessionWithServer(sessionData.sessionToken);
+        
+        if (isValidOnServer) {
+          this.currentUser = sessionData.username;
+          this.sessionToken = sessionData.sessionToken;
+          console.log('🔄 Session restored and validated for user:', sessionData.username);
         } else {
-          // Session expired, clear stored data
-          console.log('⏰ Session expired, clearing stored data');
+          console.log('🚫 Session invalid on server, clearing stored data');
           this.clearStoredSession();
         }
+      } else {
+        // Session expired, clear stored data
+        console.log('⏰ Session expired locally, clearing stored data');
+        this.clearStoredSession();
       }
     } catch (error) {
-      console.error('Error restoring session:', error);
+      console.error('💥 Error restoring session:', error);
       this.clearStoredSession();
     }
   }
@@ -88,15 +106,28 @@ class AuthService {
         return true;
       }
 
+      console.log('🌐 Validating session with server...');
+      console.log('🔑 Session token (first 20 chars):', sessionToken.substring(0, 20) + '...');
+      
       const response = await axios.post(`${API_BASE_URL}/validate-session`, {}, {
         headers: {
           'Authorization': `Bearer ${sessionToken}`
         }
       });
 
-      return response.data.valid === true;
-    } catch (error) {
-      console.error('Session validation failed:', error);
+      console.log('📡 Server response status:', response.status);
+      console.log('📋 Server response data:', response.data);
+      
+      const isValid = response.data.valid === true;
+      console.log('✅ Session validation result:', isValid);
+      
+      return isValid;
+    } catch (error: any) {
+      console.error('💥 Session validation failed:', error.message);
+      if (error.response) {
+        console.error('📡 Response status:', error.response.status);
+        console.error('📋 Response data:', error.response.data);
+      }
       return false;
     }
   }
@@ -186,7 +217,7 @@ class AuthService {
     if (USE_MOCK_DATA) {
       return this.currentUser !== null;
     }
-    return this.currentUser !== null;
+    return this.currentUser !== null && this.sessionToken !== null;
   }
 
   // Get session info (useful for debugging)
