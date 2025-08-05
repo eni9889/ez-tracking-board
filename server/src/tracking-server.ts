@@ -88,6 +88,7 @@ async function validateSession(req: Request, res: Response, next: any): Promise<
 
 // EZDerm API endpoints
 const EZDERM_LOGIN_URL = 'https://login.ezinfra.net/api/login';
+const EZDERM_REFRESH_URL = 'https://login.ezinfra.net/api/refresh';
 const EZDERM_API_BASE = 'https://srvprod.ezinfra.net';
 
 // Constants
@@ -239,10 +240,10 @@ app.post('/api/encounters', validateSession, async (req: Request<{}, EncountersR
     const username = (req as any).user.username; // From session validation middleware
     const { dateRangeStart, dateRangeEnd, clinicId, providerIds } = req.body;
 
-    // Get stored tokens from database (handles expiry checking internally)
-    const userTokens = await vitalSignsDb.getStoredTokens(username);
+    // Get valid tokens (with automatic refresh if needed)
+    const userTokens = await getValidTokens(username);
     if (!userTokens) {
-      res.status(401).json({ error: 'User tokens not found or expired. Please login again.' });
+      res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
       return;
     }
 
@@ -417,10 +418,10 @@ app.post('/api/vital-signs/process/:encounterId', validateSession, async (req: R
       return res.status(400).json({ error: 'Encounter ID is required' });
     }
     
-    // Get stored tokens from database (handles expiry checking internally)
-    const userTokens = await vitalSignsDb.getStoredTokens(username);
+    // Get valid tokens (with automatic refresh if needed)
+    const userTokens = await getValidTokens(username);
     if (!userTokens) {
-      return res.status(401).json({ error: 'User tokens not found or expired. Please login again.' });
+      return res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
     }
     
     // Get today's encounters to find the specific encounter
@@ -488,10 +489,10 @@ app.post('/api/vital-signs/process-all', validateSession, async (req: Request, r
   try {
     const username = (req as any).user.username; // From session validation middleware
     
-    // Get stored tokens from database (handles expiry checking internally)
-    const userTokens = await vitalSignsDb.getStoredTokens(username);
+    // Get valid tokens (with automatic refresh if needed)
+    const userTokens = await getValidTokens(username);
     if (!userTokens) {
-      return res.status(401).json({ error: 'User tokens not found or expired. Please login again.' });
+      return res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
     }
     
     // Get today's encounters for vital signs processing
@@ -550,6 +551,116 @@ app.get('/api/vital-signs/stats', async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// Token refresh function
+async function refreshEZDermToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string } | null> {
+  try {
+    console.log('🔄 Attempting to refresh EZDerm token...');
+    
+    const response: AxiosResponse<EZDermLoginResponse> = await axios.post(EZDERM_REFRESH_URL, {
+      refreshToken,
+      application: 'EZDERM',
+      clientVersion: '4.28.0'
+    }, {
+      headers: {
+        'Host': 'login.ezinfra.net',
+        'accept': 'application/json',
+        'content-type': 'application/json',
+        'user-agent': 'ezDerm/4.28.0 (com.ezderm.ezderm; build:132.19; macOS(Catalyst) 15.5.0) Alamofire/5.10.2',
+        'accept-language': 'en-US;q=1.0'
+      }
+    });
+
+    const { accessToken, refreshToken: newRefreshToken } = response.data;
+    console.log('✅ Token refresh successful');
+    
+    return {
+      accessToken,
+      refreshToken: newRefreshToken
+    };
+  } catch (error: any) {
+    console.error('❌ Token refresh failed:', error.response?.data || error.message);
+    return null;
+  }
+}
+
+// Enhanced function to get valid tokens (with refresh logic)
+async function getValidTokens(username: string): Promise<{ accessToken: string; refreshToken: string; serverUrl: string } | null> {
+  try {
+    // First, try to get stored tokens
+    let tokens = await vitalSignsDb.getStoredTokens(username);
+    
+    if (tokens) {
+      // Tokens are valid and not expired
+      return tokens;
+    }
+    
+    // Tokens are expired or don't exist, try to refresh
+    console.log(`🔄 Tokens expired for user ${username}, attempting refresh...`);
+    
+    // Get the refresh token even if access token is expired
+    const expiredTokenData = await vitalSignsDb.getStoredTokensIgnoreExpiry(username);
+    
+    if (expiredTokenData?.refreshToken) {
+      const refreshedTokens = await refreshEZDermToken(expiredTokenData.refreshToken);
+      
+      if (refreshedTokens) {
+        // Store the new tokens
+        await vitalSignsDb.storeTokens(username, refreshedTokens.accessToken, refreshedTokens.refreshToken, expiredTokenData.serverUrl);
+        
+        return {
+          accessToken: refreshedTokens.accessToken,
+          refreshToken: refreshedTokens.refreshToken,
+          serverUrl: expiredTokenData.serverUrl
+        };
+      }
+    }
+    
+    // Refresh failed, try re-login with stored credentials
+    console.log(`🔑 Token refresh failed for user ${username}, attempting re-login...`);
+    const credentials = await vitalSignsDb.getUserCredentials(username);
+    
+    if (credentials) {
+      const loginData: EZDermLoginRequest = {
+        username: credentials.username,
+        password: credentials.password,
+        application: 'EZDERM',
+        timeZoneId: 'America/Detroit',
+        clientVersion: '4.28.0'
+      };
+
+      const loginResponse: AxiosResponse<EZDermLoginResponse> = await axios.post(EZDERM_LOGIN_URL, loginData, {
+        headers: {
+          'Host': 'login.ezinfra.net',
+          'accept': 'application/json',
+          'content-type': 'application/json',
+          'user-agent': 'ezDerm/4.28.0 (com.ezderm.ezderm; build:132.19; macOS(Catalyst) 15.5.0) Alamofire/5.10.2',
+          'accept-language': 'en-US;q=1.0'
+        }
+      });
+
+      const { accessToken, refreshToken, servers } = loginResponse.data;
+      
+      // Store the new tokens
+      await vitalSignsDb.storeTokens(username, accessToken, refreshToken, servers.app);
+      
+      console.log(`✅ Re-login successful for user ${username}`);
+      
+      return {
+        accessToken,
+        refreshToken,
+        serverUrl: servers.app
+      };
+    }
+    
+    console.log(`❌ No valid credentials found for user ${username}`);
+    return null;
+    
+  } catch (error: any) {
+    console.error(`💥 Error getting valid tokens for user ${username}:`, error.message);
+    return null;
+  }
+}
 
 // Error handling middleware
 app.use((error: Error, req: Request, res: Response, next: any) => {

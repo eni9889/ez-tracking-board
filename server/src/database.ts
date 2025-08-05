@@ -344,6 +344,36 @@ class VitalSignsDatabase {
     });
   }
 
+  // Get stored tokens even if expired (for refresh purposes)
+  async getStoredTokensIgnoreExpiry(username: string): Promise<{ accessToken: string; refreshToken: string; serverUrl: string } | null> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+
+      const query = 'SELECT access_token, refresh_token, server_url FROM user_credentials WHERE username = ? AND is_active = 1';
+      
+      this.db.get(query, [username], (err, row: any) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        if (!row) {
+          resolve(null);
+          return;
+        }
+
+        resolve({
+          accessToken: row.access_token,
+          refreshToken: row.refresh_token,
+          serverUrl: row.server_url
+        });
+      });
+    });
+  }
+
   // Session management methods
   async createSession(sessionToken: string, username: string, expiresAt: Date, userAgent?: string, ipAddress?: string): Promise<void> {
     return new Promise((resolve, reject) => {

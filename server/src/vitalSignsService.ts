@@ -324,7 +324,21 @@ class VitalSignsService {
     try {
       // Check if encounter is eligible
       if (!this.isEligibleForCarryforward(encounter)) {
-        console.log(`Encounter ${encounter.id} is not eligible for vital signs carryforward`);
+        console.log(`Encounter ${encounter.id} is not eligible for vital signs carryforward - marking as processed`);
+        
+        // Mark as processed to prevent continuous retries
+        await vitalSignsDb.markAsProcessed(
+          encounter.id,
+          encounter.patientInfo?.id || 'unknown',
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          false,
+          'Not eligible for carryforward (wrong status, new patient, under 18, or missing DOB)'
+        );
+        
         return false;
       }
 

@@ -35,6 +35,7 @@ export const vitalSignsQueue = new Queue('vital-signs-processing', {
 
 // EZDerm API configuration
 const EZDERM_LOGIN_URL = 'https://login.ezinfra.net/api/login';
+const EZDERM_REFRESH_URL = 'https://login.ezinfra.net/api/refresh';
 const DEFAULT_CLINIC_ID = '44b62760-50a1-488c-92ed-e0c7aa3cde92';
 const DEFAULT_PRACTICE_ID = '4cc96922-4d83-4183-863b-748d69de621f';
 
@@ -130,6 +131,91 @@ async function loginToEZDerm(username: string, password: string): Promise<{ acce
   }
 }
 
+// Token refresh function for job processor
+async function refreshEZDermTokenInJob(refreshToken: string): Promise<{ accessToken: string; refreshToken: string } | null> {
+  try {
+    console.log('🔄 Job: Attempting to refresh EZDerm token...');
+    
+    const response: AxiosResponse<EZDermLoginResponse> = await axios.post(EZDERM_REFRESH_URL, {
+      refreshToken,
+      application: 'EZDERM',
+      clientVersion: '4.28.0'
+    }, {
+      headers: {
+        'Host': 'login.ezinfra.net',
+        'accept': 'application/json',
+        'content-type': 'application/json',
+        'user-agent': 'ezDerm/4.28.0 (com.ezderm.ezderm; build:132.19; macOS(Catalyst) 15.5.0) Alamofire/5.10.2',
+        'accept-language': 'en-US;q=1.0'
+      }
+    });
+
+    const { accessToken, refreshToken: newRefreshToken } = response.data;
+    console.log('✅ Job: Token refresh successful');
+    
+    return {
+      accessToken,
+      refreshToken: newRefreshToken
+    };
+  } catch (error: any) {
+    console.error('❌ Job: Token refresh failed:', error.response?.data || error.message);
+    return null;
+  }
+}
+
+// Enhanced function to get valid tokens in job context
+async function getValidTokensForJob(username: string): Promise<{ accessToken: string; refreshToken: string; serverUrl: string } | null> {
+  try {
+    // First, try to get stored tokens
+    let tokens = await vitalSignsDb.getStoredTokens(username);
+    
+    if (tokens) {
+      // Tokens are valid and not expired
+      return tokens;
+    }
+    
+    // Tokens are expired or don't exist, try to refresh
+    console.log(`🔄 Job: Tokens expired for user ${username}, attempting refresh...`);
+    
+    // Get the refresh token even if access token is expired
+    const expiredTokenData = await vitalSignsDb.getStoredTokensIgnoreExpiry(username);
+    
+    if (expiredTokenData?.refreshToken) {
+      const refreshedTokens = await refreshEZDermTokenInJob(expiredTokenData.refreshToken);
+      
+      if (refreshedTokens) {
+        // Store the new tokens
+        await vitalSignsDb.storeTokens(username, refreshedTokens.accessToken, refreshedTokens.refreshToken, expiredTokenData.serverUrl);
+        
+        return {
+          accessToken: refreshedTokens.accessToken,
+          refreshToken: refreshedTokens.refreshToken,
+          serverUrl: expiredTokenData.serverUrl
+        };
+      }
+    }
+    
+    // Refresh failed, try re-login with stored credentials
+    console.log(`🔑 Job: Token refresh failed for user ${username}, attempting re-login...`);
+    const credentials = await vitalSignsDb.getUserCredentials(username);
+    
+    if (credentials) {
+      const authData = await loginToEZDerm(credentials.username, credentials.password);
+      if (authData) {
+        console.log(`✅ Job: Re-login successful for user ${username}`);
+        return authData;
+      }
+    }
+    
+    console.log(`❌ Job: No valid credentials found for user ${username}`);
+    return null;
+    
+  } catch (error: any) {
+    console.error(`💥 Job: Error getting valid tokens for user ${username}:`, error.message);
+    return null;
+  }
+}
+
 // Get today's encounters from EZDerm
 async function getTodaysEncounters(accessToken: string, serverUrl: string): Promise<Encounter[]> {
   try {
@@ -177,17 +263,11 @@ async function processVitalSignsCarryforward(job: Job): Promise<{ processed: num
       throw new Error('No active user credentials found. Please login through the frontend first.');
     }
 
-    // Try to get existing tokens first
-    let authData = await vitalSignsDb.getStoredTokens(credentials.username);
+    // Get valid tokens (with automatic refresh if needed)
+    let authData = await getValidTokensForJob(credentials.username);
     
-    // If no valid tokens, login with stored credentials
     if (!authData) {
-      console.log('No valid tokens found, logging in with stored credentials...');
-      authData = await loginToEZDerm(credentials.username, credentials.password);
-      
-      if (!authData) {
-        throw new Error('Failed to authenticate with EZDerm');
-      }
+      throw new Error('Failed to obtain valid EZDerm tokens');
     }
 
     // Get today's encounters
