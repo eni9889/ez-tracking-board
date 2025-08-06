@@ -22,8 +22,8 @@ import {
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login, isLoading, error } = useAuth();
-  const [username, setUsername] = useState('drgjoka');
-  const [password, setPassword] = useState('Dccderm$12');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState('');
 

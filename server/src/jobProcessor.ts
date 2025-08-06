@@ -1,6 +1,6 @@
 import { Queue, Worker, Job } from 'bullmq';
 import IORedis from 'ioredis';
-import axios, { AxiosResponse } from 'axios';
+import axios, { AxiosResponse } from './axiosConfig';
 import { vitalSignsDb } from './database';
 import { vitalSignsService } from './vitalSignsService';
 import {

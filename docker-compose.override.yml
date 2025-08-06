@@ -1,0 +1,45 @@
+# This file contains development-specific overrides
+# It's automatically loaded by docker-compose in development
+
+version: '3.8'
+
+services:
+  backend:
+    environment:
+      # Enable debug logging
+      DEBUG: '*'
+      # Nodemon configuration
+      NODEMON_CONFIG: |
+        {
+          "watch": ["src"],
+          "ext": "ts,js",
+          "ignore": ["src/**/*.spec.ts"],
+          "exec": "ts-node",
+          "env": {
+            "NODE_ENV": "development"
+          }
+        }
+
+  worker:
+    environment:
+      # Enable debug logging
+      DEBUG: '*'
+      # Nodemon configuration for worker
+      NODEMON_CONFIG: |
+        {
+          "watch": ["src"],
+          "ext": "ts,js",
+          "ignore": ["src/**/*.spec.ts"],
+          "exec": "ts-node",
+          "env": {
+            "NODE_ENV": "development"
+          }
+        }
+
+  frontend:
+    environment:
+      # React development settings
+      GENERATE_SOURCEMAP: 'true'
+      ESLINT_NO_DEV_ERRORS: 'true'
+      TSC_COMPILE_ON_ERROR: 'true'
+      DISABLE_ESLINT_PLUGIN: 'false' 

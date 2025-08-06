@@ -24,3 +24,15 @@ yarn-error.log*
 
 /server/node_modules
 /server/dist
+
+# Environment files
+.env
+/server/.env
+
+# Database files (old SQLite)
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log

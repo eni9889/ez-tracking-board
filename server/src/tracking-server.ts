@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import axios, { AxiosResponse } from 'axios';
+import axios, { AxiosResponse } from './axiosConfig';
 import rateLimit from 'express-rate-limit';
 import { config } from 'dotenv';
 import crypto from 'crypto';

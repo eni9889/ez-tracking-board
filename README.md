@@ -25,10 +25,39 @@ A real-time patient tracking dashboard for dermatology clinics using the EZDerm 
 
 ### Prerequisites
 
-- Node.js 16+ and npm
+- Node.js 18+ and npm (for local development)
+- Docker Desktop (for containerized development)
 - Valid EZDerm API credentials
+- PostgreSQL 14+ (for local development without Docker)
+- Redis 7+ (for local development without Docker)
 
 ### Installation
+
+#### Option 1: Docker Development (Recommended)
+
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd ez-tracking-board
+```
+
+2. Start all services with Docker Compose:
+```bash
+# Quick setup
+make setup
+
+# Or manually
+docker-compose up
+```
+
+3. Access the application:
+- Frontend: [http://localhost:3000](http://localhost:3000)
+- Backend API: [http://localhost:5001](http://localhost:5001)
+- pgAdmin: [http://localhost:5050](http://localhost:5050) (optional)
+
+For detailed Docker instructions, see [DOCKER_DEVELOPMENT.md](./DOCKER_DEVELOPMENT.md).
+
+#### Option 2: Local Development
 
 1. Clone the repository:
 ```bash
@@ -38,21 +67,35 @@ cd ez-tracking-board
 
 2. Install dependencies:
 ```bash
+# Frontend dependencies
 npm install
+
+# Backend dependencies
+cd server && npm install
+cd ..
 ```
 
-3. Start the development server:
+3. Set up PostgreSQL and Redis:
 ```bash
+# macOS
+brew install postgresql redis
+brew services start postgresql
+brew services start redis
+
+# Create database
+createdb vital_signs_tracking
+```
+
+4. Start the services:
+```bash
+# Terminal 1: Backend
+cd server && npm run dev
+
+# Terminal 2: Frontend
 npm start
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser
-
-### Test Credentials
-
-The login form is pre-filled with test credentials:
-- Username: `drgjoka`
-- Password: `Dccderm$12`
+5. Open [http://localhost:3000](http://localhost:3000) in your browser
 
 ## Usage
 
@@ -96,19 +139,6 @@ The dashboard integrates with the EZDerm API endpoints:
 - `/api/practice/info` - Practice and clinic information
 - `/api/event/multipleUserSchedulerData` - Patient appointment data
 - `/api/encounter/getByFilter` - Enhanced encounter details with arrival times and status updates
-
-### Authentication Format
-
-The login request uses the exact EZDerm API format:
-```json
-{
-  "username": "drgjoka",
-  "password": "Dccderm$12",
-  "application": "EZDERM",
-  "timeZoneId": "America/Detroit",
-  "clientVersion": "4.28.0"
-}
-```
 
 ### Enhanced Patient Tracking
 

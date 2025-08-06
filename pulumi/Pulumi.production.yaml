@@ -1,0 +1,9 @@
+config:
+  aws:region: us-east-1
+  ez-tracking-board:environment: production
+  ez-tracking-board:dbInstanceClass: db.t3.micro
+  ez-tracking-board:dbAllocatedStorage: 20
+  ez-tracking-board:redisNodeType: cache.t3.micro
+  ez-tracking-board:backendCpu: 512
+  ez-tracking-board:backendMemory: 1024
+  ez-tracking-board:domainName: ""  # Add your domain name here 

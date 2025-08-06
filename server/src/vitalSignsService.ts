@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios from './axiosConfig';
 import { vitalSignsDb } from './database';
 
 interface VitalSigns {
