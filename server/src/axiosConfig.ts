@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosResponse } from 'axios';
 
 // Configure axios to be less verbose
 axios.defaults.timeout = 10000;
@@ -51,3 +51,4 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 export default axios;
+export { AxiosResponse };
