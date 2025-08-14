@@ -39,11 +39,14 @@ export interface EncountersResponse {
 export interface ErrorResponse {
   error: string;
   details?: string;
+  status?: number;
 }
 
 export interface HealthResponse {
   status: string;
   timestamp: string;
+  database?: string;
+  environment?: string;
 }
 
 // EZDerm API types

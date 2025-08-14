@@ -158,12 +158,16 @@ const transformEZDermEncounter = (encounter: EZDermEncounter): Encounter => {
 // Login endpoint
 app.post('/api/login', async (req: Request<{}, LoginResponse | ErrorResponse, LoginRequest>, res: Response<LoginResponse | ErrorResponse>) => {
   try {
+    console.log('🔐 Login attempt received');
     const { username, password } = req.body;
 
     if (!username || !password) {
+      console.log('❌ Login failed: Missing username or password');
       res.status(400).json({ error: 'Username and password are required' });
       return;
     }
+
+    console.log(`🔐 Attempting login for user: ${username}`);
 
     // Prepare EZDerm login request
     const loginData: EZDermLoginRequest = {
@@ -175,6 +179,7 @@ app.post('/api/login', async (req: Request<{}, LoginResponse | ErrorResponse, Lo
     };
 
     // Make request to EZDerm login API
+    console.log(`🌐 Making login request to EZDerm API for user: ${username}`);
     const loginResponse: AxiosResponse<EZDermLoginResponse> = await axios.post(EZDERM_LOGIN_URL, loginData, {
       headers: {
         'Host': 'login.ezinfra.net',
@@ -184,6 +189,8 @@ app.post('/api/login', async (req: Request<{}, LoginResponse | ErrorResponse, Lo
         'accept-language': 'en-US;q=1.0'
       }
     });
+
+    console.log(`✅ EZDerm API login successful for user: ${username}`);
 
     const { accessToken, refreshToken, servers } = loginResponse.data;
 
@@ -226,10 +233,21 @@ app.post('/api/login', async (req: Request<{}, LoginResponse | ErrorResponse, Lo
     });
 
   } catch (error: any) {
-    console.error('Login error:', error.response?.data || error.message);
-    res.status(401).json({ 
-      error: 'Invalid credentials or login failed',
-      details: error.response?.data?.message || error.message 
+    console.error('💥 Login error details:', {
+      message: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      url: error.config?.url
+    });
+    
+    const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
+    const statusCode = error.response?.status || 500;
+    
+    res.status(statusCode === 200 ? 401 : statusCode).json({ 
+      error: 'Login failed',
+      details: errorMessage,
+      status: statusCode
     });
     return;
   }
@@ -401,9 +419,12 @@ app.post('/api/logout', async (req: Request<{}, { success: boolean }, LogoutRequ
 
 // Health check endpoint
 app.get('/api/health', (req: Request, res: Response<HealthResponse>) => {
+  console.log('🏥 Health check requested');
   res.json({ 
-    status: 'OK', 
-    timestamp: new Date().toISOString() 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    database: 'connected',
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
@@ -680,9 +701,14 @@ app.use('*', (req: Request, res: Response) => {
 // Start server with database initialization
 async function startServer() {
   try {
+    console.log('🚀 Starting EZ Tracking Board Server...');
+    console.log(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🌐 Port: ${PORT}`);
+    
     // Initialize database
+    console.log('💾 Initializing database connection...');
     await vitalSignsDb.initialize();
-    console.log('💾 Database initialized successfully');
+    console.log('✅ Database initialized successfully');
 
     // Start vital signs job processor
     await startVitalSignsJob();
@@ -704,8 +730,11 @@ async function startServer() {
     app.listen(PORT, () => {
       console.log(`🚀 Server is running on port ${PORT}`);
       console.log(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🏥 EZDerm API Base: ${EZDERM_API_BASE}`);
+      console.log(`🏥 EZDerm API Base: ${EZDERM_LOGIN_URL}`);
       console.log(`🩺 Vital signs carryforward enabled (server-side jobs)`);
+      console.log(`🌐 Health check: http://localhost:${PORT}/api/health`);
+      console.log(`🔐 Login endpoint: http://localhost:${PORT}/api/login`);
+      console.log(`✅ Server startup complete!`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
