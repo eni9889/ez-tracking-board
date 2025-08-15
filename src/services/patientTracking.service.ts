@@ -9,6 +9,24 @@ const API_BASE_URL = 'http://localhost:5001/api';
 const USE_MOCK_DATA = process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_MOCK_DATA === 'true';
 
 class PatientTrackingService {
+  private async makeAPICallWithRetry<T>(apiCall: () => Promise<T>, maxRetries: number = 2): Promise<T> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await apiCall();
+      } catch (error: any) {
+        console.log(`🔄 API call failed (attempt ${attempt}/${maxRetries}):`, error.message);
+        
+        if (attempt === maxRetries || error.response?.status !== 401) {
+          throw error;
+        }
+        
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+    throw new Error('Max retries exceeded');
+  }
+
   async getEncounters(params?: Partial<EncountersRequest>): Promise<Encounter[]> {
     try {
       // Return mock data in development mode if flag is set
@@ -35,15 +53,17 @@ class PatientTrackingService {
         providerIds: params?.providerIds
       };
 
-      const response = await axios.post<EncountersResponse>(
-        `${API_BASE_URL}/encounters`,
-        request,
-        {
-          headers: {
-            'Authorization': `Bearer ${sessionToken}`
+      const response = await this.makeAPICallWithRetry(async () => {
+        return await axios.post<EncountersResponse>(
+          `${API_BASE_URL}/encounters`,
+          request,
+          {
+            headers: {
+              'Authorization': `Bearer ${sessionToken}`
+            }
           }
-        }
-      );
+        );
+      });
 
       console.log('✅ Encounters request successful, got', response.data.encounters.length, 'encounters');
 
@@ -54,14 +74,26 @@ class PatientTrackingService {
         status: error.response?.status,
         statusText: error.response?.statusText,
         data: error.response?.data,
-        headers: error.response?.headers
+        headers: error.response?.headers,
+        url: error.config?.url
       });
       
       if (error.response?.status === 401) {
-        console.log('🚨 Got 401 from encounters API - triggering logout');
-        // Session expired, redirect to login
-        await authService.logout();
-        window.location.href = '/login';
+        console.log('🚨 Got 401 from encounters API');
+        
+        // First, let's verify if the session is actually invalid
+        const sessionValid = await authService.validateCurrentSession();
+        
+        if (!sessionValid) {
+          console.log('🔐 Session validation failed - session is genuinely expired');
+          // Session is genuinely expired, trigger logout
+          await authService.logout();
+          window.location.href = '/login';
+        } else {
+          console.log('🤔 Session is valid but API returned 401 - might be an API issue');
+          // Session is valid, this might be a temporary API issue
+          // Don't logout immediately, let the user retry
+        }
       }
       throw new Error(error.response?.data?.error || 'Failed to fetch patient data');
     }

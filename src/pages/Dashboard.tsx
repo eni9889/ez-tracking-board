@@ -37,6 +37,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import patientTrackingService from '../services/patientTracking.service';
+import authService from '../services/auth.service';
 import { Encounter } from '../types/api.types';
 
 const Dashboard: React.FC = () => {
@@ -48,6 +49,7 @@ const Dashboard: React.FC = () => {
   const [previousEncounters, setPreviousEncounters] = useState<Encounter[]>([]);
   const [changedRows, setChangedRows] = useState<Set<string>>(new Set());
   const [newRows, setNewRows] = useState<Set<string>>(new Set());
+  const [sessionTimeRemaining, setSessionTimeRemaining] = useState<number | null>(null);
   const [deletingRows, setDeletingRows] = useState<Set<string>>(new Set());
 
   const { user, logout } = useAuth();
@@ -169,7 +171,34 @@ const Dashboard: React.FC = () => {
     // Refresh data every 10 seconds
     const interval = setInterval(() => fetchEncounters(true), 10000);
     
-    return () => clearInterval(interval);
+    // Set up session monitoring every minute
+    const sessionCheckInterval = setInterval(async () => {
+      try {
+        console.log('🔍 Dashboard: Checking session status...');
+        const sessionInfo = authService.getSessionInfo();
+        console.log('📊 Session info:', sessionInfo);
+        
+        setSessionTimeRemaining(sessionInfo.timeRemaining);
+        
+        if (sessionInfo.timeRemaining !== null && sessionInfo.timeRemaining < 30 * 60 * 1000) { // 30 minutes
+          console.log('⚠️ Session expiring soon, refreshing session...');
+          const refreshed = await authService.refreshSession();
+          if (!refreshed) {
+            console.log('❌ Session refresh failed - logging out');
+            handleLogout();
+          } else {
+            console.log('✅ Session refreshed successfully');
+          }
+        }
+      } catch (error) {
+        console.error('💥 Session check error:', error);
+      }
+    }, 60 * 1000); // Check every minute
+    
+    return () => {
+      clearInterval(interval);
+      clearInterval(sessionCheckInterval);
+    };
   }, []);
 
   const handleLogout = async () => {

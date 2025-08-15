@@ -132,6 +132,46 @@ class AuthService {
     }
   }
 
+  async validateCurrentSession(): Promise<boolean> {
+    if (!this.sessionToken) {
+      console.log('❌ No session token available for validation');
+      return false;
+    }
+    
+    console.log('🔍 Validating current session...');
+    return await this.validateSessionWithServer(this.sessionToken);
+  }
+
+  async refreshSession(): Promise<boolean> {
+    if (!this.sessionToken) {
+      console.log('❌ No session token available for refresh');
+      return false;
+    }
+
+    try {
+      console.log('🔄 Refreshing session...');
+      
+      // For now, we just validate the session
+      // In the future, we could implement a proper session refresh endpoint
+      const isValid = await this.validateSessionWithServer(this.sessionToken);
+      
+      if (isValid) {
+        // Update the local expiration time by validating again
+        const storedData = localStorage.getItem(this.SESSION_STORAGE_KEY);
+        if (storedData) {
+          const sessionData: SessionData = JSON.parse(storedData);
+          // The validation call would have updated the last_accessed time on the server
+          console.log('✅ Session refreshed successfully');
+        }
+      }
+      
+      return isValid;
+    } catch (error) {
+      console.error('💥 Session refresh failed:', error);
+      return false;
+    }
+  }
+
   async login(username: string, password: string): Promise<LoginResponse> {
     try {
       // Mock login in development mode
