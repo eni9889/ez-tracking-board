@@ -446,9 +446,11 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
     try {
       // Get all incomplete notes
       const allPatients = await this.getAllIncompleteNotes(accessToken);
-      
+      console.log('🔍 All patients:', allPatients.length);
+
       // Filter eligible encounters
       const eligibleEncounters = this.filterEligibleEncounters(allPatients);
+      console.log('🔍 Eligible encounters:', eligibleEncounters.length);
       
       if (eligibleEncounters.length === 0) {
         console.log('ℹ️ No eligible encounters found for processing');

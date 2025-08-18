@@ -477,11 +477,16 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
       throw new Error('No active user credentials found. Please login through the frontend first.');
     }
 
-    // Get valid tokens (with automatic refresh if needed)
-    const tokens = await getValidTokensForJob(credentials.username);
+    // BYPASS TOKEN CACHING - ALWAYS DO FRESH LOGIN FOR AI JOBS
+    console.log(`🔐 AI Job: Bypassing token cache, doing fresh login for user: ${credentials.username}`);
+    const tokens = await loginToEZDerm(credentials.username, credentials.password);
     if (!tokens) {
-      throw new Error(`Failed to get valid tokens for user: ${credentials.username}`);
+      throw new Error(`Failed to login to EZDerm for user: ${credentials.username}`);
     }
+    console.log(`✅ AI Job: Fresh login successful for ${credentials.username}`);
+    
+    // Update the stored tokens for other parts of the system
+    await vitalSignsDb.storeTokens(credentials.username, tokens.accessToken, tokens.refreshToken, tokens.serverUrl);
 
     // Perform the AI check
     const checkId = await aiNoteChecker.checkSingleNote(
