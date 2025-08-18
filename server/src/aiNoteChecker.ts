@@ -360,7 +360,8 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
     patientName: string,
     chiefComplaint: string,
     dateOfService: string,
-    checkedBy: string
+    checkedBy: string,
+    force: boolean = false
   ): Promise<NoteCheckResult> {
     console.log(`🔍 Starting AI note check for encounter: ${encounterId}`);
     
@@ -374,18 +375,22 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
       
       console.log(`🔐 Note content MD5: ${noteContentMd5}`);
       
-      // Check if we've already analyzed this exact content
+      // Check if we've already analyzed this exact content (unless forced)
       const existingCheck = await vitalSignsDb.findNoteCheckByMd5(noteContentMd5);
       
       let aiAnalysis: AIAnalysisResult;
       let issuesFound: boolean;
       
-      if (existingCheck && existingCheck.status === 'completed') {
+      if (existingCheck && existingCheck.status === 'completed' && !force) {
         console.log(`♻️ Found existing analysis for same content (MD5: ${noteContentMd5}), reusing result`);
         aiAnalysis = existingCheck.ai_analysis;
         issuesFound = existingCheck.issues_found;
       } else {
-        console.log(`🆕 New content detected, performing AI analysis`);
+        if (force) {
+          console.log(`🔄 Force flag detected, performing fresh AI analysis despite existing MD5: ${noteContentMd5}`);
+        } else {
+          console.log(`🆕 New content detected, performing AI analysis`);
+        }
         // Analyze with AI
         aiAnalysis = await this.analyzeProgressNote(progressNote);
         

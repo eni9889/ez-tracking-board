@@ -988,7 +988,7 @@ app.post('/api/notes/check/:encounterId', validateSession, async (req: Request, 
   try {
     const username = (req as any).user.username;
     const { encounterId } = req.params;
-    const { patientId, patientName, chiefComplaint, dateOfService } = req.body;
+    const { patientId, patientName, chiefComplaint, dateOfService, force } = req.body;
     
     if (!patientId || typeof patientId !== 'string') {
       res.status(400).json({ error: 'Patient ID is required in request body' });
@@ -1014,7 +1014,8 @@ app.post('/api/notes/check/:encounterId', validateSession, async (req: Request, 
       patientName || 'Unknown Patient',
       chiefComplaint || 'Unknown',
       dateOfService || new Date().toISOString(),
-      username
+      username,
+      Boolean(force) // Convert to boolean, default to false
     );
     
     res.json({ 

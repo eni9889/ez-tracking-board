@@ -24,7 +24,9 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  DialogContentText
+  DialogContentText,
+  FormControlLabel,
+  Checkbox
 } from '@mui/material';
 import {
   ArrowBack,
@@ -76,6 +78,7 @@ const NoteDetail: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [todoSuccess, setTodoSuccess] = useState<string | null>(null);
   const [showToDoModal, setShowToDoModal] = useState(false);
+  const [forceNewCheck, setForceNewCheck] = useState(false);
 
   useEffect(() => {
     if (encounterId) {
@@ -470,12 +473,16 @@ const NoteDetail: React.FC = () => {
         patientId!,
         patientName,
         chiefComplaint,
-        dateOfService
+        dateOfService,
+        forceNewCheck
       );
 
       // Refresh check history
       const newHistory = await fetchCheckHistory();
       setCheckHistory(newHistory);
+      
+      // Reset force checkbox after successful check
+      setForceNewCheck(false);
     } catch (err: any) {
       setError(err.message || 'Failed to check note');
     } finally {
@@ -676,16 +683,41 @@ const NoteDetail: React.FC = () => {
             {noteData.chiefComplaint} • {aiNoteCheckerService.formatTimeAgo(noteData.dateOfService)}
           </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          color="inherit"
-          startIcon={checking ? <CircularProgress size={16} color="inherit" /> : <Psychology />}
-          onClick={handleCheckNote}
-          disabled={checking}
-          size="small"
-        >
-          {checking ? 'Checking...' : 'Run AI Check'}
-        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Button
+            variant="outlined"
+            color="inherit"
+            startIcon={checking ? <CircularProgress size={16} color="inherit" /> : <Psychology />}
+            onClick={handleCheckNote}
+            disabled={checking}
+            size="small"
+          >
+            {checking 
+              ? 'Checking...' 
+              : forceNewCheck 
+                ? 'Force New AI Check' 
+                : 'Run AI Check'
+            }
+          </Button>
+          <Tooltip title="Bypass MD5 duplicate detection and run a fresh AI analysis even if this note was already checked">
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={forceNewCheck}
+                  onChange={(e) => setForceNewCheck(e.target.checked)}
+                  size="small"
+                  sx={{ color: 'white', '&.Mui-checked': { color: 'white' } }}
+                />
+              }
+              label="Force New"
+              sx={{ 
+                color: 'white', 
+                fontSize: '0.8rem',
+                '& .MuiFormControlLabel-label': { fontSize: '0.8rem' }
+              }}
+            />
+          </Tooltip>
+        </Box>
         {checkHistory.some(check => check.issuesFound) && (
           createdTodos.length > 0 ? (
             <Chip

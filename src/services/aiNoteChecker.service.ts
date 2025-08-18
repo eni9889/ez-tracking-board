@@ -406,7 +406,8 @@ class AINoteCheckerService {
     patientId: string,
     patientName: string,
     chiefComplaint: string,
-    dateOfService: string
+    dateOfService: string,
+    force: boolean = false
   ): Promise<NoteCheckResult> {
     if (USE_MOCK_DATA) {
       console.log('🚧 Development Mode: Simulating AI note check');
@@ -431,7 +432,8 @@ class AINoteCheckerService {
         patientId,
         patientName,
         chiefComplaint,
-        dateOfService
+        dateOfService,
+        force
       }, {
         headers: this.headers()
       });
