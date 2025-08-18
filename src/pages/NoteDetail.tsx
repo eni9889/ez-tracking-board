@@ -13,7 +13,13 @@ import {
   ListItem,
   Accordion,
   AccordionSummary,
-  AccordionDetails
+  AccordionDetails,
+  Card,
+  CardContent,
+  CardHeader,
+  Collapse,
+  Tooltip,
+  Stack
 } from '@mui/material';
 import {
   ArrowBack,
@@ -23,7 +29,15 @@ import {
   CheckCircle,
   Warning,
   Error as ErrorIcon,
-  Assignment
+  Assignment,
+  Visibility,
+  VisibilityOff,
+  Description,
+  Assessment,
+  LocalHospital,
+  Timeline,
+  Person,
+  Schedule
 } from '@mui/icons-material';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -45,7 +59,7 @@ const NoteDetail: React.FC = () => {
   const {} = useAuth(); // eslint-disable-line @typescript-eslint/no-unused-vars
 
   const [noteData, setNoteData] = useState<NoteDetailProps | null>(null);
-  const [noteContent, setNoteContent] = useState<string>('');
+  const [progressNoteData, setProgressNoteData] = useState<any>(null);
   const [checkHistory, setCheckHistory] = useState<NoteCheckResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
@@ -72,12 +86,12 @@ const NoteDetail: React.FC = () => {
 
     try {
       // Fetch note content and check history
-      const [content, history] = await Promise.all([
+      const [progressNote, history] = await Promise.all([
         fetchNoteContent(),
         fetchCheckHistory()
       ]);
 
-      setNoteContent(content);
+      setProgressNoteData(progressNote);
       setCheckHistory(history);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch note details');
@@ -86,8 +100,8 @@ const NoteDetail: React.FC = () => {
     }
   };
 
-  const fetchNoteContent = async (): Promise<string> => {
-    if (!encounterId) return 'No encounter ID available';
+  const fetchNoteContent = async (): Promise<any> => {
+    if (!encounterId) throw new Error('No encounter ID available');
     
     try {
       // Try to get progress note with patientId if available, otherwise let backend find it
@@ -97,11 +111,10 @@ const NoteDetail: React.FC = () => {
         patientId
       );
       
-      // Format the progress note for display
-      return formatProgressNoteForDisplay(progressNote);
+      return progressNote;
     } catch (err) {
       console.error('Error fetching note content:', err);
-      return `Unable to load note content: ${err}`;
+      throw new Error(`Unable to load note content: ${err}`);
     }
   };
 
@@ -118,33 +131,161 @@ const NoteDetail: React.FC = () => {
     }
   };
 
-  const formatProgressNoteForDisplay = (progressNote: any): string => {
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+
+  const toggleSection = (sectionType: string) => {
+    setCollapsedSections(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sectionType)) {
+        newSet.delete(sectionType);
+      } else {
+        newSet.add(sectionType);
+      }
+      return newSet;
+    });
+  };
+
+  const getSectionIcon = (sectionType: string) => {
+    switch (sectionType) {
+      case 'SUBJECTIVE':
+        return <Person color="primary" />;
+      case 'OBJECTIVE':
+        return <LocalHospital color="success" />;
+      case 'ASSESSMENT_AND_PLAN':
+        return <Assessment color="warning" />;
+      default:
+        return <Description color="action" />;
+    }
+  };
+
+  const getSectionColor = (sectionType: string) => {
+    switch (sectionType) {
+      case 'SUBJECTIVE':
+        return '#1976d2';
+      case 'OBJECTIVE':
+        return '#2e7d32';
+      case 'ASSESSMENT_AND_PLAN':
+        return '#ed6c02';
+      default:
+        return '#666';
+    }
+  };
+
+  const renderProgressNote = (progressNote: any) => {
     if (!progressNote) {
-      return 'No note content available';
+      return (
+        <Box sx={{ p: 4, textAlign: 'center' }}>
+          <Description sx={{ fontSize: '3rem', color: 'text.secondary', mb: 2 }} />
+          <Typography variant="h6" color="text.secondary">
+            No note content available
+          </Typography>
+        </Box>
+      );
     }
 
     // Handle the backend response wrapper
     const noteData = progressNote.data || progressNote;
     
-    // The backend returns progressNotes array, not progressNoteInfo.sections
+    // The backend returns progressNotes array
     const sections = noteData.progressNotes || [];
-    let formattedNote = '';
 
-    sections.forEach((section: any) => {
-      if (section.items && section.items.length > 0) {
-        const sectionLabel = section.sectionType || section.label || 'Unknown Section';
-        formattedNote += `\n${sectionLabel}:\n`;
-        formattedNote += '─'.repeat(sectionLabel.length + 1) + '\n';
-        
-        section.items.forEach((item: any) => {
-          if (item.text) {
-            formattedNote += `${item.text}\n\n`;
-          }
-        });
-      }
-    });
+    if (sections.length === 0) {
+      return (
+        <Box sx={{ p: 4, textAlign: 'center' }}>
+          <Description sx={{ fontSize: '3rem', color: 'text.secondary', mb: 2 }} />
+          <Typography variant="h6" color="text.secondary">
+            No note sections found
+          </Typography>
+        </Box>
+      );
+    }
 
-    return formattedNote.trim() || 'No note content available';
+    return (
+      <Stack spacing={2} sx={{ p: 2 }}>
+        {sections.map((section: any, index: number) => {
+          const sectionType = section.sectionType || section.label || `Section ${index + 1}`;
+          const isCollapsed = collapsedSections.has(sectionType);
+          const sectionColor = getSectionColor(sectionType);
+          
+          return (
+            <Card 
+              key={sectionType} 
+              sx={{ 
+                border: `2px solid ${sectionColor}20`,
+                '&:hover': {
+                  boxShadow: 4
+                }
+              }}
+            >
+              <CardHeader
+                avatar={getSectionIcon(sectionType)}
+                title={
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: sectionColor }}>
+                    {sectionType.replace(/_/g, ' & ')}
+                  </Typography>
+                }
+                action={
+                  <Tooltip title={isCollapsed ? 'Expand section' : 'Collapse section'}>
+                    <IconButton onClick={() => toggleSection(sectionType)}>
+                      {isCollapsed ? <Visibility /> : <VisibilityOff />}
+                    </IconButton>
+                  </Tooltip>
+                }
+                sx={{
+                  bgcolor: `${sectionColor}08`,
+                  borderBottom: `1px solid ${sectionColor}30`
+                }}
+              />
+              <Collapse in={!isCollapsed}>
+                <CardContent sx={{ pt: 2 }}>
+                  {section.items && section.items.length > 0 ? (
+                    <Stack spacing={2}>
+                      {section.items.map((item: any, itemIndex: number) => (
+                        <Box key={itemIndex}>
+                          {item.text && (
+                            <Paper 
+                              sx={{ 
+                                p: 2, 
+                                bgcolor: 'background.default',
+                                border: '1px solid',
+                                borderColor: 'divider'
+                              }}
+                            >
+                              <Typography 
+                                variant="body1" 
+                                sx={{ 
+                                  lineHeight: 1.8,
+                                  whiteSpace: 'pre-wrap',
+                                  fontFamily: 'system-ui, -apple-system, sans-serif'
+                                }}
+                              >
+                                {item.text}
+                              </Typography>
+                              {item.elementType && (
+                                <Chip 
+                                  label={item.elementType.replace(/_/g, ' ')}
+                                  size="small"
+                                  sx={{ mt: 1, fontSize: '0.7rem' }}
+                                  color="default"
+                                />
+                              )}
+                            </Paper>
+                          )}
+                        </Box>
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                      No content in this section
+                    </Typography>
+                  )}
+                </CardContent>
+              </Collapse>
+            </Card>
+          );
+        })}
+      </Stack>
+    );
   };
 
   const handleCheckNote = async () => {
@@ -341,27 +482,41 @@ const NoteDetail: React.FC = () => {
         {/* Left Panel - Note Content */}
         <Paper sx={{ flex: 1, display: 'flex', flexDirection: 'column', maxHeight: '100%' }}>
           <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-              Progress Note
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                Progress Note
+              </Typography>
+              <Stack direction="row" spacing={1}>
+                <Tooltip title="Expand all sections">
+                  <IconButton size="small" onClick={() => setCollapsedSections(new Set())}>
+                    <Visibility />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Collapse all sections">
+                  <IconButton size="small" onClick={() => {
+                    const allSections = progressNoteData?.data?.progressNotes?.map((s: any) => s.sectionType) || [];
+                    setCollapsedSections(new Set(allSections));
+                  }}>
+                    <VisibilityOff />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+            </Box>
             <Typography variant="body2" color="text.secondary">
-              Status: {noteData.status}
+              Status: {noteData?.status || 'Unknown'} • {progressNoteData?.data?.progressNotes?.length || 0} sections
             </Typography>
           </Box>
-          <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
-            <Typography
-              variant="body2"
-              component="pre"
-              sx={{
-                whiteSpace: 'pre-wrap',
-                fontFamily: 'monospace',
-                fontSize: '0.85rem',
-                lineHeight: 1.6,
-                color: 'text.primary'
-              }}
-            >
-              {noteContent || 'Loading note content...'}
-            </Typography>
+          <Box sx={{ flex: 1, overflow: 'auto' }}>
+            {loading ? (
+              <Box sx={{ p: 4, textAlign: 'center' }}>
+                <CircularProgress />
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                  Loading note content...
+                </Typography>
+              </Box>
+            ) : (
+              renderProgressNote(progressNoteData)
+            )}
           </Box>
         </Paper>
 
