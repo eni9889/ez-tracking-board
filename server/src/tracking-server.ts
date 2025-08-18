@@ -761,7 +761,7 @@ app.get('/api/notes/progress/:encounterId', validateSession, async (req: Request
         size: 200  // Get more notes to increase chance of finding the encounter
       });
       
-      // Search for the encounter in incomplete notes to get patientId and care team info
+      // Search for the encounter in incomplete notes to get patientId (care team fetched separately)
       let foundPatientId: string | null = null;
       incompleteNotesData.forEach(batch => {
         if (batch.incompletePatientEncounters && !foundPatientId) {
@@ -769,7 +769,7 @@ app.get('/api/notes/progress/:encounterId', validateSession, async (req: Request
             const foundEncounter = patientData.incompleteEncounters.find(enc => enc.id === encounterId);
             if (foundEncounter) {
               foundPatientId = patientData.id;
-              encounterRoleInfoList = foundEncounter.encounterRoleInfoList || [];
+              // Note: NOT getting care team from here - will fetch full encounter details below
             }
           });
         }
@@ -791,6 +791,24 @@ app.get('/api/notes/progress/:encounterId', validateSession, async (req: Request
       console.error('Error searching incomplete notes:', searchError);
       res.status(500).json({ error: 'Could not fetch encounter details' });
       return;
+    }
+
+    // Now fetch the FULL encounter details to get care team with actual names
+    try {
+      console.log('🏥 Fetching full encounter details for care team...');
+      const encounterDetails = await aiNoteChecker.fetchEncounterDetails(userTokens.accessToken, encounterId);
+      encounterRoleInfoList = encounterDetails.encounterRoleInfoList || [];
+      console.log(`✅ Got care team with names: ${encounterRoleInfoList.length} members`);
+      
+      // Also update patientId if we didn't have it
+      if (!patientId && encounterDetails.patientId) {
+        patientId = encounterDetails.patientId;
+        console.log(`📝 Got patientId from encounter details: ${patientId}`);
+      }
+    } catch (error: any) {
+      console.warn('⚠️ Failed to fetch full encounter details:', error.message);
+      // Continue with empty care team
+      encounterRoleInfoList = [];
     }
 
     const progressNote = await aiNoteChecker.fetchProgressNote(

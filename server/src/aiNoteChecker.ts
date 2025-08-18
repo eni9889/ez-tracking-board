@@ -180,6 +180,38 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
   }
 
   /**
+   * Fetch full encounter details including care team with names
+   */
+  async fetchEncounterDetails(
+    accessToken: string,
+    encounterId: string
+  ): Promise<any> {
+    try {
+      console.log(`🏥 Fetching encounter details for: ${encounterId}`);
+      
+      const response: AxiosResponse<any> = await axios.get(
+        `${this.EZDERM_API_BASE}/ezderm-webservice/rest/encounter/getById/_rid/${encounterId}`,
+        {
+          headers: {
+            'Host': 'srvprod.ezinfra.net',
+            'accept': 'application/json',
+            'authorization': `Bearer ${accessToken}`,
+            'encounterid': encounterId,
+            'user-agent': 'ezDerm/4.28.1 (build:133.1; macOS(Catalyst) 15.6.0)',
+            'accept-language': 'en-US;q=1.0'
+          }
+        }
+      );
+
+      console.log(`✅ Encounter details fetched for: ${encounterId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error(`❌ Error fetching encounter details for ${encounterId}:`, error.response?.data || error.message);
+      throw new Error(`Failed to fetch encounter details: ${error.message}`);
+    }
+  }
+
+  /**
    * Fetch progress note details for a specific encounter
    */
   async fetchProgressNote(
