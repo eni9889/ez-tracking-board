@@ -190,6 +190,19 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
     try {
       console.log(`📄 Fetching progress note for encounter: ${encounterId}`);
       
+      // DEBUG: Examine the token being used for this API call
+      console.log(`🔍 fetchProgressNote DEBUG - Token analysis:`);
+      console.log(`🔍 Token type: ${typeof accessToken}`);
+      console.log(`🔍 Token length: ${accessToken?.length || 'undefined'}`);
+      console.log(`🔍 Token first 100 chars: ${accessToken?.substring(0, 100) || 'undefined'}`);
+      console.log(`🔍 Token parts count: ${accessToken?.split('.').length || 'undefined'}`);
+      
+      if (!accessToken || accessToken.split('.').length !== 3) {
+        console.log(`❌ fetchProgressNote: INVALID TOKEN DETECTED!`);
+        console.log(`❌ Full token value: ${JSON.stringify(accessToken)}`);
+        throw new Error(`Invalid JWT token passed to fetchProgressNote`);
+      }
+      
       const response: AxiosResponse<ProgressNoteResponse> = await axios.post(
         `${this.EZDERM_API_BASE}/ezderm-webservice/rest/progressnote/getProgressNoteInfo`,
         { encounterId },
