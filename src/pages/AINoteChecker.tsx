@@ -45,6 +45,7 @@ const AINoteChecker: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState<Set<string>>(new Set());
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [autoRefreshing, setAutoRefreshing] = useState(false);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const {} = useAuth();
@@ -55,6 +56,16 @@ const AINoteChecker: React.FC = () => {
 
   useEffect(() => {
     fetchIncompleteNotes();
+    
+    // Auto-refresh every 30 seconds to pick up background job results
+    const refreshInterval = setInterval(async () => {
+      console.log('🔄 Auto-refreshing note check results...');
+      setAutoRefreshing(true);
+      await fetchIncompleteNotes();
+      setAutoRefreshing(false);
+    }, 30000); // 30 seconds
+    
+    return () => clearInterval(refreshInterval);
   }, []);
 
   const fetchIncompleteNotes = async () => {
@@ -235,6 +246,16 @@ const AINoteChecker: React.FC = () => {
         <Typography variant="caption" sx={{ mr: 2, opacity: 0.8 }}>
           Showing notes &gt; 2 hours old with status: PENDING_COSIGN, CHECKED_OUT, WITH_PROVIDER
         </Typography>
+        {lastRefresh && (
+          <Typography variant="caption" sx={{ mr: 2, opacity: 0.7 }}>
+            Last updated: {lastRefresh.toLocaleTimeString()}
+            {autoRefreshing && (
+              <Typography component="span" sx={{ ml: 1, opacity: 0.8 }}>
+                🔄
+              </Typography>
+            )}
+          </Typography>
+        )}
         <Button
           variant="outlined"
           color="inherit"
@@ -243,7 +264,7 @@ const AINoteChecker: React.FC = () => {
           disabled={loading}
           size="small"
         >
-          Refresh
+          {loading ? 'Refreshing...' : 'Refresh'}
         </Button>
       </Box>
 
