@@ -184,7 +184,6 @@ export interface AINoteCheckJobData {
   patientName: string;
   chiefComplaint: string;
   dateOfService: string;
-  username: string;
   scanId: string;
 }
 

@@ -432,7 +432,6 @@ const processAINoteScan = async (job: Job<AINoteScanJobData>) => {
                   patientName: `${patientData.firstName} ${patientData.lastName}`,
                   chiefComplaint: encounter.chiefComplaintName || 'No chief complaint',
                   dateOfService: encounter.dateOfService,
-                  username: credentials.username,
                   scanId
                 }, {
                   delay: totalQueued * 5000, // Stagger jobs every 5 seconds
@@ -466,16 +465,22 @@ const processAINoteScan = async (job: Job<AINoteScanJobData>) => {
 
 // AI Note Check Job Processor
 const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
-  const { encounterId, patientId, patientName, chiefComplaint, dateOfService, username, scanId } = job.data;
+  const { encounterId, patientId, patientName, chiefComplaint, dateOfService, scanId } = job.data;
   
   console.log(`🤖 Starting AI check for encounter: ${encounterId} (${patientName})`);
   console.log(`📅 Date of service: ${dateOfService} (type: ${typeof dateOfService})`);
   
   try {
-    // Get valid tokens
-    const tokens = await getValidTokensForAI(username);
+    // Get stored credentials (SAME PATTERN AS VITAL SIGNS)
+    const credentials = await vitalSignsDb.getActiveUserCredentials();
+    if (!credentials) {
+      throw new Error('No active user credentials found. Please login through the frontend first.');
+    }
+
+    // Get valid tokens (with automatic refresh if needed)
+    const tokens = await getValidTokensForJob(credentials.username);
     if (!tokens) {
-      throw new Error(`Failed to get valid tokens for user: ${username}`);
+      throw new Error(`Failed to get valid tokens for user: ${credentials.username}`);
     }
 
     // Perform the AI check
@@ -486,7 +491,7 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
       chiefComplaint,
       dateOfService,
       tokens.accessToken,
-      username
+      credentials.username
     );
 
     // Get the AI analysis result to check for issues
