@@ -590,13 +590,32 @@ app.post('/api/notes/incomplete', validateSession, async (req: Request, res: Res
       return;
     }
     
-    const incompleteNotes = await aiNoteChecker.fetchIncompleteNotes(userTokens.accessToken, {
+    const incompleteNotesData = await aiNoteChecker.fetchIncompleteNotes(userTokens.accessToken, {
       fetchFrom,
       size,
       group
     });
     
-    res.json({ success: true, data: incompleteNotes });
+    // Transform the EZDerm response to the format expected by frontend
+    const encounters: any[] = [];
+    incompleteNotesData.forEach(batch => {
+      if (batch.incompletePatientEncounters) {
+        batch.incompletePatientEncounters.forEach(patientData => {
+          patientData.incompleteEncounters.forEach(encounter => {
+            encounters.push({
+              encounterId: encounter.id,
+              patientId: patientData.id,
+              patientName: `${patientData.firstName} ${patientData.lastName}`,
+              chiefComplaint: encounter.chiefComplaintName || 'No chief complaint',
+              dateOfService: encounter.dateOfService,
+              status: encounter.status
+            });
+          });
+        });
+      }
+    });
+    
+    res.json({ success: true, encounters });
   } catch (error: any) {
     console.error('Error fetching incomplete notes:', error);
     res.status(500).json({ error: 'Failed to fetch incomplete notes', details: error.message });
