@@ -4,13 +4,17 @@ import axios from './axiosConfig';
 import { AxiosResponse } from 'axios';
 import { vitalSignsDb } from './database';
 import { vitalSignsService } from './vitalSignsService';
+import { aiNoteChecker } from './aiNoteChecker';
 import {
   EZDermLoginRequest,
   EZDermLoginResponse,
   EZDermEncounterFilter,
   EZDermEncounter,
   Encounter,
-  EncounterStatus
+  EncounterStatus,
+  AINoteScanJobData,
+  AINoteCheckJobData,
+  StoredTokens
 } from './types';
 
 // Redis connection configuration
@@ -34,6 +38,34 @@ export const vitalSignsQueue = new Queue('vital-signs-processing', {
   },
 });
 
+// Create queue for AI note scanning (finding notes to check)
+export const aiNoteScanQueue = new Queue('ai-note-scan', {
+  connection: redis,
+  defaultJobOptions: {
+    removeOnComplete: 5,  // Keep only last 5 completed scans
+    removeOnFail: 20,     // Keep last 20 failed scans
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 10000,
+    },
+  },
+});
+
+// Create queue for individual AI note checking
+export const aiNoteCheckQueue = new Queue('ai-note-check', {
+  connection: redis,
+  defaultJobOptions: {
+    removeOnComplete: 50, // Keep more completed individual checks
+    removeOnFail: 100,    // Keep more failed individual checks
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 15000,
+    },
+  },
+});
+
 // EZDerm API configuration
 const EZDERM_LOGIN_URL = 'https://login.ezinfra.net/api/login';
 const EZDERM_REFRESH_URL = 'https://login.ezinfra.net/api/refresh';
@@ -46,6 +78,8 @@ const TARGET_STATUSES: EncounterStatus[] = ['READY_FOR_STAFF', 'WITH_STAFF'];
 // Development filter - only process this specific patient in dev mode
 const DEV_PATIENT_MRN = 'EZTE0000';
 const IS_DEVELOPMENT = process.env.NODE_ENV === 'development';
+
+// AI Note Checker instance (imported from aiNoteChecker.ts)
 
 // Date formatting utilities
 const formatDateStartOfDay = (date: Date): string => {
@@ -333,10 +367,152 @@ async function processVitalSignsCarryforward(job: Job): Promise<{ processed: num
   }
 }
 
-// Create worker
+// Token management helper for AI note checking jobs (reuse existing pattern)
+const getValidTokensForAI = async (username: string): Promise<{ accessToken: string; refreshToken: string; serverUrl: string } | null> => {
+  // Use the existing token management function from vital signs jobs
+  return await getValidTokensForJob(username);
+};
+
+// AI Note Scan Job Processor
+const processAINoteScan = async (job: Job<AINoteScanJobData>) => {
+  const { username, scanId, batchSize = 100 } = job.data;
+  
+  console.log(`🔍 Starting AI note scan for user: ${username}, scanId: ${scanId}`);
+  
+  try {
+    // Get valid tokens
+    const tokens = await getValidTokensForAI(username);
+    if (!tokens) {
+      throw new Error(`Failed to get valid tokens for user: ${username}`);
+    }
+
+    // Fetch incomplete notes
+    const incompleteNotes = await aiNoteChecker.fetchIncompleteNotes(tokens.accessToken, {
+      fetchFrom: 0,
+      size: batchSize
+    });
+
+    let totalEligible = 0;
+    let totalQueued = 0;
+
+    // Process each batch
+    for (const batch of incompleteNotes) {
+      if (batch.incompletePatientEncounters) {
+        for (const patientData of batch.incompletePatientEncounters) {
+          for (const encounter of patientData.incompleteEncounters) {
+            // Apply same eligibility filter as the main endpoint
+            const eligibleStatuses = ['PENDING_COSIGN', 'CHECKED_OUT', 'WITH_PROVIDER'];
+            const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+            const serviceDate = new Date(encounter.dateOfService);
+            
+            const isEligible = eligibleStatuses.includes(encounter.status) && serviceDate < twoHoursAgo;
+            
+            if (isEligible) {
+              totalEligible++;
+              
+              // Check if we already have a recent check for this note
+              const existingCheck = await vitalSignsDb.getNoteCheckByEncounterId(encounter.id);
+              
+              // Only queue if no existing check or if it's been more than 6 hours
+              const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+              const shouldCheck = !existingCheck || 
+                                 (existingCheck.status === 'error') ||
+                                 (new Date(existingCheck.checkedAt) < sixHoursAgo);
+              
+              if (shouldCheck) {
+                // Queue individual note check
+                await aiNoteCheckQueue.add('check-note', {
+                  encounterId: encounter.id,
+                  patientId: patientData.id,
+                  patientName: `${patientData.firstName} ${patientData.lastName}`,
+                  chiefComplaint: encounter.chiefComplaintName || 'No chief complaint',
+                  dateOfService: encounter.dateOfService,
+                  username,
+                  scanId
+                }, {
+                  delay: totalQueued * 5000, // Stagger jobs every 5 seconds
+                });
+                
+                totalQueued++;
+                console.log(`📝 Queued note check for encounter: ${encounter.id} (${patientData.firstName} ${patientData.lastName})`);
+              } else {
+                console.log(`⏭️ Skipping encounter ${encounter.id}: recent check exists`);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    console.log(`✅ AI note scan completed. Found ${totalEligible} eligible encounters, queued ${totalQueued} for checking`);
+    
+    return {
+      scanId,
+      totalEligible,
+      totalQueued,
+      completedAt: new Date().toISOString()
+    };
+    
+  } catch (error: any) {
+    console.error(`❌ AI note scan failed for user: ${username}`, error);
+    throw error;
+  }
+};
+
+// AI Note Check Job Processor
+const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
+  const { encounterId, patientId, patientName, chiefComplaint, dateOfService, username, scanId } = job.data;
+  
+  console.log(`🤖 Starting AI check for encounter: ${encounterId} (${patientName})`);
+  
+  try {
+    // Get valid tokens
+    const tokens = await getValidTokensForAI(username);
+    if (!tokens) {
+      throw new Error(`Failed to get valid tokens for user: ${username}`);
+    }
+
+    // Perform the AI check
+    const checkId = await aiNoteChecker.checkSingleNote(
+      encounterId,
+      patientId,
+      patientName,
+      chiefComplaint,
+      dateOfService,
+      tokens.accessToken,
+      username
+    );
+
+    console.log(`✅ AI check completed for encounter: ${encounterId}, checkId: ${checkId}`);
+    
+    return {
+      encounterId,
+      patientName,
+      checkId,
+      scanId,
+      completedAt: new Date().toISOString()
+    };
+    
+  } catch (error: any) {
+    console.error(`❌ AI check failed for encounter: ${encounterId}`, error);
+    throw error;
+  }
+};
+
+// Create workers
 export const vitalSignsWorker = new Worker('vital-signs-processing', processVitalSignsCarryforward, {
   connection: redis,
   concurrency: 1, // Only one job at a time
+});
+
+export const aiNoteScanWorker = new Worker('ai-note-scan', processAINoteScan, {
+  connection: redis,
+  concurrency: 1, // Only one scan at a time
+});
+
+export const aiNoteCheckWorker = new Worker('ai-note-check', processAINoteCheck, {
+  connection: redis,
+  concurrency: 3, // Allow multiple AI checks in parallel
 });
 
 // Worker event handlers
@@ -350,6 +526,32 @@ vitalSignsWorker.on('failed', (job, err) => {
 
 vitalSignsWorker.on('error', (err) => {
   console.error('🚨 Worker error:', err);
+});
+
+// AI Note Scan Worker event handlers
+aiNoteScanWorker.on('completed', (job) => {
+  console.log(`✅ AI Note Scan ${job.id} completed successfully`);
+});
+
+aiNoteScanWorker.on('failed', (job, err) => {
+  console.error(`❌ AI Note Scan ${job?.id} failed:`, err);
+});
+
+aiNoteScanWorker.on('error', (err) => {
+  console.error('🚨 AI Note Scan Worker error:', err);
+});
+
+// AI Note Check Worker event handlers
+aiNoteCheckWorker.on('completed', (job) => {
+  console.log(`✅ AI Note Check ${job.id} completed successfully`);
+});
+
+aiNoteCheckWorker.on('failed', (job, err) => {
+  console.error(`❌ AI Note Check ${job?.id} failed:`, err);
+});
+
+aiNoteCheckWorker.on('error', (err) => {
+  console.error('🚨 AI Note Check Worker error:', err);
 });
 
 // Start the recurring job
@@ -381,7 +583,99 @@ export async function startVitalSignsJob(): Promise<void> {
   }
 }
 
-// Stop the job system
+// Start the AI note checking job system
+export async function startAINoteCheckingJob(): Promise<void> {
+  try {
+    // Pause the queues first, then clear any existing jobs
+    await aiNoteScanQueue.pause();
+    await aiNoteCheckQueue.pause();
+    
+    await aiNoteScanQueue.obliterate({ force: true });
+    await aiNoteCheckQueue.obliterate({ force: true });
+    
+    await aiNoteScanQueue.resume();
+    await aiNoteCheckQueue.resume();
+
+    console.log('🚀 Starting AI note checking job system...');
+
+    // Schedule recurring AI note scans every 30 minutes
+    await aiNoteScanQueue.add('scan-incomplete-notes', {
+      username: 'system', // Will need to be configurable per user
+      scanId: `scan-${Date.now()}`,
+      batchSize: 200
+    }, {
+      repeat: {
+        every: 30 * 60 * 1000, // 30 minutes
+        immediately: true
+      },
+      jobId: 'recurring-ai-note-scan'
+    });
+
+    console.log('✅ AI note checking job system started successfully');
+    console.log('📋 Scheduled recurring AI note scans every 30 minutes');
+  } catch (error) {
+    console.error('Error starting AI note checking job system:', error);
+    throw error;
+  }
+}
+
+// Manually trigger an AI note scan
+export async function triggerAINoteScan(username: string): Promise<string> {
+  try {
+    const scanId = `manual-scan-${Date.now()}`;
+    
+    await aiNoteScanQueue.add('manual-scan', {
+      username,
+      scanId,
+      batchSize: 200
+    });
+
+    console.log(`🔍 Triggered manual AI note scan for user: ${username}, scanId: ${scanId}`);
+    return scanId;
+  } catch (error) {
+    console.error('Error triggering AI note scan:', error);
+    throw error;
+  }
+}
+
+// Get AI note checking job statistics
+export async function getAINoteJobStats() {
+  try {
+    const [scanWaiting, scanActive, scanCompleted, scanFailed] = await Promise.all([
+      aiNoteScanQueue.getWaiting(),
+      aiNoteScanQueue.getActive(),
+      aiNoteScanQueue.getCompleted(),
+      aiNoteScanQueue.getFailed()
+    ]);
+
+    const [checkWaiting, checkActive, checkCompleted, checkFailed] = await Promise.all([
+      aiNoteCheckQueue.getWaiting(),
+      aiNoteCheckQueue.getActive(),
+      aiNoteCheckQueue.getCompleted(),
+      aiNoteCheckQueue.getFailed()
+    ]);
+
+    return {
+      scan: {
+        waiting: scanWaiting.length,
+        active: scanActive.length,
+        completed: scanCompleted.length,
+        failed: scanFailed.length
+      },
+      check: {
+        waiting: checkWaiting.length,
+        active: checkActive.length,
+        completed: checkCompleted.length,
+        failed: checkFailed.length
+      }
+    };
+  } catch (error) {
+    console.error('Error getting AI note job stats:', error);
+    throw error;
+  }
+}
+
+// Stop the job systems
 export async function stopVitalSignsJob(): Promise<void> {
   try {
     await vitalSignsWorker.close();
@@ -390,5 +684,17 @@ export async function stopVitalSignsJob(): Promise<void> {
     console.log('🛑 Vital signs job system stopped');
   } catch (error) {
     console.error('Error stopping vital signs job system:', error);
+  }
+}
+
+export async function stopAINoteCheckingJob(): Promise<void> {
+  try {
+    await aiNoteScanWorker.close();
+    await aiNoteCheckWorker.close();
+    await aiNoteScanQueue.close();
+    await aiNoteCheckQueue.close();
+    console.log('🛑 AI note checking job system stopped');
+  } catch (error) {
+    console.error('Error stopping AI note checking job system:', error);
   }
 } 

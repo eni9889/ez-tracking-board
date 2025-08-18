@@ -541,6 +541,22 @@ class VitalSignsDatabase {
     return result.rows.length > 0 ? result.rows[0] : null;
   }
 
+  async getNoteCheckByEncounterId(encounterId: string): Promise<any | null> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      SELECT * FROM note_checks 
+      WHERE encounter_id = $1 
+      ORDER BY checked_at DESC 
+      LIMIT 1
+    `;
+
+    const result = await this.pool.query(query, [encounterId]);
+    return result.rows.length > 0 ? result.rows[0] : null;
+  }
+
   async getNoteCheckResult(encounterId: string): Promise<any | null> {
     if (!this.pool) {
       throw new Error('Database not initialized');

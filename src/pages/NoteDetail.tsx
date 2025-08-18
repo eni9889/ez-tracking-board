@@ -257,7 +257,7 @@ const NoteDetail: React.FC = () => {
                             </Typography>
                           )}
                           
-                          {/* Show text field first (auto-generated content) */}
+                          {/* Show text field first */}
                           {item.text && (
                             <Paper 
                               sx={{ 
@@ -268,17 +268,6 @@ const NoteDetail: React.FC = () => {
                                 mb: item.note ? 1 : 0
                               }}
                             >
-                              <Typography 
-                                variant="body2" 
-                                sx={{ 
-                                  fontWeight: 'bold', 
-                                  mb: 1, 
-                                  color: 'text.secondary',
-                                  fontSize: '0.8rem'
-                                }}
-                              >
-                                AUTO-GENERATED SUMMARY:
-                              </Typography>
                               <Typography 
                                 variant="body1" 
                                 sx={{ 
@@ -292,35 +281,22 @@ const NoteDetail: React.FC = () => {
                             </Paper>
                           )}
                           
-                          {/* Show note field second (provider's actual notes) */}
+                          {/* Show note field second */}
                           {item.note && (
                             <Paper 
                               sx={{ 
                                 p: 2, 
-                                bgcolor: 'primary.50',
-                                border: '2px solid',
-                                borderColor: 'primary.main',
-                                borderStyle: 'dashed'
+                                bgcolor: 'background.paper',
+                                border: '1px solid',
+                                borderColor: 'primary.main'
                               }}
                             >
-                              <Typography 
-                                variant="body2" 
-                                sx={{ 
-                                  fontWeight: 'bold', 
-                                  mb: 1, 
-                                  color: 'primary.main',
-                                  fontSize: '0.8rem'
-                                }}
-                              >
-                                PROVIDER NOTES:
-                              </Typography>
                               <Typography 
                                 variant="body1" 
                                 sx={{ 
                                   lineHeight: 1.8,
                                   whiteSpace: 'pre-wrap',
-                                  fontFamily: 'system-ui, -apple-system, sans-serif',
-                                  fontWeight: 500
+                                  fontFamily: 'system-ui, -apple-system, sans-serif'
                                 }}
                               >
                                 {item.note}

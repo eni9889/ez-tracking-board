@@ -7,7 +7,14 @@ import { config } from 'dotenv';
 import crypto from 'crypto';
 import { vitalSignsDb } from './database';
 import { vitalSignsService } from './vitalSignsService';
-import { startVitalSignsJob, stopVitalSignsJob } from './jobProcessor';
+import { 
+  startVitalSignsJob, 
+  stopVitalSignsJob, 
+  startAINoteCheckingJob, 
+  stopAINoteCheckingJob,
+  triggerAINoteScan, 
+  getAINoteJobStats 
+} from './jobProcessor';
 import { aiNoteChecker } from './aiNoteChecker';
 import {
   LoginRequest,
@@ -575,6 +582,79 @@ app.get('/api/vital-signs/stats', async (req: Request, res: Response) => {
   }
 });
 
+// AI Note Checking Job System Endpoints
+
+// Start AI note checking job system
+app.post('/api/ai-notes/jobs/start', validateSession, async (req: Request, res: Response) => {
+  try {
+    await startAINoteCheckingJob();
+    res.json({ 
+      success: true, 
+      message: 'AI note checking job system started successfully' 
+    });
+  } catch (error: any) {
+    console.error('Error starting AI note checking job system:', error);
+    res.status(500).json({ 
+      error: 'Failed to start AI note checking job system', 
+      details: error.message 
+    });
+  }
+});
+
+// Stop AI note checking job system
+app.post('/api/ai-notes/jobs/stop', validateSession, async (req: Request, res: Response) => {
+  try {
+    await stopAINoteCheckingJob();
+    res.json({ 
+      success: true, 
+      message: 'AI note checking job system stopped successfully' 
+    });
+  } catch (error: any) {
+    console.error('Error stopping AI note checking job system:', error);
+    res.status(500).json({ 
+      error: 'Failed to stop AI note checking job system', 
+      details: error.message 
+    });
+  }
+});
+
+// Trigger manual AI note scan
+app.post('/api/ai-notes/jobs/scan', validateSession, async (req: Request, res: Response) => {
+  try {
+    const username = (req as any).user.username;
+    const scanId = await triggerAINoteScan(username);
+    
+    res.json({ 
+      success: true, 
+      message: 'AI note scan triggered successfully',
+      scanId 
+    });
+  } catch (error: any) {
+    console.error('Error triggering AI note scan:', error);
+    res.status(500).json({ 
+      error: 'Failed to trigger AI note scan', 
+      details: error.message 
+    });
+  }
+});
+
+// Get AI note checking job statistics
+app.get('/api/ai-notes/jobs/stats', validateSession, async (req: Request, res: Response) => {
+  try {
+    const stats = await getAINoteJobStats();
+    res.json({ 
+      success: true, 
+      stats 
+    });
+  } catch (error: any) {
+    console.error('Error getting AI note job stats:', error);
+    res.status(500).json({ 
+      error: 'Failed to get AI note job stats', 
+      details: error.message 
+    });
+  }
+});
+
 // AI Note Checker Endpoints
 
 // Get incomplete notes from EZDerm
@@ -1001,6 +1081,10 @@ async function startServer() {
     // Start vital signs job processor
     await startVitalSignsJob();
     console.log('🔄 Vital signs job processor started');
+
+    // Start AI note checking job processor
+    await startAINoteCheckingJob();
+    console.log('🤖 AI note checking job processor started');
 
     // Set up periodic session cleanup (every hour)
     setInterval(async () => {

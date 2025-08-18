@@ -172,6 +172,23 @@ export interface StoredTokens {
 // Utility types
 export type TokenStore = Map<string, StoredTokens>;
 
+// AI Note Checker Job Types
+export interface AINoteScanJobData {
+  username: string;
+  scanId: string;
+  batchSize?: number;
+}
+
+export interface AINoteCheckJobData {
+  encounterId: string;
+  patientId: string;
+  patientName: string;
+  chiefComplaint: string;
+  dateOfService: string;
+  username: string;
+  scanId: string;
+}
+
 // AI Note Checker Types
 export interface IncompleteNotesRequest {
   fetchFrom?: number;
