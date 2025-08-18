@@ -113,7 +113,7 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
           size: pageSize
         });
 
-        if (response.length === 0 || response[0].incompletePatientEncounters.length === 0) {
+        if (response.length === 0 || !response[0] || response[0].incompletePatientEncounters.length === 0) {
           hasMore = false;
           break;
         }
@@ -305,9 +305,9 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
       const aiAnalysis = await this.analyzeProgressNote(progressNote);
       
       // Determine if issues were found
-      const issuesFound = aiAnalysis.status === 'corrections_needed' && 
-                         aiAnalysis.issues && 
-                         aiAnalysis.issues.length > 0;
+      const issuesFound: boolean = aiAnalysis.status === 'corrections_needed' && 
+                                  Boolean(aiAnalysis.issues) && 
+                                  (aiAnalysis.issues?.length || 0) > 0;
 
       // Save result to database
       const resultId = await vitalSignsDb.saveNoteCheckResult(
