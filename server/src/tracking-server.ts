@@ -597,8 +597,7 @@ app.post('/api/ai-notes/jobs/stop', validateSession, async (req: Request, res: R
 // Trigger manual AI note scan
 app.post('/api/ai-notes/jobs/scan', validateSession, async (req: Request, res: Response) => {
   try {
-    const username = (req as any).user.username;
-    const scanId = await triggerAINoteScan(username);
+    const scanId = await triggerAINoteScan();
     
     res.json({ 
       success: true, 

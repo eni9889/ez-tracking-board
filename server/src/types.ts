@@ -174,7 +174,6 @@ export type TokenStore = Map<string, StoredTokens>;
 
 // AI Note Checker Job Types
 export interface AINoteScanJobData {
-  username: string;
   scanId: string;
   batchSize?: number;
 }

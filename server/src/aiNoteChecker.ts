@@ -53,10 +53,26 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
   /**
    * Check if an encounter is eligible for AI note checking
    */
+  private parseDate(dateString: string): Date {
+    // Handle malformed date strings
+    if (!dateString || typeof dateString !== 'string') {
+      console.warn(`⚠️ Invalid date string: ${dateString}, using current time`);
+      return new Date();
+    }
+    
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      console.warn(`⚠️ Failed to parse date: ${dateString}, using current time`);
+      return new Date();
+    }
+    
+    return date;
+  }
+
   private isEligibleForCheck(encounter: IncompleteEncounter): boolean {
     const eligibleStatuses = ['PENDING_COSIGN', 'CHECKED_OUT', 'WITH_PROVIDER'];
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-    const serviceDate = new Date(encounter.dateOfService);
+    const serviceDate = this.parseDate(encounter.dateOfService);
     
     return eligibleStatuses.includes(encounter.status) && 
            serviceDate < twoHoursAgo;
@@ -355,7 +371,7 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
         patientId,
         patientName,
         chiefComplaint,
-        new Date(dateOfService),
+        this.parseDate(dateOfService),
         'completed',
         checkedBy,
         aiAnalysis,
@@ -389,7 +405,7 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
         patientId,
         patientName,
         chiefComplaint,
-        new Date(dateOfService),
+        this.parseDate(dateOfService),
         'error',
         checkedBy,
         undefined,

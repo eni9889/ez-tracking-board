@@ -372,16 +372,24 @@ const getValidTokensForAI = async (username: string): Promise<{ accessToken: str
 
 // AI Note Scan Job Processor
 const processAINoteScan = async (job: Job<AINoteScanJobData>) => {
-  const { username, scanId, batchSize = 100 } = job.data;
+  const { scanId, batchSize = 100 } = job.data;
   
-  console.log(`🔍 Starting AI note scan for user: ${username}, scanId: ${scanId}`);
+  console.log(`🔍 Starting AI note scan, scanId: ${scanId}`);
   
   try {
-    // Get valid tokens
-    const tokens = await getValidTokensForAI(username);
-    if (!tokens) {
-      throw new Error(`Failed to get valid tokens for user: ${username}`);
+    // Get stored credentials (same pattern as vital signs job)
+    const credentials = await vitalSignsDb.getActiveUserCredentials();
+    if (!credentials) {
+      throw new Error('No active user credentials found. Please login through the frontend first.');
     }
+
+    // Get valid tokens for the active user
+    const tokens = await getValidTokensForAI(credentials.username);
+    if (!tokens) {
+      throw new Error(`Failed to get valid tokens for user: ${credentials.username}`);
+    }
+
+    console.log(`🔑 Using credentials for user: ${credentials.username}`);
 
     // Fetch incomplete notes
     const incompleteNotes = await aiNoteChecker.fetchIncompleteNotes(tokens.accessToken, {
@@ -424,7 +432,7 @@ const processAINoteScan = async (job: Job<AINoteScanJobData>) => {
                   patientName: `${patientData.firstName} ${patientData.lastName}`,
                   chiefComplaint: encounter.chiefComplaintName || 'No chief complaint',
                   dateOfService: encounter.dateOfService,
-                  username,
+                  username: credentials.username,
                   scanId
                 }, {
                   delay: totalQueued * 5000, // Stagger jobs every 5 seconds
@@ -451,7 +459,7 @@ const processAINoteScan = async (job: Job<AINoteScanJobData>) => {
     };
     
   } catch (error: any) {
-    console.error(`❌ AI note scan failed for user: ${username}`, error);
+    console.error(`❌ AI note scan failed`, error);
     throw error;
   }
 };
@@ -461,6 +469,7 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
   const { encounterId, patientId, patientName, chiefComplaint, dateOfService, username, scanId } = job.data;
   
   console.log(`🤖 Starting AI check for encounter: ${encounterId} (${patientName})`);
+  console.log(`📅 Date of service: ${dateOfService} (type: ${typeof dateOfService})`);
   
   try {
     // Get valid tokens
@@ -674,7 +683,6 @@ export async function startAINoteCheckingJob(): Promise<void> {
 
     // Schedule recurring AI note scans every 5 minutes
     await aiNoteScanQueue.add('scan-incomplete-notes', {
-      username: 'system', // Will need to be configurable per user
       scanId: `scan-${Date.now()}`,
       batchSize: 200
     }, {
@@ -694,17 +702,16 @@ export async function startAINoteCheckingJob(): Promise<void> {
 }
 
 // Manually trigger an AI note scan
-export async function triggerAINoteScan(username: string): Promise<string> {
+export async function triggerAINoteScan(): Promise<string> {
   try {
     const scanId = `manual-scan-${Date.now()}`;
     
     await aiNoteScanQueue.add('manual-scan', {
-      username,
       scanId,
       batchSize: 200
     });
 
-    console.log(`🔍 Triggered manual AI note scan for user: ${username}, scanId: ${scanId}`);
+    console.log(`🔍 Triggered manual AI note scan, scanId: ${scanId}`);
     return scanId;
   } catch (error) {
     console.error('Error triggering AI note scan:', error);
