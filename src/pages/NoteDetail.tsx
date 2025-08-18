@@ -242,15 +242,43 @@ const NoteDetail: React.FC = () => {
                     <Stack spacing={2}>
                       {section.items.map((item: any, itemIndex: number) => (
                         <Box key={itemIndex}>
+                          {/* Show element type header if available */}
+                          {item.elementType && (
+                            <Typography 
+                              variant="h6" 
+                              sx={{ 
+                                fontWeight: 'bold', 
+                                mb: 1, 
+                                color: 'primary.main',
+                                fontSize: '1rem'
+                              }}
+                            >
+                              {item.elementType.replace(/_/g, ' ')}
+                            </Typography>
+                          )}
+                          
+                          {/* Show text field first (auto-generated content) */}
                           {item.text && (
                             <Paper 
                               sx={{ 
                                 p: 2, 
                                 bgcolor: 'background.default',
                                 border: '1px solid',
-                                borderColor: 'divider'
+                                borderColor: 'divider',
+                                mb: item.note ? 1 : 0
                               }}
                             >
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  fontWeight: 'bold', 
+                                  mb: 1, 
+                                  color: 'text.secondary',
+                                  fontSize: '0.8rem'
+                                }}
+                              >
+                                AUTO-GENERATED SUMMARY:
+                              </Typography>
                               <Typography 
                                 variant="body1" 
                                 sx={{ 
@@ -261,14 +289,42 @@ const NoteDetail: React.FC = () => {
                               >
                                 {item.text}
                               </Typography>
-                              {item.elementType && (
-                                <Chip 
-                                  label={item.elementType.replace(/_/g, ' ')}
-                                  size="small"
-                                  sx={{ mt: 1, fontSize: '0.7rem' }}
-                                  color="default"
-                                />
-                              )}
+                            </Paper>
+                          )}
+                          
+                          {/* Show note field second (provider's actual notes) */}
+                          {item.note && (
+                            <Paper 
+                              sx={{ 
+                                p: 2, 
+                                bgcolor: 'primary.50',
+                                border: '2px solid',
+                                borderColor: 'primary.main',
+                                borderStyle: 'dashed'
+                              }}
+                            >
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  fontWeight: 'bold', 
+                                  mb: 1, 
+                                  color: 'primary.main',
+                                  fontSize: '0.8rem'
+                                }}
+                              >
+                                PROVIDER NOTES:
+                              </Typography>
+                              <Typography 
+                                variant="body1" 
+                                sx={{ 
+                                  lineHeight: 1.8,
+                                  whiteSpace: 'pre-wrap',
+                                  fontFamily: 'system-ui, -apple-system, sans-serif',
+                                  fontWeight: 500
+                                }}
+                              >
+                                {item.note}
+                              </Typography>
                             </Paper>
                           )}
                         </Box>
