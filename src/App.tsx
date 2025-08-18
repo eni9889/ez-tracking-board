@@ -16,6 +16,7 @@ import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { AuthProvider } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import AINoteChecker from './pages/AINoteChecker';
 import { PrivateRoute } from './components/PrivateRoute';
 
 const theme = createTheme({
@@ -65,6 +66,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <Dashboard />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/ai-note-checker"
+              element={
+                <PrivateRoute>
+                  <AINoteChecker />
                 </PrivateRoute>
               }
             />

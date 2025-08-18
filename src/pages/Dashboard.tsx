@@ -32,7 +32,8 @@ import {
   PendingActions,
   HowToReg,
   Verified,
-  AssignmentTurnedIn
+  AssignmentTurnedIn,
+  Psychology
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -420,7 +421,15 @@ const Dashboard: React.FC = () => {
             </Typography>
           </Box>
           
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            <Tooltip title="AI Note Checker">
+              <IconButton 
+                onClick={() => navigate('/ai-note-checker')}
+                sx={{ color: 'white' }}
+              >
+                <Psychology sx={{ fontSize: '1.5rem' }} />
+              </IconButton>
+            </Tooltip>
             <Tooltip title="Refresh">
               <IconButton 
                 onClick={() => fetchEncounters(true)} 
