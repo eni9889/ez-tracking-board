@@ -109,6 +109,8 @@ class VitalSignsDatabase {
           checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           checked_by VARCHAR(255) NOT NULL,
           error_message TEXT,
+          note_content_md5 VARCHAR(32),
+          note_content TEXT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -134,6 +136,14 @@ class VitalSignsDatabase {
       await client.query(createUserSessionsTableQuery);
       await client.query(createNoteChecksTableQuery);
       await client.query(createNoteCheckQueueTableQuery);
+
+      // Add MD5 and note content columns if they don't exist (migration)
+      const addMd5ColumnQuery = `
+        ALTER TABLE note_checks 
+        ADD COLUMN IF NOT EXISTS note_content_md5 VARCHAR(32),
+        ADD COLUMN IF NOT EXISTS note_content TEXT
+      `;
+      await client.query(addMd5ColumnQuery);
 
       console.log('Database tables created/verified: processed_vital_signs, user_credentials, user_sessions, note_checks, note_check_queue');
     } finally {
@@ -480,7 +490,9 @@ class VitalSignsDatabase {
     checkedBy: string,
     aiAnalysis?: any,
     issuesFound: boolean = false,
-    errorMessage?: string
+    errorMessage?: string,
+    noteContentMd5?: string,
+    noteContent?: string
   ): Promise<number> {
     if (!this.pool) {
       throw new Error('Database not initialized');
@@ -489,8 +501,8 @@ class VitalSignsDatabase {
     const query = `
       INSERT INTO note_checks 
       (encounter_id, patient_id, patient_name, chief_complaint, date_of_service, 
-       status, ai_analysis, issues_found, checked_by, error_message, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP)
+       status, ai_analysis, issues_found, checked_by, error_message, note_content_md5, note_content, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP)
       ON CONFLICT (encounter_id) 
       DO UPDATE SET 
         status = EXCLUDED.status,
@@ -498,6 +510,8 @@ class VitalSignsDatabase {
         issues_found = EXCLUDED.issues_found,
         checked_by = EXCLUDED.checked_by,
         error_message = EXCLUDED.error_message,
+        note_content_md5 = EXCLUDED.note_content_md5,
+        note_content = EXCLUDED.note_content,
         checked_at = CURRENT_TIMESTAMP,
         updated_at = CURRENT_TIMESTAMP
       RETURNING id
@@ -505,10 +519,26 @@ class VitalSignsDatabase {
 
     const result = await this.pool.query(query, [
       encounterId, patientId, patientName, chiefComplaint, dateOfService,
-      status, JSON.stringify(aiAnalysis), issuesFound, checkedBy, errorMessage
+      status, JSON.stringify(aiAnalysis), issuesFound, checkedBy, errorMessage, noteContentMd5, noteContent
     ]);
 
     return result.rows[0].id;
+  }
+
+  async findNoteCheckByMd5(noteContentMd5: string): Promise<any | null> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      SELECT * FROM note_checks 
+      WHERE note_content_md5 = $1 
+      ORDER BY checked_at DESC 
+      LIMIT 1
+    `;
+
+    const result = await this.pool.query(query, [noteContentMd5]);
+    return result.rows.length > 0 ? result.rows[0] : null;
   }
 
   async getNoteCheckResult(encounterId: string): Promise<any | null> {

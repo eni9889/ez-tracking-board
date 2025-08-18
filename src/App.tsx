@@ -17,6 +17,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import AINoteChecker from './pages/AINoteChecker';
+import NoteDetail from './pages/NoteDetail';
 import { PrivateRoute } from './components/PrivateRoute';
 
 const theme = createTheme({
@@ -74,6 +75,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <AINoteChecker />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/ai-note-checker/:encounterId"
+              element={
+                <PrivateRoute>
+                  <NoteDetail />
                 </PrivateRoute>
               }
             />

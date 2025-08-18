@@ -180,6 +180,31 @@ class AINoteCheckerService {
   ];
 
   /**
+   * Get all incomplete notes from EZDerm
+   */
+  async getIncompleteNotes(): Promise<EligibleEncounter[]> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Returning mock incomplete notes');
+      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
+      return this.mockEligibleEncounters;
+    }
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}/notes/incomplete`, 
+        { fetchFrom: 0, size: 100 },
+        {
+          headers: this.headers()
+        }
+      );
+
+      return response.data.encounters || [];
+    } catch (error: any) {
+      console.error('Error fetching incomplete notes:', error);
+      throw new Error('Failed to fetch incomplete notes: ' + (error.response?.data?.error || error.message));
+    }
+  }
+
+  /**
    * Get all encounters eligible for AI note checking
    */
   async getEligibleEncounters(): Promise<EligibleEncounter[]> {
@@ -351,6 +376,8 @@ class AINoteCheckerService {
       throw new Error(error.response?.data?.error || 'Failed to process all notes');
     }
   }
+
+
 
   /**
    * Get note check results with pagination

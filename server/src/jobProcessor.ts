@@ -355,8 +355,12 @@ vitalSignsWorker.on('error', (err) => {
 // Start the recurring job
 export async function startVitalSignsJob(): Promise<void> {
   try {
-    // Clear any existing jobs first
+    // Pause the queue first, then clear any existing jobs
+    await vitalSignsQueue.pause();
     await vitalSignsQueue.obliterate({ force: true });
+    
+    // Resume the queue
+    await vitalSignsQueue.resume();
     
     // Add recurring job every 10 seconds
     await vitalSignsQueue.add(

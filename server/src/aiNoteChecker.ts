@@ -3,6 +3,7 @@ import { AxiosResponse } from 'axios';
 import { vitalSignsDb } from './database';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import {
   IncompleteNotesRequest,
   IncompleteNotesResponse,
@@ -315,13 +316,32 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
       // Fetch progress note
       const progressNote = await this.fetchProgressNote(accessToken, encounterId, patientId);
       
-      // Analyze with AI
-      const aiAnalysis = await this.analyzeProgressNote(progressNote);
+      // Calculate MD5 for duplicate detection
+      const noteContentMd5 = this.calculateNoteContentMd5(progressNote);
+      const noteContent = this.formatProgressNoteForAnalysis(progressNote);
       
-      // Determine if issues were found
-      const issuesFound: boolean = aiAnalysis.status === 'corrections_needed' && 
-                                  Boolean(aiAnalysis.issues) && 
-                                  (aiAnalysis.issues?.length || 0) > 0;
+      console.log(`🔐 Note content MD5: ${noteContentMd5}`);
+      
+      // Check if we've already analyzed this exact content
+      const existingCheck = await vitalSignsDb.findNoteCheckByMd5(noteContentMd5);
+      
+      let aiAnalysis: AIAnalysisResult;
+      let issuesFound: boolean;
+      
+      if (existingCheck && existingCheck.status === 'completed') {
+        console.log(`♻️ Found existing analysis for same content (MD5: ${noteContentMd5}), reusing result`);
+        aiAnalysis = existingCheck.ai_analysis;
+        issuesFound = existingCheck.issues_found;
+      } else {
+        console.log(`🆕 New content detected, performing AI analysis`);
+        // Analyze with AI
+        aiAnalysis = await this.analyzeProgressNote(progressNote);
+        
+        // Determine if issues were found
+        issuesFound = aiAnalysis.status === 'corrections_needed' && 
+                      Boolean(aiAnalysis.issues) && 
+                      (aiAnalysis.issues?.length || 0) > 0;
+      }
 
       console.log(`📊 Analysis result: status=${aiAnalysis.status}, issues=${aiAnalysis.issues?.length || 0}, issuesFound=${issuesFound}`);
 
@@ -335,7 +355,10 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
         'completed',
         checkedBy,
         aiAnalysis,
-        issuesFound
+        issuesFound,
+        undefined, // errorMessage
+        noteContentMd5,
+        noteContent
       );
 
       console.log(`✅ Note check completed for encounter: ${encounterId} (Issues found: ${issuesFound})`);
@@ -473,6 +496,14 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
    */
   async getNoteCheckResult(encounterId: string): Promise<NoteCheckResult | null> {
     return await vitalSignsDb.getNoteCheckResult(encounterId);
+  }
+
+  /**
+   * Calculate MD5 hash of note content for duplicate detection
+   */
+  private calculateNoteContentMd5(progressNote: ProgressNoteResponse): string {
+    const noteText = this.formatProgressNoteForAnalysis(progressNote);
+    return crypto.createHash('md5').update(noteText).digest('hex');
   }
 
   /**

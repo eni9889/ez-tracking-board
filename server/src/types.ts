@@ -301,6 +301,8 @@ export interface NoteCheckResult {
   checkedAt: Date;
   checkedBy: string;
   errorMessage?: string;
+  noteContentMd5?: string;
+  noteContent?: string;
 }
 
 export interface NoteCheckQueueItem {
