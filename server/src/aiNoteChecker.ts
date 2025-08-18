@@ -31,7 +31,8 @@ class AINoteChecker {
 
   private async loadPromptTemplate(): Promise<void> {
     try {
-      const promptPath = path.join(process.cwd(), '..', 'ezDermRE', 'AI Checker', 'prompt.md');
+      const promptPath = path.join(__dirname, 'ai-prompt.md');
+      console.log('📝 Prompt path:', promptPath);
       this.promptTemplate = await fs.readFile(promptPath, 'utf8');
       console.log('📝 AI prompt template loaded successfully');
     } catch (error) {
@@ -233,7 +234,7 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
       const response = await axios.post(
         this.CLAUDE_API_URL,
         {
-          model: 'claude-3-5-sonnet-20241022',
+          model: 'claude-sonnet-4-20250514',
           max_tokens: 4000,
           system: 'You are a medical coding assistant. You must respond with ONLY valid JSON. Do not include any explanations, comments, or additional text outside the JSON object.',
           messages: [
@@ -264,7 +265,11 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
         // Fix common JSON syntax issues from Claude
         jsonText = this.fixCommonJSONIssues(jsonText);
         
-        analysisResult = JSON.parse(jsonText);
+        const parsedResponse = JSON.parse(jsonText);
+        console.log('🔍 Parsed AI response:', JSON.stringify(parsedResponse, null, 2));
+        
+        analysisResult = this.normalizeAIResponse(parsedResponse);
+        console.log('🔧 Normalized result:', JSON.stringify(analysisResult, null, 2));
       } catch (parseError) {
         console.error('❌ Failed to parse AI response as JSON:', parseError);
         console.error('Raw response:', aiResponse);
@@ -317,6 +322,8 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
       const issuesFound: boolean = aiAnalysis.status === 'corrections_needed' && 
                                   Boolean(aiAnalysis.issues) && 
                                   (aiAnalysis.issues?.length || 0) > 0;
+
+      console.log(`📊 Analysis result: status=${aiAnalysis.status}, issues=${aiAnalysis.issues?.length || 0}, issuesFound=${issuesFound}`);
 
       // Save result to database
       const resultId = await vitalSignsDb.saveNoteCheckResult(
@@ -497,6 +504,54 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
     jsonText = jsonText.replace(/:\s*:([^,}\]]+)/g, ': "$1"');
     
     return jsonText;
+  }
+
+  /**
+   * Normalize AI response to match expected format
+   */
+  private normalizeAIResponse(response: any): AIAnalysisResult {
+    // Handle the case where Claude returns "ok" status
+    if (response.status === 'ok') {
+      return {
+        status: 'ok'
+      };
+    }
+
+    // Handle different error status formats
+    let status = response.status;
+    if (status === 'error' || status === 'corrections_needed') {
+      status = 'corrections_needed';
+    }
+
+    // Normalize issues array
+    const issues: AIAnalysisIssue[] = [];
+    if (response.issues && Array.isArray(response.issues)) {
+      for (const issue of response.issues) {
+        // Handle the format Claude is actually returning
+        if (issue.type && issue.diagnoses && issue.details) {
+          // Convert Claude's format to our expected format
+          const normalizedIssue: AIAnalysisIssue = {
+            assessment: Array.isArray(issue.diagnoses) ? issue.diagnoses.join(', ') : issue.diagnoses,
+            issue: issue.type === 'chronicity_mismatch' ? 'chronicity_mismatch' : 
+                   issue.type === 'missing_plan' ? 'no_explicit_plan' : 'unclear_documentation',
+            details: {
+              'A&P': typeof issue.details === 'string' ? issue.details : JSON.stringify(issue.details),
+              correction: `Review and correct the ${issue.type} for: ${Array.isArray(issue.diagnoses) ? issue.diagnoses.join(', ') : issue.diagnoses}`
+            }
+          };
+          issues.push(normalizedIssue);
+        } else if (issue.assessment && issue.issue && issue.details) {
+          // Already in expected format
+          issues.push(issue);
+        }
+      }
+    }
+
+    return {
+      status: status as 'ok' | 'corrections_needed',
+      summary: response.summary || `Found ${issues.length} issue(s) requiring attention`,
+      issues
+    };
   }
 }
 

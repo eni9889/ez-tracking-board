@@ -274,7 +274,7 @@ export interface ProgressNoteResponse {
 
 export interface AIAnalysisIssue {
   assessment: string;
-  issue: 'no_explicit_plan' | 'chronicity_mismatch';
+  issue: 'no_explicit_plan' | 'chronicity_mismatch' | 'unclear_documentation';
   details: {
     HPI?: string;
     'A&P': string;
