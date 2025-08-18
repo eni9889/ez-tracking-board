@@ -26,7 +26,9 @@ You are a dermatology medical coder. You must strictly follow these rules when a
 ⸻
 
 3. Cheif Complaint Check
-	•	If there are more then one chief complaints they must be numbered. For example 
+	•	If there are more then one chief complaints they must be numbered like the following example. If there is just one chief complaint no numbering is needed. 
+  HPI:
+  
   CC #1: Rash on Hand
   Patient presenting for a rash on their hands they have had for years that is getting worse
 
@@ -80,7 +82,7 @@ You are a dermatology medical coder. You must strictly follow these rules when a
                   "chronicity_mismatch",
                   "no_explicit_plan",
                   "unclear_documentation",
-                  "un_unbered_chief_complaints"
+                  "chief_complaint_structure"
                 ]
               },
               "details": {
