@@ -235,6 +235,7 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
         {
           model: 'claude-3-5-sonnet-20241022',
           max_tokens: 4000,
+          system: 'You are a medical coding assistant. You must respond with ONLY valid JSON. Do not include any explanations, comments, or additional text outside the JSON object.',
           messages: [
             {
               role: 'user',
@@ -465,6 +466,37 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
    */
   async getNoteCheckResult(encounterId: string): Promise<NoteCheckResult | null> {
     return await vitalSignsDb.getNoteCheckResult(encounterId);
+  }
+
+  /**
+   * Extract JSON from AI response that might contain extra text
+   */
+  private extractJSON(text: string): string {
+    // Try to find JSON object boundaries
+    const jsonStart = text.indexOf('{');
+    const jsonEnd = text.lastIndexOf('}');
+    
+    if (jsonStart === -1 || jsonEnd === -1 || jsonStart > jsonEnd) {
+      throw new Error('No valid JSON object found in response');
+    }
+    
+    return text.substring(jsonStart, jsonEnd + 1);
+  }
+
+  /**
+   * Fix common JSON syntax issues that Claude might produce
+   */
+  private fixCommonJSONIssues(jsonText: string): string {
+    // Fix ":ok" -> "ok" (remove extra colon)
+    jsonText = jsonText.replace(/"status":\s*:(\w+)/g, '"status": "$1"');
+    
+    // Fix ":corrections_needed" -> "corrections_needed"
+    jsonText = jsonText.replace(/"status":\s*:(\w+)/g, '"status": "$1"');
+    
+    // Fix other potential colon issues
+    jsonText = jsonText.replace(/:\s*:([^,}\]]+)/g, ': "$1"');
+    
+    return jsonText;
   }
 }
 

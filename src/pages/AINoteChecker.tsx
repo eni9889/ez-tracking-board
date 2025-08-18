@@ -420,7 +420,7 @@ const AINoteChecker: React.FC = () => {
         <Grid container spacing={2} sx={{ height: '100%' }}>
           {/* Eligible Encounters */}
           <Grid size={{ xs: 12, lg: 5 }}>
-            <Paper sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Paper sx={{ height: 'calc(100vh - 250px)', display: 'flex', flexDirection: 'column' }}>
               <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
@@ -453,7 +453,7 @@ const AINoteChecker: React.FC = () => {
                     </Typography>
                   </Box>
                 ) : (
-                  <TableContainer sx={{ height: '100%', overflow: 'auto' }}>
+                  <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
                     <Table size="small" stickyHeader>
                       <TableHead>
                         <TableRow>
@@ -508,7 +508,7 @@ const AINoteChecker: React.FC = () => {
 
           {/* Note Check Results */}
           <Grid size={{ xs: 12, lg: 7 }}>
-            <Paper sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Paper sx={{ height: 'calc(100vh - 250px)', display: 'flex', flexDirection: 'column' }}>
               <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
                 <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
                   AI Check Results ({noteCheckResults.length})
@@ -530,7 +530,7 @@ const AINoteChecker: React.FC = () => {
                     </Typography>
                   </Box>
                 ) : (
-                  <TableContainer sx={{ height: '100%', overflow: 'auto' }}>
+                  <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
                     <Table size="small" stickyHeader>
                       <TableHead>
                         <TableRow>
