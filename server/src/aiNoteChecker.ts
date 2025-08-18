@@ -257,9 +257,17 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
       // Parse the JSON response from Claude
       let analysisResult: AIAnalysisResult;
       try {
-        analysisResult = JSON.parse(aiResponse);
+        // Extract JSON from the response (might have extra text)
+        let jsonText = this.extractJSON(aiResponse);
+        
+        // Fix common JSON syntax issues from Claude
+        jsonText = this.fixCommonJSONIssues(jsonText);
+        
+        analysisResult = JSON.parse(jsonText);
       } catch (parseError) {
         console.error('❌ Failed to parse AI response as JSON:', parseError);
+        console.error('Raw response:', aiResponse);
+        
         // Fallback response
         analysisResult = {
           status: 'corrections_needed',
