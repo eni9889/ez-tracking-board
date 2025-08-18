@@ -477,30 +477,13 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
       throw new Error('No active user credentials found. Please login through the frontend first.');
     }
 
-    // BYPASS TOKEN CACHING - ALWAYS DO FRESH LOGIN FOR AI JOBS
-    console.log(`🔐 AI Job: Bypassing token cache, doing fresh login for user: ${credentials.username}`);
-    const tokens = await loginToEZDerm(credentials.username, credentials.password);
+    // Use the same robust token management as vital signs
+    console.log(`🔑 AI Job: Getting valid tokens for user: ${credentials.username}`);
+    const tokens = await getValidTokensForJob(credentials.username);
     if (!tokens) {
-      throw new Error(`Failed to login to EZDerm for user: ${credentials.username}`);
+      throw new Error(`Failed to get valid tokens for user: ${credentials.username}`);
     }
-    
-    // DEBUG: Examine the exact token we got
-    console.log(`🔍 AI Job DEBUG - Token analysis for ${credentials.username}:`);
-    console.log(`🔍 Access token type: ${typeof tokens.accessToken}`);
-    console.log(`🔍 Access token length: ${tokens.accessToken?.length || 'undefined'}`);
-    console.log(`🔍 Access token first 100 chars: ${tokens.accessToken?.substring(0, 100) || 'undefined'}`);
-    console.log(`🔍 Access token parts count: ${tokens.accessToken?.split('.').length || 'undefined'}`);
-    
-    if (!tokens.accessToken || tokens.accessToken.split('.').length !== 3) {
-      console.log(`❌ AI Job: INVALID TOKEN DETECTED!`);
-      console.log(`❌ Full token value: ${JSON.stringify(tokens.accessToken)}`);
-      throw new Error(`Invalid JWT token received from EZDerm login`);
-    }
-    
-    console.log(`✅ AI Job: Fresh login successful for ${credentials.username} - token looks valid`);
-    
-    // Update the stored tokens for other parts of the system
-    await vitalSignsDb.storeTokens(credentials.username, tokens.accessToken, tokens.refreshToken, tokens.serverUrl);
+    console.log(`✅ AI Job: Got valid tokens for ${credentials.username}`);
 
     // Perform the AI check
     const checkId = await aiNoteChecker.checkSingleNote(
