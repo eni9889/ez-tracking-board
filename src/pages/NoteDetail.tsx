@@ -56,10 +56,10 @@ const NoteDetail: React.FC = () => {
     const stateNote = location.state?.note;
     if (stateNote) {
       setNoteData(stateNote);
-    }
-
-    if (encounterId) {
-      fetchNoteDetails();
+      // Fetch note details after setting note data
+      if (encounterId) {
+        fetchNoteDetails();
+      }
     }
   }, [encounterId, location.state]);
 
@@ -86,7 +86,8 @@ const NoteDetail: React.FC = () => {
   };
 
   const fetchNoteContent = async (): Promise<string> => {
-    if (!encounterId || !noteData) return '';
+    if (!encounterId) return 'No encounter ID available';
+    if (!noteData) return 'Note data not available - please navigate from the notes list';
     
     try {
       const progressNote = await aiNoteCheckerService.getProgressNote(
@@ -98,7 +99,7 @@ const NoteDetail: React.FC = () => {
       return formatProgressNoteForDisplay(progressNote);
     } catch (err) {
       console.error('Error fetching note content:', err);
-      return 'Unable to load note content';
+      return `Unable to load note content: ${err}`;
     }
   };
 
@@ -116,17 +117,22 @@ const NoteDetail: React.FC = () => {
   };
 
   const formatProgressNoteForDisplay = (progressNote: any): string => {
-    if (!progressNote || !progressNote.progressNoteInfo) {
+    if (!progressNote) {
       return 'No note content available';
     }
 
-    const sections = progressNote.progressNoteInfo.sections || [];
+    // Handle the backend response wrapper
+    const noteData = progressNote.data || progressNote;
+    
+    // The backend returns progressNotes array, not progressNoteInfo.sections
+    const sections = noteData.progressNotes || [];
     let formattedNote = '';
 
     sections.forEach((section: any) => {
       if (section.items && section.items.length > 0) {
-        formattedNote += `\n${section.label}:\n`;
-        formattedNote += '─'.repeat(section.label.length + 1) + '\n';
+        const sectionLabel = section.sectionType || section.label || 'Unknown Section';
+        formattedNote += `\n${sectionLabel}:\n`;
+        formattedNote += '─'.repeat(sectionLabel.length + 1) + '\n';
         
         section.items.forEach((item: any) => {
           if (item.text) {
