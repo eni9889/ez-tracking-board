@@ -189,6 +189,32 @@ export interface AINoteCheckJobData {
   scanId: string;
 }
 
+// EZDerm ToDo Types
+export interface EZDermToDoUser {
+  userId: string;
+  userType: 'ASSIGNEE' | 'WATCHER';
+}
+
+export interface EZDermToDoLink {
+  order: number;
+  linkEntityId: string;
+  description: string;
+  linkType: 'PATIENT' | 'ENCOUNTER';
+}
+
+export interface EZDermToDoRequest {
+  reminderEnabled: boolean;
+  subject: string;
+  users: EZDermToDoUser[];
+  description: string;
+  id: string;
+  links: EZDermToDoLink[];
+}
+
+export interface EZDermToDoResponse {
+  id: string;
+}
+
 // AI Note Checker Types
 export interface IncompleteNotesRequest {
   fetchFrom?: number;

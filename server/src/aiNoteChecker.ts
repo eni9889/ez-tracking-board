@@ -13,7 +13,11 @@ import {
   ProgressNoteResponse,
   AIAnalysisResult,
   AIAnalysisIssue,
-  NoteCheckResult
+  NoteCheckResult,
+  EZDermToDoRequest,
+  EZDermToDoResponse,
+  EZDermToDoUser,
+  EZDermToDoLink
 } from './types';
 
 class AINoteChecker {
@@ -583,6 +587,134 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
       summary: response.summary || `Found ${issues.length} issue(s) requiring attention`,
       issues
     };
+  }
+
+  /**
+   * Create a ToDo in EZDerm for note deficiencies
+   */
+  async createNoteDeficiencyToDo(
+    accessToken: string,
+    encounterId: string,
+    patientId: string,
+    patientName: string,
+    encounterDate: string,
+    issues: AIAnalysisIssue[],
+    encounterRoleInfoList: any[]
+  ): Promise<string> {
+    try {
+      console.log('📝 Creating note deficiency ToDo for encounter:', encounterId);
+
+      // Format the encounter date as MM/DD/YYYY
+      const date = new Date(encounterDate);
+      const formattedDate = `${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}/${date.getFullYear()}`;
+      
+      // Build the subject
+      const subject = `Note Deficiencies - ${formattedDate}`;
+      
+      // Build the description from issues
+      let description = 'The following issues were found in the clinical note:\n\n';
+      issues.forEach((issue, index) => {
+        description += `${index + 1}. ${issue.assessment}:\n`;
+        description += `   Issue: ${issue.issue.replace(/_/g, ' ')}\n`;
+        if (issue.details.HPI) {
+          description += `   HPI: ${issue.details.HPI}\n`;
+        }
+        description += `   A&P: ${issue.details['A&P']}\n`;
+        description += `   Suggested Correction: ${issue.details.correction}\n\n`;
+      });
+      
+      // Determine care team users from encounterRoleInfoList
+      const users: EZDermToDoUser[] = [];
+      const processedUserIds = new Set<string>();
+      
+      // Find SECONDARY_PROVIDER or STAFF for assignment
+      let assigneeFound = false;
+      for (const roleInfo of encounterRoleInfoList) {
+        if (roleInfo.active && roleInfo.providerId && !processedUserIds.has(roleInfo.providerId)) {
+          if ((roleInfo.encounterRoleType === 'SECONDARY_PROVIDER' || roleInfo.encounterRoleType === 'STAFF') && !assigneeFound) {
+            users.push({
+              userId: roleInfo.providerId,
+              userType: 'ASSIGNEE'
+            });
+            assigneeFound = true;
+            processedUserIds.add(roleInfo.providerId);
+          } else if (roleInfo.encounterRoleType === 'PROVIDER' || roleInfo.encounterRoleType === 'STAFF' || roleInfo.encounterRoleType === 'SECONDARY_PROVIDER') {
+            // Add everyone else as watchers
+            users.push({
+              userId: roleInfo.providerId,
+              userType: 'WATCHER'
+            });
+            processedUserIds.add(roleInfo.providerId);
+          }
+        }
+      }
+      
+      // If no SECONDARY_PROVIDER or STAFF found, assign to the first PROVIDER
+      if (!assigneeFound && encounterRoleInfoList.length > 0) {
+        const firstProvider = encounterRoleInfoList.find(role => 
+          role.active && role.providerId && role.encounterRoleType === 'PROVIDER'
+        );
+        if (firstProvider && !processedUserIds.has(firstProvider.providerId)) {
+          users.push({
+            userId: firstProvider.providerId,
+            userType: 'ASSIGNEE'
+          });
+          processedUserIds.add(firstProvider.providerId);
+        }
+      }
+      
+      // Create patient link
+      const links: EZDermToDoLink[] = [
+        {
+          order: 0,
+          linkEntityId: patientId,
+          description: patientName,
+          linkType: 'PATIENT'
+        }
+      ];
+      
+      // Generate unique ToDo ID
+      const todoId = crypto.randomUUID();
+      
+      const todoRequest: EZDermToDoRequest = {
+        reminderEnabled: false,
+        subject,
+        users,
+        description,
+        id: todoId,
+        links
+      };
+
+      console.log('📝 ToDo request:', {
+        subject,
+        assignees: users.filter(u => u.userType === 'ASSIGNEE').length,
+        watchers: users.filter(u => u.userType === 'WATCHER').length,
+        issuesCount: issues.length
+      });
+
+      const response: AxiosResponse<EZDermToDoResponse> = await axios.post(
+        `${this.EZDERM_API_BASE}/ezderm-webservice/rest/task/add`,
+        todoRequest,
+        {
+          headers: {
+            'Host': 'srvprod.ezinfra.net',
+            'accept': 'application/json',
+            'content-type': 'application/json',
+            'authorization': `Bearer ${accessToken}`,
+            'patientid': patientId,
+            'user-agent': 'ezDerm/4.28.1 (build:133.1; macOS(Catalyst) 15.6.0)',
+            'accept-language': 'en-US;q=1.0'
+          }
+        }
+      );
+
+      console.log('✅ ToDo created successfully:', response.data.id);
+      return response.data.id;
+      
+    } catch (error: any) {
+      console.error('❌ Error creating note deficiency ToDo:', error.response?.data || error.message);
+      throw new Error(`Failed to create ToDo: ${error.message}`);
+    }
   }
 }
 

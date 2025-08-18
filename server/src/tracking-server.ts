@@ -831,6 +831,88 @@ app.get('/api/notes/progress/:encounterId', validateSession, async (req: Request
   }
 });
 
+// Create ToDo for note deficiencies
+app.post('/api/notes/:encounterId/create-todo', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { encounterId } = req.params;
+    const username = (req as any).user.username;
+    
+    if (!encounterId) {
+      res.status(400).json({ error: 'Encounter ID is required' });
+      return;
+    }
+    
+    // Get valid tokens
+    const userTokens = await getValidTokens(username);
+    if (!userTokens) {
+      res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      return;
+    }
+
+    // Get the latest AI check result for this encounter
+    const noteCheckResult = await vitalSignsDb.getNoteCheckResult(encounterId);
+    if (!noteCheckResult) {
+      res.status(404).json({ error: 'No AI check result found for this encounter' });
+      return;
+    }
+
+    if (!noteCheckResult.issues_found || !noteCheckResult.ai_analysis?.issues) {
+      res.status(400).json({ error: 'No issues found in the AI analysis to create a ToDo for' });
+      return;
+    }
+
+    // Get encounter details from incomplete notes
+    const incompleteNotes = await aiNoteChecker.fetchIncompleteNotes(userTokens.accessToken, {
+      fetchFrom: 0,
+      size: 200
+    });
+    
+    let encounterData: any = null;
+    let patientData: any = null;
+    
+    // Search for the encounter
+    for (const batch of incompleteNotes) {
+      if (batch.incompletePatientEncounters) {
+        for (const patient of batch.incompletePatientEncounters) {
+          const encounter = patient.incompleteEncounters.find(enc => enc.id === encounterId);
+          if (encounter) {
+            encounterData = encounter;
+            patientData = patient;
+            break;
+          }
+        }
+      }
+      if (encounterData) break;
+    }
+
+    if (!encounterData || !patientData) {
+      res.status(404).json({ error: 'Encounter not found in incomplete notes' });
+      return;
+    }
+
+    // Create the ToDo
+    const todoId = await aiNoteChecker.createNoteDeficiencyToDo(
+      userTokens.accessToken,
+      encounterId,
+      patientData.id,
+      `${patientData.firstName} ${patientData.lastName}`,
+      encounterData.dateOfService,
+      noteCheckResult.ai_analysis.issues,
+      encounterData.encounterRoleInfoList || []
+    );
+
+    res.json({ 
+      success: true, 
+      todoId,
+      message: 'ToDo created successfully for note deficiencies'
+    });
+    
+  } catch (error: any) {
+    console.error('Error creating ToDo for note deficiencies:', error);
+    res.status(500).json({ error: 'Failed to create ToDo', details: error.message });
+  }
+});
+
 // Check specific encounter note with AI
 app.post('/api/notes/check/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {

@@ -300,6 +300,31 @@ class AINoteCheckerService {
   }
 
   /**
+   * Create a ToDo for note deficiencies
+   */
+  async createToDo(encounterId: string): Promise<{ success: boolean; todoId?: string; message: string }> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Simulating ToDo creation');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return {
+        success: true,
+        todoId: `mock-todo-${Date.now()}`,
+        message: 'Mock ToDo created successfully'
+      };
+    }
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}/notes/${encounterId}/create-todo`, {}, {
+        headers: this.headers()
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error creating ToDo:', error);
+      throw new Error(error.response?.data?.error || 'Failed to create ToDo');
+    }
+  }
+
+  /**
    * Check a specific note with AI
    */
   async checkSingleNote(

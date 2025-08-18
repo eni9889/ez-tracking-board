@@ -483,6 +483,71 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
       username
     );
 
+    // Get the AI analysis result to check for issues
+    const noteCheckResult = await vitalSignsDb.getNoteCheckResult(encounterId);
+    
+    if (noteCheckResult && noteCheckResult.issues_found && noteCheckResult.ai_analysis?.issues) {
+      console.log(`📝 Issues found in note ${encounterId}, creating ToDo...`);
+      
+      try {
+        // Get the progress note to access encounterRoleInfoList
+        const progressNote = await aiNoteChecker.fetchProgressNote(tokens.accessToken, encounterId, patientId);
+        
+        // Find encounterRoleInfoList from the original incomplete encounter data
+        // We'll need to fetch this from the incomplete notes API
+        const incompleteNotes = await aiNoteChecker.fetchIncompleteNotes(tokens.accessToken, {
+          fetchFrom: 0,
+          size: 100
+        });
+        
+        let encounterRoleInfoList: any[] = [];
+        
+        // Search for the encounter in incomplete notes to get role info
+        for (const batch of incompleteNotes) {
+          if (batch.incompletePatientEncounters) {
+            for (const patientData of batch.incompletePatientEncounters) {
+              const encounter = patientData.incompleteEncounters.find(enc => enc.id === encounterId);
+              if (encounter && encounter.encounterRoleInfoList) {
+                encounterRoleInfoList = encounter.encounterRoleInfoList;
+                break;
+              }
+            }
+          }
+          if (encounterRoleInfoList.length > 0) break;
+        }
+        
+        if (encounterRoleInfoList.length > 0) {
+          const todoId = await aiNoteChecker.createNoteDeficiencyToDo(
+            tokens.accessToken,
+            encounterId,
+            patientId,
+            patientName,
+            dateOfService,
+            noteCheckResult.ai_analysis.issues,
+            encounterRoleInfoList
+          );
+          
+          console.log(`✅ ToDo created successfully: ${todoId} for encounter: ${encounterId}`);
+          
+          return {
+            encounterId,
+            patientName,
+            checkId,
+            scanId,
+            todoId,
+            issuesFound: true,
+            completedAt: new Date().toISOString()
+          };
+        } else {
+          console.warn(`⚠️ Could not find encounter role info for ${encounterId}, skipping ToDo creation`);
+        }
+        
+      } catch (todoError: any) {
+        console.error(`❌ Failed to create ToDo for encounter ${encounterId}:`, todoError.message);
+        // Don't fail the entire job if ToDo creation fails
+      }
+    }
+
     console.log(`✅ AI check completed for encounter: ${encounterId}, checkId: ${checkId}`);
     
     return {
@@ -490,6 +555,7 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
       patientName,
       checkId,
       scanId,
+      issuesFound: noteCheckResult?.issues_found || false,
       completedAt: new Date().toISOString()
     };
     
