@@ -232,6 +232,9 @@ const AINoteChecker: React.FC = () => {
         <Typography variant="h6" sx={{ fontWeight: 'bold', flex: 1 }}>
           AI Note Checker - Incomplete Notes
         </Typography>
+        <Typography variant="caption" sx={{ mr: 2, opacity: 0.8 }}>
+          Showing notes &gt; 2 hours old with status: PENDING_COSIGN, CHECKED_OUT, WITH_PROVIDER
+        </Typography>
         <Button
           variant="outlined"
           color="inherit"
@@ -385,7 +388,7 @@ const AINoteChecker: React.FC = () => {
                 No incomplete notes found
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                All notes have been completed or signed
+                All notes have been completed, signed, or are less than 2 hours old
               </Typography>
             </Box>
           )}
