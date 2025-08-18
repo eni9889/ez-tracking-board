@@ -180,14 +180,15 @@ const Dashboard: React.FC = () => {
         
         setSessionTimeRemaining(sessionInfo.timeRemaining);
         
-        if (sessionInfo.timeRemaining !== null && sessionInfo.timeRemaining < 30 * 60 * 1000) { // 30 minutes
-          console.log('⚠️ Session expiring soon, refreshing session...');
-          const refreshed = await authService.refreshSession();
-          if (!refreshed) {
-            console.log('❌ Session refresh failed - logging out');
-            handleLogout();
+        if (sessionInfo.timeRemaining !== null && sessionInfo.timeRemaining < 60 * 60 * 1000) { // 1 hour
+          console.log('⚠️ Session expiring soon, attempting auto-reauth...');
+          const reauthed = await authService.attemptAutoReauth();
+          if (!reauthed) {
+            console.log('❌ Auto-reauth failed - clinic dashboard needs attention');
+            setError('Session expired. Dashboard will attempt to reconnect automatically.');
           } else {
-            console.log('✅ Session refreshed successfully');
+            console.log('✅ Auto-reauth successful - clinic dashboard stays online');
+            setError(null); // Clear any previous errors
           }
         }
       } catch (error) {
@@ -202,8 +203,16 @@ const Dashboard: React.FC = () => {
   }, []);
 
   const handleLogout = async () => {
-    await logout();
-    navigate('/login');
+    try {
+      console.log('🏥 Manual logout requested for clinic dashboard');
+      await authService.manualLogout(); // Clear stored credentials
+      await logout(); // Clear auth context
+      navigate('/login');
+    } catch (error) {
+      console.error('Manual logout error:', error);
+      // Force navigation even if logout fails
+      navigate('/login');
+    }
   };
 
   const getStatusChip = (status: string) => {

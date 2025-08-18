@@ -79,20 +79,22 @@ class PatientTrackingService {
       });
       
       if (error.response?.status === 401) {
-        console.log('🚨 Got 401 from encounters API');
+        console.log('🚨 Got 401 from encounters API - attempting auto-recovery...');
         
-        // First, let's verify if the session is actually invalid
-        const sessionValid = await authService.validateCurrentSession();
-        
-        if (!sessionValid) {
-          console.log('🔐 Session validation failed - session is genuinely expired');
-          // Session is genuinely expired, trigger logout
-          await authService.logout();
-          window.location.href = '/login';
-        } else {
-          console.log('🤔 Session is valid but API returned 401 - might be an API issue');
-          // Session is valid, this might be a temporary API issue
-          // Don't logout immediately, let the user retry
+        // For clinic dashboard, try to auto-recover instead of immediate logout
+        try {
+          const reauthed = await authService.attemptAutoReauth();
+          if (reauthed) {
+            console.log('✅ Auto-recovery successful - clinic dashboard stays online');
+            // Could retry the request here, but for now just let user retry manually
+          } else {
+            console.log('❌ Auto-recovery failed - manual intervention needed');
+            // Only show error, don't force logout for clinic dashboard
+            throw new Error('Authentication failed. Please refresh the page or check credentials.');
+          }
+        } catch (authError) {
+          console.error('💥 Auto-recovery error:', authError);
+          throw new Error('Unable to maintain connection. Please refresh the page.');
         }
       }
       throw new Error(error.response?.data?.error || 'Failed to fetch patient data');

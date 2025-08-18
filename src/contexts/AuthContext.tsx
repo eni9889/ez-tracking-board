@@ -48,12 +48,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initializeAuth();
   }, []);
 
-  const login = async (username: string, password: string) => {
+  const login = async (username: string, password: string, persistentLogin: boolean = true) => {
     try {
       setIsLoading(true);
       setError(null);
       
-      await authService.login(username, password);
+      await authService.login(username, password, persistentLogin);
       setUser({ username });
     } catch (err: any) {
       setError(err.message || 'Login failed');

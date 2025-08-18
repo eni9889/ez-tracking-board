@@ -13,14 +13,26 @@ interface SessionData {
   serverUrl?: string;
 }
 
+interface CredentialData {
+  username: string;
+  password: string;
+  rememberCredentials: boolean;
+  lastLoginAt: string;
+}
+
 class AuthService {
   private currentUser: string | null = null;
   private sessionToken: string | null = null;
   private readonly SESSION_STORAGE_KEY = 'ez_tracking_session';
+  private readonly CREDENTIALS_STORAGE_KEY = 'ez_tracking_credentials';
+  private storedCredentials: CredentialData | null = null;
 
   private sessionRestorePromise: Promise<void>;
 
   constructor() {
+    // Load stored credentials
+    this.loadStoredCredentials();
+    
     // Restore session from localStorage on service initialization (async)
     this.sessionRestorePromise = this.restoreSession().catch(error => {
       console.error('Failed to restore session:', error);
@@ -62,17 +74,17 @@ class AuthService {
           this.sessionToken = sessionData.sessionToken;
           console.log('🔄 Session restored and validated for user:', sessionData.username);
         } else {
-          console.log('🚫 Session invalid on server, clearing stored data');
-          this.clearStoredSession();
+          console.log('🚫 Session invalid on server, attempting auto-reauth...');
+          await this.attemptAutoReauth();
         }
       } else {
-        // Session expired, clear stored data
-        console.log('⏰ Session expired locally, clearing stored data');
-        this.clearStoredSession();
+        // Session expired, attempt auto-reauth
+        console.log('⏰ Session expired locally, attempting auto-reauth...');
+        await this.attemptAutoReauth();
       }
     } catch (error) {
       console.error('💥 Error restoring session:', error);
-      this.clearStoredSession();
+      await this.attemptAutoReauth();
     }
   }
 
@@ -91,6 +103,76 @@ class AuthService {
       this.sessionToken = null;
     } catch (error) {
       console.error('Error clearing stored session:', error);
+    }
+  }
+
+  private loadStoredCredentials(): void {
+    try {
+      const storedData = localStorage.getItem(this.CREDENTIALS_STORAGE_KEY);
+      if (storedData) {
+        this.storedCredentials = JSON.parse(storedData);
+        console.log('🔐 Loaded stored credentials for clinic dashboard');
+      }
+    } catch (error) {
+      console.error('💥 Error loading stored credentials:', error);
+      this.storedCredentials = null;
+    }
+  }
+
+  private storeCredentials(username: string, password: string, rememberCredentials: boolean = true): void {
+    if (rememberCredentials) {
+      const credentialData: CredentialData = {
+        username,
+        password,
+        rememberCredentials,
+        lastLoginAt: new Date().toISOString()
+      };
+      
+      try {
+        localStorage.setItem(this.CREDENTIALS_STORAGE_KEY, JSON.stringify(credentialData));
+        this.storedCredentials = credentialData;
+        console.log('🔐 Credentials stored for always-on dashboard');
+      } catch (error) {
+        console.error('💥 Error storing credentials:', error);
+      }
+    }
+  }
+
+  private clearStoredCredentials(): void {
+    localStorage.removeItem(this.CREDENTIALS_STORAGE_KEY);
+    this.storedCredentials = null;
+    console.log('🗑️ Cleared stored credentials');
+  }
+
+  async attemptAutoReauth(): Promise<boolean> {
+    try {
+      if (!this.storedCredentials) {
+        console.log('❌ No stored credentials available for auto-reauth');
+        this.clearStoredSession();
+        return false;
+      }
+
+      console.log('🔄 Attempting automatic re-authentication for clinic dashboard...');
+      console.log('📅 Last login was at:', this.storedCredentials.lastLoginAt);
+
+      // Attempt to login with stored credentials
+      const response = await this.login(
+        this.storedCredentials.username, 
+        this.storedCredentials.password
+      );
+
+      if (response.success) {
+        console.log('✅ Auto-reauth successful - clinic dashboard stays online!');
+        return true;
+      } else {
+        console.log('❌ Auto-reauth failed');
+        this.clearStoredSession();
+        return false;
+      }
+    } catch (error) {
+      console.error('💥 Auto-reauth error:', error);
+      this.clearStoredSession();
+      return false;
     }
   }
 
@@ -172,7 +254,7 @@ class AuthService {
     }
   }
 
-  async login(username: string, password: string): Promise<LoginResponse> {
+  async login(username: string, password: string, rememberCredentials: boolean = true): Promise<LoginResponse> {
     try {
       // Mock login in development mode
       if (USE_MOCK_DATA) {
@@ -211,12 +293,16 @@ class AuthService {
         this.currentUser = username;
         this.sessionToken = response.data.sessionToken;
         
+        // Store session data
         this.storeSession({
           sessionToken: response.data.sessionToken,
           username,
           expiresAt: response.data.expiresAt,
           serverUrl: response.data.serverUrl
         });
+
+        // Store credentials for always-on dashboard
+        this.storeCredentials(username, password, rememberCredentials);
       }
 
       return response.data;
@@ -255,6 +341,18 @@ class AuthService {
       console.log('🧹 Clearing local session data');
       this.currentUser = null;
       this.clearStoredSession();
+      // Note: We keep stored credentials for always-on dashboard
+      // Only clear them if it's a manual logout (not auto-reauth failure)
+    }
+  }
+
+  async manualLogout(): Promise<void> {
+    // Manual logout clears everything including stored credentials
+    try {
+      await this.logout();
+    } finally {
+      this.clearStoredCredentials();
+      console.log('🏥 Manual logout - credentials cleared for clinic dashboard');
     }
   }
 

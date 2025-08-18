@@ -11,7 +11,9 @@ import {
   Alert,
   CircularProgress,
   IconButton,
-  InputAdornment
+  InputAdornment,
+  FormControlLabel,
+  Checkbox
 } from '@mui/material';
 import {
   Visibility,
@@ -26,6 +28,7 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [persistentLogin, setPersistentLogin] = useState(true); // Default to true for clinic dashboard
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +40,7 @@ const Login: React.FC = () => {
     }
 
     try {
-      await login(username, password);
+      await login(username, password, persistentLogin);
       navigate('/dashboard');
     } catch (err: any) {
       console.error('Login failed:', err);
@@ -116,6 +119,18 @@ const Login: React.FC = () => {
                   </InputAdornment>
                 ),
               }}
+            />
+
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={persistentLogin}
+                  onChange={(e) => setPersistentLogin(e.target.checked)}
+                  color="primary"
+                />
+              }
+              label="Keep clinic dashboard logged in (recommended for shared terminals)"
+              sx={{ mt: 1, mb: 1 }}
             />
 
             <Button
