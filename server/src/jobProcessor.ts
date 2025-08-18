@@ -656,12 +656,20 @@ export async function startAINoteCheckingJob(): Promise<void> {
     
     // Pause the queues first, then clear any existing jobs
     console.log('⏸️ Pausing AI note queues...');
-    await aiNoteScanQueue.pause();
-    await aiNoteCheckQueue.pause();
+    try {
+      await aiNoteScanQueue.pause();
+      await aiNoteCheckQueue.pause();
+    } catch (pauseError) {
+      console.log('⚠️ Queues were already paused or in unknown state, continuing...');
+    }
     
     console.log('🧹 Clearing existing AI note jobs...');
-    await aiNoteScanQueue.obliterate({ force: true });
-    await aiNoteCheckQueue.obliterate({ force: true });
+    try {
+      await aiNoteScanQueue.obliterate({ force: true });
+      await aiNoteCheckQueue.obliterate({ force: true });
+    } catch (obliterateError) {
+      console.log('⚠️ Could not obliterate queues (they may be empty), continuing...');
+    }
     
     console.log('▶️ Resuming AI note queues...');
     await aiNoteScanQueue.resume();
