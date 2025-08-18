@@ -771,4 +771,56 @@ export async function stopAINoteCheckingJob(): Promise<void> {
   } catch (error) {
     console.error('Error stopping AI note checking job system:', error);
   }
+}
+
+// Main execution when running as a standalone worker process
+async function main() {
+  try {
+    console.log('🔧 Starting dedicated worker process...');
+    console.log('🌐 Environment:', process.env.NODE_ENV || 'development');
+    
+    // Initialize database connection
+    console.log('💾 Initializing database connection...');
+    await vitalSignsDb.initialize();
+    console.log('✅ Database initialized successfully');
+
+    // Start vital signs job processor
+    console.log('🔄 Starting vital signs job processor...');
+    await startVitalSignsJob();
+    console.log('✅ Vital signs job processor started');
+
+    // Start AI note checking job processor
+    console.log('🤖 Starting AI note checking job processor...');
+    await startAINoteCheckingJob();
+    console.log('✅ AI note checking job processor started');
+
+    console.log('🚀 Worker process is ready and listening for jobs!');
+
+    // Handle graceful shutdown
+    process.on('SIGTERM', async () => {
+      console.log('📡 Received SIGTERM, shutting down gracefully...');
+      await stopVitalSignsJob();
+      await stopAINoteCheckingJob();
+      process.exit(0);
+    });
+
+    process.on('SIGINT', async () => {
+      console.log('📡 Received SIGINT, shutting down gracefully...');
+      await stopVitalSignsJob();
+      await stopAINoteCheckingJob();
+      process.exit(0);
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to start worker process:', error);
+    process.exit(1);
+  }
+}
+
+// Only run main() if this file is executed directly (not imported)
+if (require.main === module) {
+  main().catch((error) => {
+    console.error('❌ Unhandled error in worker process:', error);
+    process.exit(1);
+  });
 } 

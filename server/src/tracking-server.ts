@@ -8,10 +8,6 @@ import crypto from 'crypto';
 import { vitalSignsDb } from './database';
 import { vitalSignsService } from './vitalSignsService';
 import { 
-  startVitalSignsJob, 
-  stopVitalSignsJob, 
-  startAINoteCheckingJob, 
-  stopAINoteCheckingJob,
   triggerAINoteScan, 
   getAINoteJobStats 
 } from './jobProcessor';
@@ -586,36 +582,16 @@ app.get('/api/vital-signs/stats', async (req: Request, res: Response) => {
 
 // Start AI note checking job system
 app.post('/api/ai-notes/jobs/start', validateSession, async (req: Request, res: Response) => {
-  try {
-    await startAINoteCheckingJob();
-    res.json({ 
-      success: true, 
-      message: 'AI note checking job system started successfully' 
-    });
-  } catch (error: any) {
-    console.error('Error starting AI note checking job system:', error);
-    res.status(500).json({ 
-      error: 'Failed to start AI note checking job system', 
-      details: error.message 
-    });
-  }
+  res.status(501).json({ 
+    error: 'Job control is managed by the dedicated worker service. Use docker-compose restart worker to restart job processing.' 
+  });
 });
 
 // Stop AI note checking job system
 app.post('/api/ai-notes/jobs/stop', validateSession, async (req: Request, res: Response) => {
-  try {
-    await stopAINoteCheckingJob();
-    res.json({ 
-      success: true, 
-      message: 'AI note checking job system stopped successfully' 
-    });
-  } catch (error: any) {
-    console.error('Error stopping AI note checking job system:', error);
-    res.status(500).json({ 
-      error: 'Failed to stop AI note checking job system', 
-      details: error.message 
-    });
-  }
+  res.status(501).json({ 
+    error: 'Job control is managed by the dedicated worker service. Use docker-compose stop worker to stop job processing.' 
+  });
 });
 
 // Trigger manual AI note scan
@@ -1166,13 +1142,8 @@ async function startServer() {
     await vitalSignsDb.initialize();
     console.log('✅ Database initialized successfully');
 
-    // Start vital signs job processor
-    await startVitalSignsJob();
-    console.log('🔄 Vital signs job processor started');
-
-    // Start AI note checking job processor
-    await startAINoteCheckingJob();
-    console.log('🤖 AI note checking job processor started');
+    // Note: Job processors are handled by the dedicated worker service
+    console.log('ℹ️ Job processing is handled by the dedicated worker service');
 
     // Set up periodic session cleanup (every hour)
     setInterval(async () => {
@@ -1206,15 +1177,13 @@ async function startServer() {
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('🔄 Gracefully shutting down...');
-  await stopVitalSignsJob();
+  console.log('🔄 Gracefully shutting down API server...');
   await vitalSignsDb.close();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('🔄 Gracefully shutting down...');
-  await stopVitalSignsJob();
+  console.log('🔄 Gracefully shutting down API server...');
   await vitalSignsDb.close();
   process.exit(0);
 });
