@@ -94,12 +94,48 @@ class VitalSignsDatabase {
         )
       `;
 
+      // Create note_checks table
+      const createNoteChecksTableQuery = `
+        CREATE TABLE IF NOT EXISTS note_checks (
+          id SERIAL PRIMARY KEY,
+          encounter_id TEXT UNIQUE NOT NULL,
+          patient_id TEXT NOT NULL,
+          patient_name TEXT NOT NULL,
+          chief_complaint TEXT,
+          date_of_service TIMESTAMP NOT NULL,
+          status VARCHAR(50) DEFAULT 'pending',
+          ai_analysis JSONB,
+          issues_found BOOLEAN DEFAULT false,
+          checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          checked_by VARCHAR(255) NOT NULL,
+          error_message TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+
+      // Create note_check_queue table
+      const createNoteCheckQueueTableQuery = `
+        CREATE TABLE IF NOT EXISTS note_check_queue (
+          id SERIAL PRIMARY KEY,
+          encounter_id TEXT UNIQUE NOT NULL,
+          patient_id TEXT NOT NULL,
+          priority INTEGER DEFAULT 1,
+          status VARCHAR(50) DEFAULT 'pending',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          processed_at TIMESTAMP,
+          error_message TEXT
+        )
+      `;
+
       // Execute table creation queries
       await client.query(createVitalSignsTableQuery);
       await client.query(createUserCredentialsTableQuery);
       await client.query(createUserSessionsTableQuery);
+      await client.query(createNoteChecksTableQuery);
+      await client.query(createNoteCheckQueueTableQuery);
 
-      console.log('Database tables created/verified: processed_vital_signs, user_credentials, user_sessions');
+      console.log('Database tables created/verified: processed_vital_signs, user_credentials, user_sessions, note_checks, note_check_queue');
     } finally {
       client.release();
     }
@@ -431,6 +467,184 @@ class VitalSignsDatabase {
     }));
 
     return safeSessions;
+  }
+
+  // Note checking methods
+  async saveNoteCheckResult(
+    encounterId: string,
+    patientId: string,
+    patientName: string,
+    chiefComplaint: string,
+    dateOfService: Date,
+    status: 'pending' | 'completed' | 'error',
+    checkedBy: string,
+    aiAnalysis?: any,
+    issuesFound: boolean = false,
+    errorMessage?: string
+  ): Promise<number> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      INSERT INTO note_checks 
+      (encounter_id, patient_id, patient_name, chief_complaint, date_of_service, 
+       status, ai_analysis, issues_found, checked_by, error_message, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP)
+      ON CONFLICT (encounter_id) 
+      DO UPDATE SET 
+        status = EXCLUDED.status,
+        ai_analysis = EXCLUDED.ai_analysis,
+        issues_found = EXCLUDED.issues_found,
+        checked_by = EXCLUDED.checked_by,
+        error_message = EXCLUDED.error_message,
+        checked_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING id
+    `;
+
+    const result = await this.pool.query(query, [
+      encounterId, patientId, patientName, chiefComplaint, dateOfService,
+      status, JSON.stringify(aiAnalysis), issuesFound, checkedBy, errorMessage
+    ]);
+
+    return result.rows[0].id;
+  }
+
+  async getNoteCheckResult(encounterId: string): Promise<any | null> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      SELECT id, encounter_id, patient_id, patient_name, chief_complaint, 
+             date_of_service, status, ai_analysis, issues_found, 
+             checked_at, checked_by, error_message
+      FROM note_checks 
+      WHERE encounter_id = $1
+      ORDER BY checked_at DESC
+      LIMIT 1
+    `;
+
+    const result = await this.pool.query(query, [encounterId]);
+    
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const row = result.rows[0];
+    return {
+      id: row.id,
+      encounterId: row.encounter_id,
+      patientId: row.patient_id,
+      patientName: row.patient_name,
+      chiefComplaint: row.chief_complaint,
+      dateOfService: row.date_of_service,
+      status: row.status,
+      aiAnalysis: row.ai_analysis,
+      issuesFound: row.issues_found,
+      checkedAt: row.checked_at,
+      checkedBy: row.checked_by,
+      errorMessage: row.error_message
+    };
+  }
+
+  async getNoteCheckResults(limit: number = 50, offset: number = 0): Promise<any[]> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      SELECT id, encounter_id, patient_id, patient_name, chief_complaint, 
+             date_of_service, status, ai_analysis, issues_found, 
+             checked_at, checked_by, error_message
+      FROM note_checks 
+      ORDER BY checked_at DESC
+      LIMIT $1 OFFSET $2
+    `;
+
+    const result = await this.pool.query(query, [limit, offset]);
+    
+    return result.rows.map(row => ({
+      id: row.id,
+      encounterId: row.encounter_id,
+      patientId: row.patient_id,
+      patientName: row.patient_name,
+      chiefComplaint: row.chief_complaint,
+      dateOfService: row.date_of_service,
+      status: row.status,
+      aiAnalysis: row.ai_analysis,
+      issuesFound: row.issues_found,
+      checkedAt: row.checked_at,
+      checkedBy: row.checked_by,
+      errorMessage: row.error_message
+    }));
+  }
+
+  async addToNoteCheckQueue(encounterId: string, patientId: string, priority: number = 1): Promise<number> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      INSERT INTO note_check_queue (encounter_id, patient_id, priority)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (encounter_id) DO NOTHING
+      RETURNING id
+    `;
+
+    const result = await this.pool.query(query, [encounterId, patientId, priority]);
+    return result.rows.length > 0 ? result.rows[0].id : 0;
+  }
+
+  async getNextQueueItem(): Promise<any | null> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      SELECT id, encounter_id, patient_id, priority, created_at
+      FROM note_check_queue 
+      WHERE status = 'pending'
+      ORDER BY priority DESC, created_at ASC
+      LIMIT 1
+    `;
+
+    const result = await this.pool.query(query);
+    
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return result.rows[0];
+  }
+
+  async updateQueueItemStatus(queueId: number, status: 'processing' | 'completed' | 'error', errorMessage?: string): Promise<void> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      UPDATE note_check_queue 
+      SET status = $1, processed_at = CURRENT_TIMESTAMP, error_message = $2
+      WHERE id = $3
+    `;
+
+    await this.pool.query(query, [status, errorMessage || null, queueId]);
+  }
+
+  async cleanupOldNoteChecks(daysOld: number = 30): Promise<void> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      DELETE FROM note_checks 
+      WHERE checked_at < NOW() - INTERVAL '${daysOld} days'
+    `;
+
+    await this.pool.query(query);
+    console.log(`Cleaned up note checks older than ${daysOld} days`);
   }
 
   async close(): Promise<void> {

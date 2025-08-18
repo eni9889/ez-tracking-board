@@ -1,0 +1,464 @@
+import axios from './axiosConfig';
+import { AxiosResponse } from 'axios';
+import { vitalSignsDb } from './database';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import {
+  IncompleteNotesRequest,
+  IncompleteNotesResponse,
+  IncompletePatientEncounter,
+  IncompleteEncounter,
+  ProgressNoteRequest,
+  ProgressNoteResponse,
+  AIAnalysisResult,
+  AIAnalysisIssue,
+  NoteCheckResult
+} from './types';
+
+class AINoteChecker {
+  private readonly EZDERM_API_BASE = 'https://srvprod.ezinfra.net';
+  private readonly CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+  private claudeApiKey: string;
+  private promptTemplate: string = '';
+
+  constructor() {
+    this.claudeApiKey = process.env.CLAUDE_API_KEY || '';
+    if (!this.claudeApiKey) {
+      console.warn('⚠️ CLAUDE_API_KEY not found in environment variables. AI analysis will not be available.');
+    }
+    this.loadPromptTemplate();
+  }
+
+  private async loadPromptTemplate(): Promise<void> {
+    try {
+      const promptPath = path.join(process.cwd(), '..', 'ezDermRE', 'AI Checker', 'prompt.md');
+      this.promptTemplate = await fs.readFile(promptPath, 'utf8');
+      console.log('📝 AI prompt template loaded successfully');
+    } catch (error) {
+      console.error('❌ Failed to load AI prompt template:', error);
+      this.promptTemplate = `You are a dermatology medical coder. I want you to strictly check two things:
+1. If the chronicity of every diagnosis in the A&P matches what is documented in the HPI.
+2. If every assessment in the A&P has a documented plan.
+
+You must return {status: :ok} only if absolutely everything is correct. If even one issue is found, return a JSON object listing all issues, with details and corrections. Return JSON only.`;
+    }
+  }
+
+  /**
+   * Check if an encounter is eligible for AI note checking
+   */
+  private isEligibleForCheck(encounter: IncompleteEncounter): boolean {
+    const eligibleStatuses = ['PENDING_COSIGN', 'CHECKED_OUT', 'WITH_PROVIDER'];
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const serviceDate = new Date(encounter.dateOfService);
+    
+    return eligibleStatuses.includes(encounter.status) && 
+           serviceDate < twoHoursAgo;
+  }
+
+  /**
+   * Fetch incomplete notes from EZDerm API
+   */
+  async fetchIncompleteNotes(
+    accessToken: string, 
+    request: IncompleteNotesRequest = {}
+  ): Promise<IncompleteNotesResponse[]> {
+    try {
+      console.log('📋 Fetching incomplete notes from EZDerm API...');
+      
+      const requestData = {
+        fetchFrom: request.fetchFrom || 0,
+        size: request.size || 50,
+        ...(request.group && { group: request.group })
+      };
+
+      const response: AxiosResponse<IncompleteNotesResponse[]> = await axios.post(
+        `${this.EZDERM_API_BASE}/ezderm-webservice/rest/inbox/getIncompleteNotes`,
+        requestData,
+        {
+          headers: {
+            'Host': 'srvprod.ezinfra.net',
+            'accept': 'application/json',
+            'content-type': 'application/json',
+            'authorization': `Bearer ${accessToken}`,
+            'user-agent': 'ezDerm/4.28.1 (build:133.1; macOS(Catalyst) 15.6.0)',
+            'accept-language': 'en-US;q=1.0'
+          }
+        }
+      );
+
+      console.log(`✅ Fetched ${response.data.length} incomplete note batches`);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Error fetching incomplete notes:', error.response?.data || error.message);
+      throw new Error(`Failed to fetch incomplete notes: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get all incomplete notes with pagination support
+   */
+  async getAllIncompleteNotes(accessToken: string): Promise<IncompletePatientEncounter[]> {
+    try {
+      let allPatients: IncompletePatientEncounter[] = [];
+      let fetchFrom = 0;
+      const pageSize = 50;
+      let hasMore = true;
+
+      while (hasMore) {
+        console.log(`📄 Fetching incomplete notes page starting from ${fetchFrom}...`);
+        
+        const response = await this.fetchIncompleteNotes(accessToken, {
+          fetchFrom,
+          size: pageSize
+        });
+
+        if (response.length === 0 || response[0].incompletePatientEncounters.length === 0) {
+          hasMore = false;
+          break;
+        }
+
+        allPatients.push(...response[0].incompletePatientEncounters);
+        fetchFrom += pageSize;
+
+        // Safety check to prevent infinite loops
+        if (allPatients.length > 1000) {
+          console.log('⚠️ Reached safety limit of 1000 patients, stopping pagination');
+          break;
+        }
+      }
+
+      console.log(`📊 Total incomplete patients fetched: ${allPatients.length}`);
+      return allPatients;
+    } catch (error: any) {
+      console.error('❌ Error getting all incomplete notes:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Filter encounters that are eligible for AI checking
+   */
+  filterEligibleEncounters(patients: IncompletePatientEncounter[]): Array<{
+    patient: IncompletePatientEncounter;
+    encounter: IncompleteEncounter;
+  }> {
+    const eligible: Array<{ patient: IncompletePatientEncounter; encounter: IncompleteEncounter }> = [];
+
+    for (const patient of patients) {
+      for (const encounter of patient.incompleteEncounters) {
+        if (this.isEligibleForCheck(encounter)) {
+          eligible.push({ patient, encounter });
+        }
+      }
+    }
+
+    console.log(`🎯 Found ${eligible.length} encounters eligible for AI checking`);
+    return eligible;
+  }
+
+  /**
+   * Fetch progress note details for a specific encounter
+   */
+  async fetchProgressNote(
+    accessToken: string,
+    encounterId: string,
+    patientId: string
+  ): Promise<ProgressNoteResponse> {
+    try {
+      console.log(`📄 Fetching progress note for encounter: ${encounterId}`);
+      
+      const response: AxiosResponse<ProgressNoteResponse> = await axios.post(
+        `${this.EZDERM_API_BASE}/ezderm-webservice/rest/progressnote/getProgressNoteInfo`,
+        { encounterId },
+        {
+          headers: {
+            'Host': 'srvprod.ezinfra.net',
+            'accept': 'application/json',
+            'content-type': 'application/json',
+            'authorization': `Bearer ${accessToken}`,
+            'encounterid': encounterId,
+            'patientid': patientId,
+            'user-agent': 'ezDerm/4.28.1 (build:133.1; macOS(Catalyst) 15.6.0)',
+            'accept-language': 'en-US;q=1.0'
+          }
+        }
+      );
+
+      console.log(`✅ Progress note fetched for encounter: ${encounterId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error(`❌ Error fetching progress note for encounter ${encounterId}:`, error.response?.data || error.message);
+      throw new Error(`Failed to fetch progress note: ${error.message}`);
+    }
+  }
+
+  /**
+   * Format progress note for AI analysis
+   */
+  private formatProgressNoteForAnalysis(progressNote: ProgressNoteResponse): string {
+    let formattedNote = '';
+
+    for (const section of progressNote.progressNotes) {
+      formattedNote += `\n\n--- ${section.sectionType} ---\n`;
+      
+      for (const item of section.items) {
+        if (item.text && item.text.trim()) {
+          formattedNote += `\n${item.elementType}:\n${item.text}\n`;
+          
+          if (item.note && item.note.trim()) {
+            formattedNote += `Note: ${item.note}\n`;
+          }
+        }
+      }
+    }
+
+    return formattedNote.trim();
+  }
+
+  /**
+   * Analyze progress note using Claude AI
+   */
+  async analyzeProgressNote(progressNote: ProgressNoteResponse): Promise<AIAnalysisResult> {
+    if (!this.claudeApiKey) {
+      throw new Error('Claude API key not configured');
+    }
+
+    try {
+      console.log('🤖 Analyzing progress note with Claude AI...');
+      
+      const noteText = this.formatProgressNoteForAnalysis(progressNote);
+      const fullPrompt = `${this.promptTemplate}\n\nProgress Note to analyze:\n${noteText}`;
+
+      const response = await axios.post(
+        this.CLAUDE_API_URL,
+        {
+          model: 'claude-3-5-sonnet-20241022',
+          max_tokens: 4000,
+          messages: [
+            {
+              role: 'user',
+              content: fullPrompt
+            }
+          ]
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': this.claudeApiKey,
+            'anthropic-version': '2023-06-01'
+          }
+        }
+      );
+
+      const aiResponse = response.data.content[0].text;
+      console.log('📝 Raw AI response:', aiResponse);
+
+      // Parse the JSON response from Claude
+      let analysisResult: AIAnalysisResult;
+      try {
+        analysisResult = JSON.parse(aiResponse);
+      } catch (parseError) {
+        console.error('❌ Failed to parse AI response as JSON:', parseError);
+        // Fallback response
+        analysisResult = {
+          status: 'corrections_needed',
+          summary: 'AI analysis failed to parse response properly',
+          issues: [{
+            assessment: 'Analysis Error',
+            issue: 'no_explicit_plan',
+            details: {
+              'A&P': 'Could not parse AI response',
+              correction: 'Manual review required'
+            }
+          }]
+        };
+      }
+
+      console.log('✅ AI analysis completed');
+      return analysisResult;
+    } catch (error: any) {
+      console.error('❌ Error analyzing progress note with AI:', error.response?.data || error.message);
+      throw new Error(`AI analysis failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Perform complete note check for a single encounter
+   */
+  async checkSingleNote(
+    accessToken: string,
+    encounterId: string,
+    patientId: string,
+    patientName: string,
+    chiefComplaint: string,
+    dateOfService: string,
+    checkedBy: string
+  ): Promise<NoteCheckResult> {
+    console.log(`🔍 Starting AI note check for encounter: ${encounterId}`);
+    
+    try {
+      // Fetch progress note
+      const progressNote = await this.fetchProgressNote(accessToken, encounterId, patientId);
+      
+      // Analyze with AI
+      const aiAnalysis = await this.analyzeProgressNote(progressNote);
+      
+      // Determine if issues were found
+      const issuesFound = aiAnalysis.status === 'corrections_needed' && 
+                         aiAnalysis.issues && 
+                         aiAnalysis.issues.length > 0;
+
+      // Save result to database
+      const resultId = await vitalSignsDb.saveNoteCheckResult(
+        encounterId,
+        patientId,
+        patientName,
+        chiefComplaint,
+        new Date(dateOfService),
+        'completed',
+        checkedBy,
+        aiAnalysis,
+        issuesFound
+      );
+
+      console.log(`✅ Note check completed for encounter: ${encounterId} (Issues found: ${issuesFound})`);
+
+      return {
+        id: resultId,
+        encounterId,
+        patientId,
+        patientName,
+        chiefComplaint,
+        dateOfService,
+        status: 'completed',
+        aiAnalysis,
+        issuesFound,
+        checkedAt: new Date(),
+        checkedBy
+      };
+    } catch (error: any) {
+      console.error(`❌ Note check failed for encounter ${encounterId}:`, error.message);
+      
+      // Save error result to database
+      const resultId = await vitalSignsDb.saveNoteCheckResult(
+        encounterId,
+        patientId,
+        patientName,
+        chiefComplaint,
+        new Date(dateOfService),
+        'error',
+        checkedBy,
+        undefined,
+        false,
+        error.message
+      );
+
+      return {
+        id: resultId,
+        encounterId,
+        patientId,
+        patientName,
+        chiefComplaint,
+        dateOfService,
+        status: 'error',
+        issuesFound: false,
+        checkedAt: new Date(),
+        checkedBy,
+        errorMessage: error.message
+      };
+    }
+  }
+
+  /**
+   * Process multiple eligible encounters
+   */
+  async processEligibleEncounters(
+    accessToken: string,
+    checkedBy: string
+  ): Promise<{
+    processed: number;
+    successful: number;
+    failed: number;
+    results: NoteCheckResult[];
+  }> {
+    console.log('🚀 Starting batch processing of eligible encounters...');
+    
+    try {
+      // Get all incomplete notes
+      const allPatients = await this.getAllIncompleteNotes(accessToken);
+      
+      // Filter eligible encounters
+      const eligibleEncounters = this.filterEligibleEncounters(allPatients);
+      
+      if (eligibleEncounters.length === 0) {
+        console.log('ℹ️ No eligible encounters found for processing');
+        return { processed: 0, successful: 0, failed: 0, results: [] };
+      }
+
+      const results: NoteCheckResult[] = [];
+      let successful = 0;
+      let failed = 0;
+
+      // Process each eligible encounter
+      for (const { patient, encounter } of eligibleEncounters) {
+        try {
+          const patientName = `${patient.firstName} ${patient.lastName}`;
+          
+          const result = await this.checkSingleNote(
+            accessToken,
+            encounter.id,
+            patient.id,
+            patientName,
+            encounter.chiefComplaintName,
+            encounter.dateOfService,
+            checkedBy
+          );
+
+          results.push(result);
+          
+          if (result.status === 'completed') {
+            successful++;
+          } else {
+            failed++;
+          }
+
+          // Add small delay between requests to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error: any) {
+          console.error(`❌ Error processing encounter ${encounter.id}:`, error.message);
+          failed++;
+        }
+      }
+
+      console.log(`✅ Batch processing completed: ${successful} successful, ${failed} failed`);
+      
+      return {
+        processed: eligibleEncounters.length,
+        successful,
+        failed,
+        results
+      };
+    } catch (error: any) {
+      console.error('❌ Error in batch processing:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get note check results from database
+   */
+  async getNoteCheckResults(limit: number = 50, offset: number = 0): Promise<NoteCheckResult[]> {
+    return await vitalSignsDb.getNoteCheckResults(limit, offset);
+  }
+
+  /**
+   * Get specific note check result
+   */
+  async getNoteCheckResult(encounterId: string): Promise<NoteCheckResult | null> {
+    return await vitalSignsDb.getNoteCheckResult(encounterId);
+  }
+}
+
+// Export singleton instance
+export const aiNoteChecker = new AINoteChecker();

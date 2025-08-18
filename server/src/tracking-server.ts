@@ -8,6 +8,7 @@ import crypto from 'crypto';
 import { vitalSignsDb } from './database';
 import { vitalSignsService } from './vitalSignsService';
 import { startVitalSignsJob, stopVitalSignsJob } from './jobProcessor';
+import { aiNoteChecker } from './aiNoteChecker';
 import {
   LoginRequest,
   LoginResponse,
@@ -571,6 +572,193 @@ app.get('/api/vital-signs/stats', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching vital signs statistics:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// AI Note Checker Endpoints
+
+// Get incomplete notes from EZDerm
+app.post('/api/notes/incomplete', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const username = (req as any).user.username;
+    const { fetchFrom, size, group } = req.body;
+    
+    // Get valid tokens
+    const userTokens = await getValidTokens(username);
+    if (!userTokens) {
+      res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      return;
+    }
+    
+    const incompleteNotes = await aiNoteChecker.fetchIncompleteNotes(userTokens.accessToken, {
+      fetchFrom,
+      size,
+      group
+    });
+    
+    res.json({ success: true, data: incompleteNotes });
+  } catch (error: any) {
+    console.error('Error fetching incomplete notes:', error);
+    res.status(500).json({ error: 'Failed to fetch incomplete notes', details: error.message });
+  }
+});
+
+// Get all eligible encounters for AI checking
+app.get('/api/notes/eligible', validateSession, async (req: Request, res: Response) => {
+  try {
+    const username = (req as any).user.username;
+    
+    // Get valid tokens
+    const userTokens = await getValidTokens(username);
+    if (!userTokens) {
+      return res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+    }
+    
+    const allPatients = await aiNoteChecker.getAllIncompleteNotes(userTokens.accessToken);
+    const eligibleEncounters = aiNoteChecker.filterEligibleEncounters(allPatients);
+    
+    res.json({ 
+      success: true, 
+      count: eligibleEncounters.length,
+      encounters: eligibleEncounters.map(({ patient, encounter }) => ({
+        encounterId: encounter.id,
+        patientId: patient.id,
+        patientName: `${patient.firstName} ${patient.lastName}`,
+        chiefComplaint: encounter.chiefComplaintName,
+        dateOfService: encounter.dateOfService,
+        status: encounter.status
+      }))
+    });
+  } catch (error: any) {
+    console.error('Error fetching eligible encounters:', error);
+    res.status(500).json({ error: 'Failed to fetch eligible encounters', details: error.message });
+  }
+});
+
+// Get progress note for specific encounter
+app.get('/api/notes/progress/:encounterId', validateSession, async (req: Request, res: Response) => {
+  try {
+    const username = (req as any).user.username;
+    const { encounterId } = req.params;
+    const { patientId } = req.query;
+    
+    if (!patientId) {
+      return res.status(400).json({ error: 'Patient ID is required' });
+    }
+    
+    // Get valid tokens
+    const userTokens = await getValidTokens(username);
+    if (!userTokens) {
+      return res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+    }
+    
+    const progressNote = await aiNoteChecker.fetchProgressNote(
+      userTokens.accessToken, 
+      encounterId, 
+      patientId as string
+    );
+    
+    res.json({ success: true, data: progressNote });
+  } catch (error: any) {
+    console.error('Error fetching progress note:', error);
+    res.status(500).json({ error: 'Failed to fetch progress note', details: error.message });
+  }
+});
+
+// Check specific encounter note with AI
+app.post('/api/notes/check/:encounterId', validateSession, async (req: Request, res: Response) => {
+  try {
+    const username = (req as any).user.username;
+    const { encounterId } = req.params;
+    const { patientId, patientName, chiefComplaint, dateOfService } = req.body;
+    
+    if (!patientId) {
+      return res.status(400).json({ error: 'Patient ID is required in request body' });
+    }
+    
+    // Get valid tokens
+    const userTokens = await getValidTokens(username);
+    if (!userTokens) {
+      return res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+    }
+    
+    const result = await aiNoteChecker.checkSingleNote(
+      userTokens.accessToken,
+      encounterId,
+      patientId,
+      patientName || 'Unknown Patient',
+      chiefComplaint || 'Unknown',
+      dateOfService || new Date().toISOString(),
+      username
+    );
+    
+    res.json({ 
+      success: true, 
+      message: 'Note check completed',
+      result
+    });
+  } catch (error: any) {
+    console.error('Error checking note:', error);
+    res.status(500).json({ error: 'Failed to check note', details: error.message });
+  }
+});
+
+// Process all eligible encounters
+app.post('/api/notes/check-all', validateSession, async (req: Request, res: Response) => {
+  try {
+    const username = (req as any).user.username;
+    
+    // Get valid tokens
+    const userTokens = await getValidTokens(username);
+    if (!userTokens) {
+      return res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+    }
+    
+    const result = await aiNoteChecker.processEligibleEncounters(userTokens.accessToken, username);
+    
+    res.json({ 
+      success: true, 
+      message: 'Batch note checking completed',
+      ...result
+    });
+  } catch (error: any) {
+    console.error('Error in batch note checking:', error);
+    res.status(500).json({ error: 'Failed to process notes', details: error.message });
+  }
+});
+
+// Get note check results
+app.get('/api/notes/results', validateSession, async (req: Request, res: Response) => {
+  try {
+    const { limit = 50, offset = 0 } = req.query;
+    
+    const results = await aiNoteChecker.getNoteCheckResults(
+      parseInt(limit as string), 
+      parseInt(offset as string)
+    );
+    
+    res.json({ success: true, results });
+  } catch (error: any) {
+    console.error('Error fetching note check results:', error);
+    res.status(500).json({ error: 'Failed to fetch results', details: error.message });
+  }
+});
+
+// Get specific note check result
+app.get('/api/notes/result/:encounterId', validateSession, async (req: Request, res: Response) => {
+  try {
+    const { encounterId } = req.params;
+    
+    const result = await aiNoteChecker.getNoteCheckResult(encounterId);
+    
+    if (!result) {
+      return res.status(404).json({ error: 'Note check result not found' });
+    }
+    
+    res.json({ success: true, result });
+  } catch (error: any) {
+    console.error('Error fetching note check result:', error);
+    res.status(500).json({ error: 'Failed to fetch result', details: error.message });
   }
 });
 
