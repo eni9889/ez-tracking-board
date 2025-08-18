@@ -63,6 +63,31 @@ const AINoteChecker: React.FC = () => {
     try {
       // Fetch incomplete notes from EZDerm
       const notes = await aiNoteCheckerService.getIncompleteNotes();
+      console.log(`📋 Fetched ${notes.length} incomplete notes from API`);
+      
+      // Check for duplicates on frontend side too
+      const uniqueEncounterIds = new Set();
+      const duplicateIds: string[] = [];
+      notes.forEach(note => {
+        if (uniqueEncounterIds.has(note.encounterId)) {
+          duplicateIds.push(note.encounterId);
+        } else {
+          uniqueEncounterIds.add(note.encounterId);
+        }
+      });
+      
+      if (duplicateIds.length > 0) {
+        console.warn(`⚠️ Frontend detected ${duplicateIds.length} duplicate encounter IDs:`, duplicateIds);
+      }
+      
+      // Remove duplicates from frontend data as a safety measure
+      const uniqueNotes = notes.filter((note, index, array) => 
+        array.findIndex(n => n.encounterId === note.encounterId) === index
+      );
+      
+      if (uniqueNotes.length !== notes.length) {
+        console.log(`🔧 Removed ${notes.length - uniqueNotes.length} duplicate notes on frontend`);
+      }
       
       // Get existing check results for these notes
       const checkResults = await aiNoteCheckerService.getNoteCheckResults(100, 0);
@@ -71,7 +96,7 @@ const AINoteChecker: React.FC = () => {
       );
       
       // Combine the data
-      const notesWithStatus = notes.map(note => ({
+      const notesWithStatus = uniqueNotes.map(note => ({
         ...note,
         lastCheckStatus: checkResultsMap.get(note.encounterId)?.status || null,
         lastCheckDate: checkResultsMap.get(note.encounterId)?.checkedAt || null,
@@ -83,6 +108,7 @@ const AINoteChecker: React.FC = () => {
         return new Date(b.dateOfService).getTime() - new Date(a.dateOfService).getTime();
       });
       
+      console.log(`✅ Final unique notes count: ${sortedNotes.length}`);
       setIncompleteNotes(sortedNotes);
       setLastRefresh(new Date());
     } catch (err: any) {

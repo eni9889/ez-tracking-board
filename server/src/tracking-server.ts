@@ -598,10 +598,19 @@ app.post('/api/notes/incomplete', validateSession, async (req: Request, res: Res
     
     // Transform the EZDerm response to the format expected by frontend
     const encounters: any[] = [];
+    const encounterIds = new Set<string>(); // Track encounter IDs to prevent duplicates
+    
     incompleteNotesData.forEach(batch => {
       if (batch.incompletePatientEncounters) {
         batch.incompletePatientEncounters.forEach(patientData => {
           patientData.incompleteEncounters.forEach(encounter => {
+            // Skip if we've already seen this encounter ID
+            if (encounterIds.has(encounter.id)) {
+              console.log(`⚠️ Skipping duplicate encounter ID: ${encounter.id}`);
+              return;
+            }
+            
+            encounterIds.add(encounter.id);
             encounters.push({
               encounterId: encounter.id,
               patientId: patientData.id,
@@ -615,6 +624,7 @@ app.post('/api/notes/incomplete', validateSession, async (req: Request, res: Res
       }
     });
     
+    console.log(`📊 Processed ${encounters.length} unique encounters from ${incompleteNotesData.length} batches`);
     res.json({ success: true, encounters });
   } catch (error: any) {
     console.error('Error fetching incomplete notes:', error);

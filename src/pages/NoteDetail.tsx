@@ -35,9 +35,7 @@ import {
   Description,
   Assessment,
   LocalHospital,
-  Timeline,
-  Person,
-  Schedule
+  Person
 } from '@mui/icons-material';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -56,7 +54,8 @@ const NoteDetail: React.FC = () => {
   const { encounterId } = useParams<{ encounterId: string }>();
   const location = useLocation();
   const navigate = useNavigate();
-  const {} = useAuth(); // eslint-disable-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const {} = useAuth();
 
   const [noteData, setNoteData] = useState<NoteDetailProps | null>(null);
   const [progressNoteData, setProgressNoteData] = useState<any>(null);
@@ -494,7 +493,10 @@ const NoteDetail: React.FC = () => {
                 </Tooltip>
                 <Tooltip title="Collapse all sections">
                   <IconButton size="small" onClick={() => {
-                    const allSections = progressNoteData?.data?.progressNotes?.map((s: any) => s.sectionType) || [];
+                    // Use the same data structure handling as renderProgressNote
+                    const noteData = progressNoteData?.data || progressNoteData;
+                    const allSections = noteData?.progressNotes?.map((s: any) => s.sectionType) || [];
+                    console.log('🔧 Collapsing all sections:', allSections);
                     setCollapsedSections(new Set(allSections));
                   }}>
                     <VisibilityOff />
@@ -503,7 +505,10 @@ const NoteDetail: React.FC = () => {
               </Stack>
             </Box>
             <Typography variant="body2" color="text.secondary">
-              Status: {noteData?.status || 'Unknown'} • {progressNoteData?.data?.progressNotes?.length || 0} sections
+              Status: {noteData?.status || 'Unknown'} • {(() => {
+                const noteData = progressNoteData?.data || progressNoteData;
+                return noteData?.progressNotes?.length || 0;
+              })()} sections
             </Typography>
           </Box>
           <Box sx={{ flex: 1, overflow: 'auto' }}>
