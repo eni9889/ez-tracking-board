@@ -604,14 +604,15 @@ app.post('/api/notes/incomplete', validateSession, async (req: Request, res: Res
 });
 
 // Get all eligible encounters for AI checking
-app.get('/api/notes/eligible', validateSession, async (req: Request, res: Response) => {
+app.get('/api/notes/eligible', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const username = (req as any).user.username;
     
     // Get valid tokens
     const userTokens = await getValidTokens(username);
     if (!userTokens) {
-      return res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      return;
     }
     
     const allPatients = await aiNoteChecker.getAllIncompleteNotes(userTokens.accessToken);
@@ -636,26 +637,33 @@ app.get('/api/notes/eligible', validateSession, async (req: Request, res: Respon
 });
 
 // Get progress note for specific encounter
-app.get('/api/notes/progress/:encounterId', validateSession, async (req: Request, res: Response) => {
+app.get('/api/notes/progress/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const username = (req as any).user.username;
     const { encounterId } = req.params;
     const { patientId } = req.query;
     
-    if (!patientId) {
-      return res.status(400).json({ error: 'Patient ID is required' });
+    if (!patientId || typeof patientId !== 'string') {
+      res.status(400).json({ error: 'Patient ID is required' });
+      return;
     }
     
     // Get valid tokens
     const userTokens = await getValidTokens(username);
     if (!userTokens) {
-      return res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      return;
     }
     
+    if (!encounterId) {
+      res.status(400).json({ error: 'Encounter ID is required' });
+      return;
+    }
+
     const progressNote = await aiNoteChecker.fetchProgressNote(
       userTokens.accessToken, 
       encounterId, 
-      patientId as string
+      patientId
     );
     
     res.json({ success: true, data: progressNote });
@@ -666,22 +674,29 @@ app.get('/api/notes/progress/:encounterId', validateSession, async (req: Request
 });
 
 // Check specific encounter note with AI
-app.post('/api/notes/check/:encounterId', validateSession, async (req: Request, res: Response) => {
+app.post('/api/notes/check/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const username = (req as any).user.username;
     const { encounterId } = req.params;
     const { patientId, patientName, chiefComplaint, dateOfService } = req.body;
     
-    if (!patientId) {
-      return res.status(400).json({ error: 'Patient ID is required in request body' });
+    if (!patientId || typeof patientId !== 'string') {
+      res.status(400).json({ error: 'Patient ID is required in request body' });
+      return;
     }
     
     // Get valid tokens
     const userTokens = await getValidTokens(username);
     if (!userTokens) {
-      return res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      return;
     }
     
+    if (!encounterId) {
+      res.status(400).json({ error: 'Encounter ID is required' });
+      return;
+    }
+
     const result = await aiNoteChecker.checkSingleNote(
       userTokens.accessToken,
       encounterId,
@@ -704,14 +719,15 @@ app.post('/api/notes/check/:encounterId', validateSession, async (req: Request, 
 });
 
 // Process all eligible encounters
-app.post('/api/notes/check-all', validateSession, async (req: Request, res: Response) => {
+app.post('/api/notes/check-all', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const username = (req as any).user.username;
     
     // Get valid tokens
     const userTokens = await getValidTokens(username);
     if (!userTokens) {
-      return res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      return;
     }
     
     const result = await aiNoteChecker.processEligibleEncounters(userTokens.accessToken, username);
@@ -728,7 +744,7 @@ app.post('/api/notes/check-all', validateSession, async (req: Request, res: Resp
 });
 
 // Get note check results
-app.get('/api/notes/results', validateSession, async (req: Request, res: Response) => {
+app.get('/api/notes/results', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const { limit = 50, offset = 0 } = req.query;
     
@@ -745,14 +761,20 @@ app.get('/api/notes/results', validateSession, async (req: Request, res: Respons
 });
 
 // Get specific note check result
-app.get('/api/notes/result/:encounterId', validateSession, async (req: Request, res: Response) => {
+app.get('/api/notes/result/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const { encounterId } = req.params;
+    
+    if (!encounterId || typeof encounterId !== 'string') {
+      res.status(400).json({ error: 'Encounter ID is required' });
+      return;
+    }
     
     const result = await aiNoteChecker.getNoteCheckResult(encounterId);
     
     if (!result) {
-      return res.status(404).json({ error: 'Note check result not found' });
+      res.status(404).json({ error: 'Note check result not found' });
+      return;
     }
     
     res.json({ success: true, result });
@@ -920,8 +942,10 @@ async function startServer() {
       console.log(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🏥 EZDerm API Base: ${EZDERM_LOGIN_URL}`);
       console.log(`🩺 Vital signs carryforward enabled (server-side jobs)`);
+      console.log(`🤖 AI Note Checker enabled (Claude AI integration)`);
       console.log(`🌐 Health check: http://localhost:${PORT}/api/health`);
       console.log(`🔐 Login endpoint: http://localhost:${PORT}/api/login`);
+      console.log(`📝 AI Note Checker endpoints: /api/notes/*`);
       console.log(`✅ Server startup complete!`);
     });
   } catch (error) {
