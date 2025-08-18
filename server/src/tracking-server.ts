@@ -855,7 +855,8 @@ app.post('/api/notes/:encounterId/create-todo', validateSession, async (req: Req
       return;
     }
 
-    if (!noteCheckResult.issues_found || !noteCheckResult.ai_analysis?.issues) {
+    // Check for issues using the correct field names (camelCase from database mapping)
+    if (!noteCheckResult.issuesFound || !noteCheckResult.aiAnalysis?.issues) {
       res.status(400).json({ error: 'No issues found in the AI analysis to create a ToDo for' });
       return;
     }
@@ -896,7 +897,7 @@ app.post('/api/notes/:encounterId/create-todo', validateSession, async (req: Req
       patientData.id,
       `${patientData.firstName} ${patientData.lastName}`,
       encounterData.dateOfService,
-      noteCheckResult.ai_analysis.issues,
+      noteCheckResult.aiAnalysis.issues,
       encounterData.encounterRoleInfoList || []
     );
 

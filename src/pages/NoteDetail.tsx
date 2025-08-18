@@ -19,7 +19,12 @@ import {
   CardHeader,
   Collapse,
   Tooltip,
-  Stack
+  Stack,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  DialogContentText
 } from '@mui/material';
 import {
   ArrowBack,
@@ -69,6 +74,7 @@ const NoteDetail: React.FC = () => {
   const [creatingToDo, setCreatingToDo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [todoSuccess, setTodoSuccess] = useState<string | null>(null);
+  const [showToDoModal, setShowToDoModal] = useState(false);
 
   useEffect(() => {
     if (encounterId) {
@@ -619,9 +625,8 @@ const NoteDetail: React.FC = () => {
           <Button
             variant="contained"
             color="warning"
-            startIcon={creatingToDo ? <CircularProgress size={16} color="inherit" /> : <Assignment />}
-            onClick={handleCreateToDo}
-            disabled={creatingToDo}
+            startIcon={<Assignment />}
+            onClick={() => setShowToDoModal(true)}
             size="small"
             sx={{ 
               backgroundColor: 'warning.main',
@@ -630,7 +635,7 @@ const NoteDetail: React.FC = () => {
               }
             }}
           >
-            {creatingToDo ? 'Creating ToDo...' : 'Create ToDo for Issues'}
+            Create ToDo for Issues
           </Button>
         )}
         <IconButton
