@@ -7,6 +7,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
   TableRow,
   Chip,
@@ -63,7 +64,7 @@ const AINoteChecker: React.FC = () => {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [batchProgress, setBatchProgress] = useState<BatchProcessResult | null>(null);
 
-  const { } = useAuth();
+  const {} = useAuth(); // eslint-disable-line @typescript-eslint/no-unused-vars
   const navigate = useNavigate();
 
   // Check if we're in mock data mode
@@ -83,8 +84,18 @@ const AINoteChecker: React.FC = () => {
         aiNoteCheckerService.getNoteCheckResults(50, 0)
       ]);
       
-      setEligibleEncounters(encounters);
-      setNoteCheckResults(results);
+      // Sort encounters by date of service (newest first)
+      const sortedEncounters = encounters.sort((a, b) => {
+        return new Date(b.dateOfService).getTime() - new Date(a.dateOfService).getTime();
+      });
+      
+      // Sort results by checked date (newest first)
+      const sortedResults = results.sort((a, b) => {
+        return new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime();
+      });
+      
+      setEligibleEncounters(sortedEncounters);
+      setNoteCheckResults(sortedResults);
       setLastRefresh(new Date());
     } catch (err: any) {
       setError(err.message || 'Failed to fetch data');
@@ -104,8 +115,13 @@ const AINoteChecker: React.FC = () => {
         encounter.dateOfService
       );
       
-      // Add result to the top of the list
-      setNoteCheckResults(prev => [result, ...prev]);
+      // Add result to the top of the list and maintain sorting
+      setNoteCheckResults(prev => {
+        const updated = [result, ...prev];
+        return updated.sort((a, b) => {
+          return new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime();
+        });
+      });
       
       // Remove from eligible encounters if it was there
       setEligibleEncounters(prev => 
@@ -425,7 +441,7 @@ const AINoteChecker: React.FC = () => {
                 </Typography>
               </Box>
               
-              <Box sx={{ flex: 1, overflow: 'auto' }}>
+              <Box sx={{ flex: 1, overflow: 'hidden' }}>
                 {eligibleEncounters.length === 0 ? (
                   <Box sx={{ p: 4, textAlign: 'center' }}>
                     <TrendingUp sx={{ fontSize: '3rem', color: '#4CAF50', mb: 2 }} />
@@ -437,52 +453,54 @@ const AINoteChecker: React.FC = () => {
                     </Typography>
                   </Box>
                 ) : (
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ fontWeight: 'bold' }}>Patient</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold' }}>Chief Complaint</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold' }}>Age</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold' }} align="center">Action</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {eligibleEncounters.map((encounter) => (
-                        <TableRow key={encounter.encounterId} hover>
-                          <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                              {encounter.patientName}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {encounter.status}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2">
-                              {encounter.chiefComplaint}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" color="text.secondary">
-                              {aiNoteCheckerService.formatTimeAgo(encounter.dateOfService)}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="center">
-                            <Tooltip title="Check Note">
-                              <IconButton
-                                size="small"
-                                onClick={() => handleCheckSingleNote(encounter)}
-                                disabled={processing}
-                                color="primary"
-                              >
-                                <Psychology />
-                              </IconButton>
-                            </Tooltip>
-                          </TableCell>
+                  <TableContainer sx={{ height: '100%', overflow: 'auto' }}>
+                    <Table size="small" stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>Patient</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>Chief Complaint</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>Age</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }} align="center">Action</TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHead>
+                      <TableBody>
+                        {eligibleEncounters.map((encounter) => (
+                          <TableRow key={encounter.encounterId} hover>
+                            <TableCell>
+                              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                                {encounter.patientName}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {encounter.status}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">
+                                {encounter.chiefComplaint}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" color="text.secondary">
+                                {aiNoteCheckerService.formatTimeAgo(encounter.dateOfService)}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="center">
+                              <Tooltip title="Check Note">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleCheckSingleNote(encounter)}
+                                  disabled={processing}
+                                  color="primary"
+                                >
+                                  <Psychology />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
                 )}
               </Box>
             </Paper>
@@ -500,7 +518,7 @@ const AINoteChecker: React.FC = () => {
                 </Typography>
               </Box>
               
-              <Box sx={{ flex: 1, overflow: 'auto' }}>
+              <Box sx={{ flex: 1, overflow: 'hidden' }}>
                 {noteCheckResults.length === 0 ? (
                   <Box sx={{ p: 4, textAlign: 'center' }}>
                     <Assignment sx={{ fontSize: '3rem', color: 'text.secondary', mb: 2 }} />
@@ -512,57 +530,59 @@ const AINoteChecker: React.FC = () => {
                     </Typography>
                   </Box>
                 ) : (
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ fontWeight: 'bold' }}>Patient</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold' }}>Checked</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold' }} align="center">Action</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {noteCheckResults.map((result) => (
-                        <TableRow key={result.id} hover>
-                          <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                              {result.patientName}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {result.chiefComplaint}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            {getStatusChip(result.status, result.issuesFound)}
-                            {result.errorMessage && (
-                              <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
-                                {result.errorMessage}
-                              </Typography>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" color="text.secondary">
-                              {aiNoteCheckerService.formatTimeAgo(result.checkedAt)}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              by {result.checkedBy}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="center">
-                            <Tooltip title="View Details">
-                              <IconButton
-                                size="small"
-                                onClick={() => handleViewDetails(result)}
-                                color="primary"
-                              >
-                                <Visibility />
-                              </IconButton>
-                            </Tooltip>
-                          </TableCell>
+                  <TableContainer sx={{ height: '100%', overflow: 'auto' }}>
+                    <Table size="small" stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>Patient</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>Status</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>Checked</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }} align="center">Action</TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHead>
+                      <TableBody>
+                        {noteCheckResults.map((result) => (
+                          <TableRow key={result.id} hover>
+                            <TableCell>
+                              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                                {result.patientName}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {result.chiefComplaint}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              {getStatusChip(result.status, result.issuesFound)}
+                              {result.errorMessage && (
+                                <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
+                                  {result.errorMessage}
+                                </Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" color="text.secondary">
+                                {aiNoteCheckerService.formatTimeAgo(result.checkedAt)}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                by {result.checkedBy}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="center">
+                              <Tooltip title="View Details">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleViewDetails(result)}
+                                  color="primary"
+                                >
+                                  <Visibility />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
                 )}
               </Box>
             </Paper>
