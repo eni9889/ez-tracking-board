@@ -45,7 +45,7 @@ Your JSON response must match the following JSON schema. IF it does not you have
       "type": "object",
       "properties": {
         "status": {
-          "enum": [":ok"]
+          "enum": ["ok"]
         }
       },
       "required": ["status"],
