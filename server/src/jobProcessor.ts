@@ -486,7 +486,7 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
     // Get the AI analysis result to check for issues
     const noteCheckResult = await vitalSignsDb.getNoteCheckResult(encounterId);
     
-    if (noteCheckResult && noteCheckResult.issues_found && noteCheckResult.ai_analysis?.issues) {
+    if (false && noteCheckResult && noteCheckResult.issues_found && noteCheckResult.ai_analysis?.issues) {
       console.log(`📝 Issues found in note ${encounterId}, creating ToDo...`);
       
       try {

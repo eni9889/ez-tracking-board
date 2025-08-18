@@ -64,6 +64,7 @@ const NoteDetail: React.FC = () => {
   const [checking, setChecking] = useState(false);
   const [creatingToDo, setCreatingToDo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [todoSuccess, setTodoSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (encounterId) {
@@ -370,15 +371,19 @@ const NoteDetail: React.FC = () => {
 
     setCreatingToDo(true);
     setError(null);
+    setTodoSuccess(null);
 
     try {
       const result = await aiNoteCheckerService.createToDo(encounterId);
       
       if (result.success) {
-        alert(`ToDo created successfully! ID: ${result.todoId}`);
-        // Optionally refresh the check history
+        setTodoSuccess(`ToDo created successfully! (ID: ${result.todoId})`);
+        // Refresh the check history
         const newHistory = await fetchCheckHistory();
         setCheckHistory(newHistory);
+        
+        // Clear success message after 5 seconds
+        setTimeout(() => setTodoSuccess(null), 5000);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to create ToDo');
@@ -514,19 +519,24 @@ const NoteDetail: React.FC = () => {
         >
           {checking ? 'Checking...' : 'Run AI Check'}
         </Button>
-        <Button
-          variant="outlined"
-          color="inherit"
-          startIcon={creatingToDo ? <CircularProgress size={16} color="inherit" /> : <Assignment />}
-          onClick={handleCreateToDo}
-          disabled={creatingToDo || !checkHistory.some(check => check.issuesFound)}
-          size="small"
-          sx={{ 
-            opacity: checkHistory.some(check => check.issuesFound) ? 1 : 0.6 
-          }}
-        >
-          {creatingToDo ? 'Creating...' : 'Create ToDo'}
-        </Button>
+        {checkHistory.some(check => check.issuesFound) && (
+          <Button
+            variant="contained"
+            color="warning"
+            startIcon={creatingToDo ? <CircularProgress size={16} color="inherit" /> : <Assignment />}
+            onClick={handleCreateToDo}
+            disabled={creatingToDo}
+            size="small"
+            sx={{ 
+              backgroundColor: 'warning.main',
+              '&:hover': {
+                backgroundColor: 'warning.dark'
+              }
+            }}
+          >
+            {creatingToDo ? 'Creating ToDo...' : 'Create ToDo for Issues'}
+          </Button>
+        )}
         <IconButton
           color="inherit"
           onClick={fetchNoteDetails}
@@ -541,6 +551,15 @@ const NoteDetail: React.FC = () => {
         <Box sx={{ px: 3, pt: 2 }}>
           <Alert severity="error" onClose={() => setError(null)}>
             {error}
+          </Alert>
+        </Box>
+      )}
+
+      {/* Success Alert */}
+      {todoSuccess && (
+        <Box sx={{ px: 3, pt: 2 }}>
+          <Alert severity="success" onClose={() => setTodoSuccess(null)}>
+            {todoSuccess}
           </Alert>
         </Box>
       )}
