@@ -495,4 +495,5 @@ class AINoteCheckerService {
   }
 }
 
-export default new AINoteCheckerService();
+const aiNoteCheckerService = new AINoteCheckerService();
+export default aiNoteCheckerService;

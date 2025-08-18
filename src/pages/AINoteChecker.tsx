@@ -46,7 +46,8 @@ const AINoteChecker: React.FC = () => {
   const [checking, setChecking] = useState<Set<string>>(new Set());
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
-  const {} = useAuth(); // eslint-disable-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const {} = useAuth();
   const navigate = useNavigate();
 
   // Check if we're in mock data mode

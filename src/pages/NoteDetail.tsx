@@ -75,6 +75,7 @@ const NoteDetail: React.FC = () => {
       // Always fetch note details - we can get everything from the encounterId
       fetchNoteDetails();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [encounterId, location.state]);
 
   const fetchNoteDetails = async () => {
