@@ -51,6 +51,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useEncounters } from '../contexts/EncountersContext';
 import aiNoteCheckerService, { NoteCheckResult, AIAnalysisIssue, CareTeamMember, CreatedToDo } from '../services/aiNoteChecker.service';
 
 interface NoteDetailProps {
@@ -81,12 +82,22 @@ const NoteDetail: React.FC = () => {
   const [todoSuccess, setTodoSuccess] = useState<string | null>(null);
   const [showToDoModal, setShowToDoModal] = useState(false);
   const [forceNewCheck, setForceNewCheck] = useState(false);
-  const [encountersList, setEncountersList] = useState<any[]>([]);
-  const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [navigationLoading, setNavigationLoading] = useState(false);
+  const [currentEncounterId, setCurrentEncounterId] = useState<string | null>(null);
+  
+  // Use encounters context for navigation
+  const { 
+    encounters: encountersList, 
+    getCurrentIndex, 
+    getPreviousEncounter, 
+    getNextEncounter 
+  } = useEncounters();
 
   useEffect(() => {
     if (encounterId) {
+      // Set the current encounter ID
+      setCurrentEncounterId(encounterId);
+      
       // Get note data from navigation state if available, otherwise we'll fetch what we need
       const stateNote = location.state?.note;
       if (stateNote) {
@@ -99,18 +110,8 @@ const NoteDetail: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [encounterId, location.state]);
 
-  // Load encounters list for navigation
-  useEffect(() => {
-    loadEncountersList();
-  }, []);
-
-  // Update current index when encounterId changes
-  useEffect(() => {
-    if (encounterId && encountersList.length > 0) {
-      const currentIdx = encountersList.findIndex(note => note.encounterId === encounterId);
-      setCurrentIndex(currentIdx);
-    }
-  }, [encounterId, encountersList]);
+  // Calculate current index from context
+  const currentIndex = currentEncounterId ? getCurrentIndex(currentEncounterId) : -1;
 
   // Parameterized versions for navigation (defined first)
   const fetchNoteContentForEncounter = useCallback(async (targetEncounterId: string): Promise<any> => {
@@ -178,11 +179,14 @@ const NoteDetail: React.FC = () => {
     setTodoSuccess(null);
     
     try {
-      // Update URL for browser history (but don't trigger navigation)
-      window.history.pushState({}, '', `/ai-note-checker/${encounter.encounterId}`);
-      
       // Update note data immediately
       setNoteData(encounter);
+      
+      // Update current encounter ID (this will trigger the useEffect to update currentIndex)
+      setCurrentEncounterId(encounter.encounterId);
+      
+      // Update URL for browser history (but keep using our internal state for logic)
+      window.history.pushState({}, '', `/ai-note-checker/${encounter.encounterId}`);
       
       // Fetch fresh note details for this encounter
       await loadNoteDetailsForEncounter(encounter.encounterId);
@@ -195,18 +199,22 @@ const NoteDetail: React.FC = () => {
   }, [loadNoteDetailsForEncounter]);
 
   const handlePreviousEncounter = useCallback(() => {
-    if (currentIndex > 0) {
-      const prevEncounter = encountersList[currentIndex - 1];
-      navigateToEncounter(prevEncounter);
+    if (currentEncounterId) {
+      const prevEncounter = getPreviousEncounter(currentEncounterId);
+      if (prevEncounter) {
+        navigateToEncounter(prevEncounter);
+      }
     }
-  }, [currentIndex, encountersList, navigateToEncounter]);
+  }, [currentEncounterId, getPreviousEncounter, navigateToEncounter]);
 
   const handleNextEncounter = useCallback(() => {
-    if (currentIndex < encountersList.length - 1) {
-      const nextEncounter = encountersList[currentIndex + 1];
-      navigateToEncounter(nextEncounter);
+    if (currentEncounterId) {
+      const nextEncounter = getNextEncounter(currentEncounterId);
+      if (nextEncounter) {
+        navigateToEncounter(nextEncounter);
+      }
     }
-  }, [currentIndex, encountersList, navigateToEncounter]);
+  }, [currentEncounterId, getNextEncounter, navigateToEncounter]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -229,31 +237,7 @@ const NoteDetail: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentIndex, encountersList.length, handlePreviousEncounter, handleNextEncounter]);
 
-  const loadEncountersList = async () => {
-    try {
-      const notes = await aiNoteCheckerService.getIncompleteNotes();
-      
-      // Remove duplicates (same logic as main page)
-      const uniqueNotes = notes.filter((note, index, array) => 
-        array.findIndex(n => n.encounterId === note.encounterId) === index
-      );
-      
-      // Sort by date of service (newest first) - same as main page
-      const sortedNotes = uniqueNotes.sort((a, b) => {
-        return new Date(b.dateOfService).getTime() - new Date(a.dateOfService).getTime();
-      });
-      
-      setEncountersList(sortedNotes);
-      
-      // Find current encounter index
-      if (encounterId) {
-        const currentIdx = sortedNotes.findIndex(note => note.encounterId === encounterId);
-        setCurrentIndex(currentIdx);
-      }
-    } catch (err) {
-      console.error('Failed to load encounters list for navigation:', err);
-    }
-  };
+
 
   const fetchNoteDetails = async () => {
     if (!encounterId) return;
@@ -856,8 +840,8 @@ const NoteDetail: React.FC = () => {
           </Typography>
         </Box>
         
-        {/* Navigation buttons */}
-        {encountersList.length > 0 && (
+        {/* Navigation buttons - only show if encounters list is available */}
+        {encountersList.length > 0 && currentIndex >= 0 && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 2 }}>
             <Tooltip title={`Previous encounter (${currentIndex > 0 ? currentIndex : 1} of ${encountersList.length})`}>
               <IconButton

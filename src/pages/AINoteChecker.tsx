@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useEncounters } from '../contexts/EncountersContext';
 import aiNoteCheckerService from '../services/aiNoteChecker.service';
 
 interface IncompleteNote {
@@ -34,101 +35,46 @@ interface IncompleteNote {
   chiefComplaint: string;
   dateOfService: string;
   status: string;
-  lastCheckStatus?: 'pending' | 'completed' | 'error' | null;
+  lastCheckStatus?: string | null;
   lastCheckDate?: string | null;
   issuesFound?: boolean;
 }
 
 const AINoteChecker: React.FC = () => {
-  const [incompleteNotes, setIncompleteNotes] = useState<IncompleteNote[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState<Set<string>>(new Set());
-  const [lastRefresh, setLastRefresh] = useState(new Date());
   const [autoRefreshing, setAutoRefreshing] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const {} = useAuth();
   const navigate = useNavigate();
+  const { 
+    encounters: incompleteNotes, 
+    loading, 
+    error, 
+    lastRefresh, 
+    loadEncounters, 
+    refreshEncounters 
+  } = useEncounters();
 
   // Check if we're in mock data mode
   const isUsingMockData = process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_MOCK_DATA === 'true';
 
   useEffect(() => {
-    fetchIncompleteNotes();
+    loadEncounters();
     
     // Auto-refresh every 30 seconds to pick up background job results
     const refreshInterval = setInterval(async () => {
       console.log('🔄 Auto-refreshing note check results...');
       setAutoRefreshing(true);
-      await fetchIncompleteNotes();
+      await refreshEncounters();
       setAutoRefreshing(false);
     }, 30000); // 30 seconds
     
     return () => clearInterval(refreshInterval);
-  }, []);
+  }, [loadEncounters, refreshEncounters]);
 
-  const fetchIncompleteNotes = async () => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      // Fetch incomplete notes from EZDerm
-      const notes = await aiNoteCheckerService.getIncompleteNotes();
-      console.log(`📋 Fetched ${notes.length} incomplete notes from API`);
-      
-      // Check for duplicates on frontend side too
-      const uniqueEncounterIds = new Set();
-      const duplicateIds: string[] = [];
-      notes.forEach(note => {
-        if (uniqueEncounterIds.has(note.encounterId)) {
-          duplicateIds.push(note.encounterId);
-        } else {
-          uniqueEncounterIds.add(note.encounterId);
-        }
-      });
-      
-      if (duplicateIds.length > 0) {
-        console.warn(`⚠️ Frontend detected ${duplicateIds.length} duplicate encounter IDs:`, duplicateIds);
-      }
-      
-      // Remove duplicates from frontend data as a safety measure
-      const uniqueNotes = notes.filter((note, index, array) => 
-        array.findIndex(n => n.encounterId === note.encounterId) === index
-      );
-      
-      if (uniqueNotes.length !== notes.length) {
-        console.log(`🔧 Removed ${notes.length - uniqueNotes.length} duplicate notes on frontend`);
-      }
-      
-      // Get existing check results for these notes
-      const checkResults = await aiNoteCheckerService.getNoteCheckResults(100, 0);
-      const checkResultsMap = new Map(
-        checkResults.map(result => [result.encounterId, result])
-      );
-      
-      // Combine the data
-      const notesWithStatus = uniqueNotes.map(note => ({
-        ...note,
-        lastCheckStatus: checkResultsMap.get(note.encounterId)?.status || null,
-        lastCheckDate: checkResultsMap.get(note.encounterId)?.checkedAt || null,
-        issuesFound: checkResultsMap.get(note.encounterId)?.issuesFound || false
-      }));
-      
-      // Sort by date of service (newest first)
-      const sortedNotes = notesWithStatus.sort((a, b) => {
-        return new Date(b.dateOfService).getTime() - new Date(a.dateOfService).getTime();
-      });
-      
-      console.log(`✅ Final unique notes count: ${sortedNotes.length}`);
-      setIncompleteNotes(sortedNotes);
-      setLastRefresh(new Date());
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch incomplete notes');
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   const handleCheckNote = async (note: IncompleteNote) => {
     setChecking(prev => new Set(prev).add(note.encounterId));
@@ -143,9 +89,10 @@ const AINoteChecker: React.FC = () => {
       );
       
       // Refresh the notes list to show updated status
-      await fetchIncompleteNotes();
+      await refreshEncounters();
     } catch (err: any) {
-      setError(err.message || 'Failed to check note');
+      console.error('Error checking note:', err);
+      setLocalError(err.message || 'Failed to check note');
     } finally {
       setChecking(prev => {
         const newSet = new Set(prev);
@@ -260,7 +207,7 @@ const AINoteChecker: React.FC = () => {
           variant="outlined"
           color="inherit"
           startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Refresh />}
-          onClick={fetchIncompleteNotes}
+          onClick={refreshEncounters}
           disabled={loading}
           size="small"
         >
@@ -288,17 +235,24 @@ const AINoteChecker: React.FC = () => {
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Typography variant="body2" color="text.secondary">
-              Last Refresh: <strong>{lastRefresh.toLocaleTimeString()}</strong>
+              Last Refresh: <strong>{lastRefresh ? lastRefresh.toLocaleTimeString() : 'Never'}</strong>
             </Typography>
           </Grid>
         </Grid>
       </Box>
 
-      {/* Error Alert */}
+      {/* Error Alerts */}
       {error && (
         <Box sx={{ px: 3, pt: 2 }}>
-          <Alert severity="error" onClose={() => setError(null)}>
+          <Alert severity="error">
             {error}
+          </Alert>
+        </Box>
+      )}
+      {localError && (
+        <Box sx={{ px: 3, pt: 2 }}>
+          <Alert severity="error" onClose={() => setLocalError(null)}>
+            {localError}
           </Alert>
         </Box>
       )}

@@ -14,6 +14,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { AuthProvider } from './contexts/AuthContext';
+import { EncountersProvider } from './contexts/EncountersContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import AINoteChecker from './pages/AINoteChecker';
@@ -59,36 +60,38 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
-        <Router>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route
-              path="/dashboard"
-              element={
-                <PrivateRoute>
-                  <Dashboard />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/ai-note-checker"
-              element={
-                <PrivateRoute>
-                  <AINoteChecker />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/ai-note-checker/:encounterId"
-              element={
-                <PrivateRoute>
-                  <NoteDetail />
-                </PrivateRoute>
-              }
-            />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
-        </Router>
+        <EncountersProvider>
+          <Router>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route
+                path="/dashboard"
+                element={
+                  <PrivateRoute>
+                    <Dashboard />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/ai-note-checker"
+                element={
+                  <PrivateRoute>
+                    <AINoteChecker />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/ai-note-checker/:encounterId"
+                element={
+                  <PrivateRoute>
+                    <NoteDetail />
+                  </PrivateRoute>
+                }
+              />
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </Router>
+        </EncountersProvider>
       </AuthProvider>
     </ThemeProvider>
   );
