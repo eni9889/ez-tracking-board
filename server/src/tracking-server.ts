@@ -660,12 +660,7 @@ app.get('/api/notes/progress/:encounterId', validateSession, async (req: Request
   try {
     const username = (req as any).user.username;
     const { encounterId } = req.params;
-    const { patientId } = req.query;
-    
-    if (!patientId || typeof patientId !== 'string') {
-      res.status(400).json({ error: 'Patient ID is required' });
-      return;
-    }
+    let { patientId } = req.query;
     
     // Get valid tokens
     const userTokens = await getValidTokens(username);
@@ -679,13 +674,55 @@ app.get('/api/notes/progress/:encounterId', validateSession, async (req: Request
       return;
     }
 
+    // If patientId is not provided, try to find it from incomplete notes
+    if (!patientId) {
+      console.log('🔍 Patient ID not provided, searching in incomplete notes...');
+      
+      try {
+        const incompleteNotesData = await aiNoteChecker.fetchIncompleteNotes(userTokens.accessToken, {
+          fetchFrom: 0,
+          size: 200  // Get more notes to increase chance of finding the encounter
+        });
+        
+        // Search for the encounter in incomplete notes to get patientId
+        let foundPatientId: string | null = null;
+        incompleteNotesData.forEach(batch => {
+          if (batch.incompletePatientEncounters && !foundPatientId) {
+            batch.incompletePatientEncounters.forEach(patientData => {
+              const foundEncounter = patientData.incompleteEncounters.find(enc => enc.id === encounterId);
+              if (foundEncounter) {
+                foundPatientId = patientData.id;
+              }
+            });
+          }
+        });
+        
+        if (foundPatientId) {
+          patientId = foundPatientId;
+          console.log(`✅ Found patient ID: ${patientId} for encounter: ${encounterId}`);
+        } else {
+          res.status(404).json({ error: 'Encounter not found in incomplete notes. The encounter may have been completed or signed.' });
+          return;
+        }
+      } catch (searchError) {
+        console.error('Error searching for patient ID:', searchError);
+        res.status(500).json({ error: 'Could not determine patient ID for this encounter' });
+        return;
+      }
+    }
+
     const progressNote = await aiNoteChecker.fetchProgressNote(
       userTokens.accessToken, 
       encounterId, 
-      patientId
+      patientId as string
     );
     
-    res.json({ success: true, data: progressNote });
+    // Also return the patient info we found
+    res.json({ 
+      success: true, 
+      data: progressNote,
+      patientId: patientId
+    });
   } catch (error: any) {
     console.error('Error fetching progress note:', error);
     res.status(500).json({ error: 'Failed to fetch progress note', details: error.message });

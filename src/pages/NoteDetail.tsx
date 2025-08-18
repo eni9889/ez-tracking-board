@@ -52,14 +52,15 @@ const NoteDetail: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Get note data from navigation state or fetch it
-    const stateNote = location.state?.note;
-    if (stateNote) {
-      setNoteData(stateNote);
-      // Fetch note details after setting note data
-      if (encounterId) {
-        fetchNoteDetails();
+    if (encounterId) {
+      // Get note data from navigation state if available, otherwise we'll fetch what we need
+      const stateNote = location.state?.note;
+      if (stateNote) {
+        setNoteData(stateNote);
       }
+      
+      // Always fetch note details - we can get everything from the encounterId
+      fetchNoteDetails();
     }
   }, [encounterId, location.state]);
 
@@ -87,12 +88,13 @@ const NoteDetail: React.FC = () => {
 
   const fetchNoteContent = async (): Promise<string> => {
     if (!encounterId) return 'No encounter ID available';
-    if (!noteData) return 'Note data not available - please navigate from the notes list';
     
     try {
+      // Try to get progress note with patientId if available, otherwise let backend find it
+      const patientId = noteData?.patientId;
       const progressNote = await aiNoteCheckerService.getProgressNote(
         encounterId,
-        noteData.patientId
+        patientId
       );
       
       // Format the progress note for display
@@ -146,18 +148,37 @@ const NoteDetail: React.FC = () => {
   };
 
   const handleCheckNote = async () => {
-    if (!noteData) return;
+    if (!encounterId) return;
 
     setChecking(true);
     setError(null);
 
     try {
+      // If we don't have note data, we'll need to get basic info first
+      let patientId = noteData?.patientId;
+      let patientName = noteData?.patientName || 'Unknown Patient';
+      let chiefComplaint = noteData?.chiefComplaint || 'Unknown';
+      let dateOfService = noteData?.dateOfService || new Date().toISOString();
+
+      // If we don't have patient info, try to get it from a progress note call
+      if (!patientId) {
+        try {
+          const progressNote = await aiNoteCheckerService.getProgressNote(encounterId);
+          // The backend should return patientId in the response
+          patientId = (progressNote as any).patientId;
+        } catch (err) {
+          setError('Unable to determine patient information for AI check');
+          setChecking(false);
+          return;
+        }
+      }
+
       await aiNoteCheckerService.checkSingleNote(
-        noteData.encounterId,
-        noteData.patientId,
-        noteData.patientName,
-        noteData.chiefComplaint,
-        noteData.dateOfService
+        encounterId,
+        patientId!,
+        patientName,
+        chiefComplaint,
+        dateOfService
       );
 
       // Refresh check history

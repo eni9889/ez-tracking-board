@@ -229,7 +229,7 @@ class AINoteCheckerService {
   /**
    * Get progress note details for a specific encounter
    */
-  async getProgressNote(encounterId: string, patientId: string): Promise<ProgressNoteResponse> {
+  async getProgressNote(encounterId: string, patientId?: string): Promise<ProgressNoteResponse> {
     if (USE_MOCK_DATA) {
       console.log('🚧 Development Mode: Returning mock progress note');
       await new Promise(resolve => setTimeout(resolve, 800)); // Simulate API delay
@@ -281,14 +281,14 @@ class AINoteCheckerService {
           billableEncounter: true,
           emCoding: true
         },
-        patientId,
+        patientId: patientId || 'mock-patient-id',
         notesCount: 1
       };
     }
 
     try {
       const response = await axios.get(`${API_BASE_URL}/notes/progress/${encounterId}`, {
-        params: { patientId },
+        params: patientId ? { patientId } : {},  // Only include patientId if provided
         headers: this.headers()
       });
 
