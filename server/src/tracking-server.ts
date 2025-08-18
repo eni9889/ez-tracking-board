@@ -776,29 +776,32 @@ app.get('/api/notes/progress/:encounterId', validateSession, async (req: Request
       return;
     }
 
-    // If patientId is not provided, try to find it from incomplete notes
-    if (!patientId) {
-      console.log('🔍 Patient ID not provided, searching in incomplete notes...');
+    // Always try to fetch care team info from incomplete notes (needed for ToDo creation and care team display)
+    console.log('🔍 Fetching encounter details from incomplete notes...');
+    let encounterRoleInfoList: any[] = [];
+    
+    try {
+      const incompleteNotesData = await aiNoteChecker.fetchIncompleteNotes(userTokens.accessToken, {
+        fetchFrom: 0,
+        size: 200  // Get more notes to increase chance of finding the encounter
+      });
       
-      try {
-        const incompleteNotesData = await aiNoteChecker.fetchIncompleteNotes(userTokens.accessToken, {
-          fetchFrom: 0,
-          size: 200  // Get more notes to increase chance of finding the encounter
-        });
-        
-        // Search for the encounter in incomplete notes to get patientId
-        let foundPatientId: string | null = null;
-        incompleteNotesData.forEach(batch => {
-          if (batch.incompletePatientEncounters && !foundPatientId) {
-            batch.incompletePatientEncounters.forEach(patientData => {
-              const foundEncounter = patientData.incompleteEncounters.find(enc => enc.id === encounterId);
-              if (foundEncounter) {
-                foundPatientId = patientData.id;
-              }
-            });
-          }
-        });
-        
+      // Search for the encounter in incomplete notes to get patientId and care team info
+      let foundPatientId: string | null = null;
+      incompleteNotesData.forEach(batch => {
+        if (batch.incompletePatientEncounters && !foundPatientId) {
+          batch.incompletePatientEncounters.forEach(patientData => {
+            const foundEncounter = patientData.incompleteEncounters.find(enc => enc.id === encounterId);
+            if (foundEncounter) {
+              foundPatientId = patientData.id;
+              encounterRoleInfoList = foundEncounter.encounterRoleInfoList || [];
+            }
+          });
+        }
+      });
+      
+      // If patientId wasn't provided, use the one we found
+      if (!patientId) {
         if (foundPatientId) {
           patientId = foundPatientId;
           console.log(`✅ Found patient ID: ${patientId} for encounter: ${encounterId}`);
@@ -806,11 +809,13 @@ app.get('/api/notes/progress/:encounterId', validateSession, async (req: Request
           res.status(404).json({ error: 'Encounter not found in incomplete notes. The encounter may have been completed or signed.' });
           return;
         }
-      } catch (searchError) {
-        console.error('Error searching for patient ID:', searchError);
-        res.status(500).json({ error: 'Could not determine patient ID for this encounter' });
-        return;
+      } else {
+        console.log(`✅ Found care team info for encounter: ${encounterId}`);
       }
+    } catch (searchError) {
+      console.error('Error searching incomplete notes:', searchError);
+      res.status(500).json({ error: 'Could not fetch encounter details' });
+      return;
     }
 
     const progressNote = await aiNoteChecker.fetchProgressNote(
@@ -819,11 +824,12 @@ app.get('/api/notes/progress/:encounterId', validateSession, async (req: Request
       patientId as string
     );
     
-    // Also return the patient info we found
+    // Also return the patient info and care team we found
     res.json({ 
       success: true, 
       data: progressNote,
-      patientId: patientId
+      patientId: patientId,
+      careTeam: encounterRoleInfoList
     });
   } catch (error: any) {
     console.error('Error fetching progress note:', error);

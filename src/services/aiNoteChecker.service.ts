@@ -52,6 +52,19 @@ export interface BatchProcessResult {
   results: NoteCheckResult[];
 }
 
+export interface CareTeamMember {
+  id: string;
+  active: boolean;
+  providerId: string;
+  encounterId: string;
+  encounterRoleType: 'PROVIDER' | 'SECONDARY_PROVIDER' | 'STAFF' | 'COSIGNING_PROVIDER';
+  firstName: string;
+  lastName: string;
+  title?: string;
+  onlineCheckInEnabled: boolean;
+  fullOnlineCheckInEnabled: boolean;
+}
+
 export interface ProgressNoteResponse {
   progressNotes: Array<{
     sectionType: 'SUBJECTIVE' | 'OBJECTIVE' | 'ASSESSMENT_AND_PLAN';
@@ -229,13 +242,53 @@ class AINoteCheckerService {
   /**
    * Get progress note details for a specific encounter
    */
-  async getProgressNote(encounterId: string, patientId?: string): Promise<ProgressNoteResponse> {
+  async getProgressNote(encounterId: string, patientId?: string): Promise<{ progressNote: ProgressNoteResponse; careTeam: CareTeamMember[] }> {
     if (USE_MOCK_DATA) {
       console.log('🚧 Development Mode: Returning mock progress note');
       await new Promise(resolve => setTimeout(resolve, 800)); // Simulate API delay
       
+      const mockCareTeam: CareTeamMember[] = [
+        {
+          id: 'mock-role-1',
+          active: true,
+          providerId: 'mock-provider-1',
+          encounterId,
+          encounterRoleType: 'PROVIDER',
+          firstName: 'Dr. Sarah',
+          lastName: 'Smith',
+          title: 'MD',
+          onlineCheckInEnabled: false,
+          fullOnlineCheckInEnabled: false
+        },
+        {
+          id: 'mock-role-2',
+          active: true,
+          providerId: 'mock-provider-2',
+          encounterId,
+          encounterRoleType: 'SECONDARY_PROVIDER',
+          firstName: 'Jane',
+          lastName: 'Wilson',
+          title: 'NP',
+          onlineCheckInEnabled: false,
+          fullOnlineCheckInEnabled: false
+        },
+        {
+          id: 'mock-role-3',
+          active: true,
+          providerId: 'mock-provider-3',
+          encounterId,
+          encounterRoleType: 'STAFF',
+          firstName: 'Mike',
+          lastName: 'Johnson',
+          title: 'MA',
+          onlineCheckInEnabled: false,
+          fullOnlineCheckInEnabled: false
+        }
+      ];
+
       return {
-        progressNotes: [
+        progressNote: {
+          progressNotes: [
           {
             sectionType: 'SUBJECTIVE',
             locked: true,
@@ -283,6 +336,8 @@ class AINoteCheckerService {
         },
         patientId: patientId || 'mock-patient-id',
         notesCount: 1
+        },
+        careTeam: mockCareTeam
       };
     }
 
@@ -292,7 +347,10 @@ class AINoteCheckerService {
         headers: this.headers()
       });
 
-      return response.data.data;
+      return {
+        progressNote: response.data.data,
+        careTeam: response.data.careTeam || []
+      };
     } catch (error: any) {
       console.error('Error fetching progress note:', error);
       throw new Error(error.response?.data?.error || 'Failed to fetch progress note');

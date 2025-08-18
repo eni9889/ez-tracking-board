@@ -35,11 +35,14 @@ import {
   Description,
   Assessment,
   LocalHospital,
-  Person
+  Person,
+  Group,
+  Badge,
+  MedicalServices
 } from '@mui/icons-material';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import aiNoteCheckerService, { NoteCheckResult, AIAnalysisIssue } from '../services/aiNoteChecker.service';
+import aiNoteCheckerService, { NoteCheckResult, AIAnalysisIssue, CareTeamMember } from '../services/aiNoteChecker.service';
 
 interface NoteDetailProps {
   encounterId: string;
@@ -59,6 +62,7 @@ const NoteDetail: React.FC = () => {
 
   const [noteData, setNoteData] = useState<NoteDetailProps | null>(null);
   const [progressNoteData, setProgressNoteData] = useState<any>(null);
+  const [careTeam, setCareTeam] = useState<CareTeamMember[]>([]);
   const [checkHistory, setCheckHistory] = useState<NoteCheckResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
@@ -88,12 +92,13 @@ const NoteDetail: React.FC = () => {
 
     try {
       // Fetch note content and check history
-      const [progressNote, history] = await Promise.all([
+      const [noteResponse, history] = await Promise.all([
         fetchNoteContent(),
         fetchCheckHistory()
       ]);
 
-      setProgressNoteData(progressNote);
+      setProgressNoteData(noteResponse.progressNote);
+      setCareTeam(noteResponse.careTeam);
       setCheckHistory(history);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch note details');
@@ -171,6 +176,97 @@ const NoteDetail: React.FC = () => {
       default:
         return '#666';
     }
+  };
+
+  const renderCareTeam = () => {
+    if (!careTeam || careTeam.length === 0) {
+      return (
+        <Typography variant="body2" color="text.secondary">
+          No care team information available
+        </Typography>
+      );
+    }
+
+    const getRoleIcon = (role: string) => {
+      switch (role) {
+        case 'PROVIDER':
+          return <MedicalServices sx={{ color: 'primary.main' }} />;
+        case 'SECONDARY_PROVIDER':
+          return <Badge sx={{ color: 'secondary.main' }} />;
+        case 'STAFF':
+          return <Person sx={{ color: 'text.secondary' }} />;
+        default:
+          return <Group sx={{ color: 'text.secondary' }} />;
+      }
+    };
+
+    const getRoleColor = (role: string) => {
+      switch (role) {
+        case 'PROVIDER':
+          return 'primary';
+        case 'SECONDARY_PROVIDER':
+          return 'secondary';
+        case 'STAFF':
+          return 'default';
+        default:
+          return 'default';
+      }
+    };
+
+    const getRoleLabel = (role: string) => {
+      switch (role) {
+        case 'PROVIDER':
+          return 'Provider';
+        case 'SECONDARY_PROVIDER':
+          return 'Secondary Provider';
+        case 'STAFF':
+          return 'Staff';
+        case 'COSIGNING_PROVIDER':
+          return 'Cosigning Provider';
+        default:
+          return role;
+      }
+    };
+
+    return (
+      <Stack spacing={1}>
+        {careTeam.map((member) => (
+          <Box
+            key={member.id}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              p: 1.5,
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 1,
+              bgcolor: 'background.paper'
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+              {getRoleIcon(member.encounterRoleType)}
+              <Box>
+                <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                  {member.firstName} {member.lastName}
+                  {member.title && (
+                    <Typography component="span" variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>
+                      ({member.title})
+                    </Typography>
+                  )}
+                </Typography>
+                <Chip
+                  label={getRoleLabel(member.encounterRoleType)}
+                  size="small"
+                  color={getRoleColor(member.encounterRoleType) as any}
+                  sx={{ fontSize: '0.7rem', height: '20px' }}
+                />
+              </Box>
+            </Box>
+          </Box>
+        ))}
+      </Stack>
+    );
   };
 
   const renderProgressNote = (progressNote: any) => {
@@ -338,9 +434,9 @@ const NoteDetail: React.FC = () => {
       // If we don't have patient info, try to get it from a progress note call
       if (!patientId) {
         try {
-          const progressNote = await aiNoteCheckerService.getProgressNote(encounterId);
+          const noteResponse = await aiNoteCheckerService.getProgressNote(encounterId);
           // The backend should return patientId in the response
-          patientId = (progressNote as any).patientId;
+          patientId = (noteResponse.progressNote as any).patientId;
         } catch (err) {
           setError('Unable to determine patient information for AI check');
           setChecking(false);
@@ -613,8 +709,23 @@ const NoteDetail: React.FC = () => {
           </Box>
         </Paper>
 
-        {/* Right Panel - AI Check History */}
+        {/* Right Panel - Care Team & AI Check History */}
         <Paper sx={{ width: '400px', display: 'flex', flexDirection: 'column', maxHeight: '100%' }}>
+          {/* Care Team Section */}
+          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+            <Typography variant="h6" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Group />
+              Care Team ({careTeam.length})
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Providers and staff for this encounter
+            </Typography>
+          </Box>
+          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+            {renderCareTeam()}
+          </Box>
+
+          {/* AI Check History Section */}
           <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
             <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
               AI Check History ({checkHistory.length})

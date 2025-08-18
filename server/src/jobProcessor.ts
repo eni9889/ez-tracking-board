@@ -319,9 +319,6 @@ async function processVitalSignsCarryforward(job: Job): Promise<{ processed: num
       return { processed: 0, successful: 0, failed: 0 };
     }
 
-    const modeMsg = IS_DEVELOPMENT ? ' (development mode - filtered to specific patient)' : '';
-    console.log(`📋 Found ${targetEncounters.length} patients to process for vital signs carryforward${modeMsg}`);
-
     // Process each encounter
     let processed = 0;
     let successful = 0;
