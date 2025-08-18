@@ -652,26 +652,29 @@ export async function startVitalSignsJob(): Promise<void> {
 // Start the AI note checking job system
 export async function startAINoteCheckingJob(): Promise<void> {
   try {
+    console.log('🚀 Starting AI note checking job system...');
+    
     // Pause the queues first, then clear any existing jobs
+    console.log('⏸️ Pausing AI note queues...');
     await aiNoteScanQueue.pause();
     await aiNoteCheckQueue.pause();
     
+    console.log('🧹 Clearing existing AI note jobs...');
     await aiNoteScanQueue.obliterate({ force: true });
     await aiNoteCheckQueue.obliterate({ force: true });
     
+    console.log('▶️ Resuming AI note queues...');
     await aiNoteScanQueue.resume();
     await aiNoteCheckQueue.resume();
 
-    console.log('🚀 Starting AI note checking job system...');
-
-    // Schedule recurring AI note scans every 30 minutes
+    // Schedule recurring AI note scans every 5 minutes
     await aiNoteScanQueue.add('scan-incomplete-notes', {
       username: 'system', // Will need to be configurable per user
       scanId: `scan-${Date.now()}`,
       batchSize: 200
     }, {
       repeat: {
-        every: 30 * 60 * 1000, // 30 minutes
+        every: 5 * 60 * 1000, // 30 minutes
         immediately: true
       },
       jobId: 'recurring-ai-note-scan'
