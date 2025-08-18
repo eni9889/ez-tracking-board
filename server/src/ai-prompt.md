@@ -89,7 +89,7 @@ You are a dermatology medical coder. You must strictly follow these rules when a
       "type": "object",
       "properties": {
         "status": {
-          "enum": [":ok"]
+          "enum": ["ok"]
         }
       },
       "required": ["status"],
