@@ -354,4 +354,20 @@ export interface NoteCheckQueueItem {
   status: 'pending' | 'processing' | 'completed' | 'error';
   createdAt: Date;
   processedAt?: Date;
+}
+
+export interface CreatedToDo {
+  id: number;
+  encounterId: string;
+  patientId: string;
+  patientName: string;
+  ezDermToDoId: string;
+  subject: string;
+  description: string;
+  assignedTo: string;
+  assignedToName: string;
+  ccList: any[];
+  issuesCount: number;
+  createdBy: string;
+  createdAt: Date;
 } 

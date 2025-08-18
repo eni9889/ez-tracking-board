@@ -901,6 +901,54 @@ app.post('/api/notes/:encounterId/create-todo', validateSession, async (req: Req
       encounterData.encounterRoleInfoList || []
     );
 
+    // Save the created ToDo info to our database for tracking
+    const patientName = `${patientData.firstName} ${patientData.lastName}`;
+    const dateOfService = new Date(encounterData.dateOfService);
+    const formattedDate = dateOfService.toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit', 
+      year: 'numeric'
+    });
+    const subject = `Note Deficiencies - ${formattedDate}`;
+    
+    // Build description
+    const issuesList = noteCheckResult.aiAnalysis.issues.map((issue: any, index: number) => {
+      const issueTypeMap: { [key: string]: string } = {
+        'no_explicit_plan': 'Missing Explicit Plan',
+        'chronicity_mismatch': 'Chronicity Mismatch',
+        'unclear_documentation': 'Unclear Documentation'
+      };
+      return `${index + 1}. ${issueTypeMap[issue.issue] || issue.issue}: ${issue.assessment}\n   ${issue.details.correction}`;
+    }).join('\n\n');
+    const description = `The following deficiencies were identified in the progress note:\n\n${issuesList}`;
+    
+    // Determine assignee info
+    const assignee = encounterData.encounterRoleInfoList.find((member: any) => 
+      member.encounterRoleType === 'SECONDARY_PROVIDER'
+    ) || encounterData.encounterRoleInfoList.find((member: any) => 
+      member.encounterRoleType === 'STAFF'
+    ) || encounterData.encounterRoleInfoList.find((member: any) => 
+      member.encounterRoleType === 'PROVIDER'
+    );
+    
+    const ccList = encounterData.encounterRoleInfoList.filter((member: any) => 
+      member.id !== assignee?.id
+    );
+
+    await vitalSignsDb.saveCreatedToDo(
+      encounterId,
+      patientData.id,
+      patientName,
+      todoId,
+      subject,
+      description,
+      assignee?.providerId || 'unknown',
+      assignee ? `${assignee.firstName} ${assignee.lastName}` : 'Unknown',
+      ccList,
+      noteCheckResult.aiAnalysis.issues.length,
+      username
+    );
+
     res.json({ 
       success: true, 
       todoId,
@@ -910,6 +958,28 @@ app.post('/api/notes/:encounterId/create-todo', validateSession, async (req: Req
   } catch (error: any) {
     console.error('Error creating ToDo for note deficiencies:', error);
     res.status(500).json({ error: 'Failed to create ToDo', details: error.message });
+  }
+});
+
+// Get created ToDos for a specific encounter
+app.get('/api/notes/:encounterId/todos', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { encounterId } = req.params;
+    
+    if (!encounterId) {
+      res.status(400).json({ error: 'Encounter ID is required' });
+      return;
+    }
+    
+    const createdTodos = await vitalSignsDb.getCreatedToDosForEncounter(encounterId);
+    
+    res.json({ 
+      success: true, 
+      todos: createdTodos
+    });
+  } catch (error: any) {
+    console.error('Error fetching created ToDos:', error);
+    res.status(500).json({ error: 'Failed to fetch created ToDos', details: error.message });
   }
 });
 

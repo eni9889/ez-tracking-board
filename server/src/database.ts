@@ -130,12 +130,33 @@ class VitalSignsDatabase {
         )
       `;
 
+      // Create created_todos table to track ToDos created in EZDerm
+      const createCreatedTodosTableQuery = `
+        CREATE TABLE IF NOT EXISTS created_todos (
+          id SERIAL PRIMARY KEY,
+          encounter_id TEXT NOT NULL,
+          patient_id TEXT NOT NULL,
+          patient_name TEXT NOT NULL,
+          ezderm_todo_id TEXT NOT NULL,
+          subject TEXT NOT NULL,
+          description TEXT NOT NULL,
+          assigned_to TEXT NOT NULL,
+          assigned_to_name TEXT NOT NULL,
+          cc_list JSONB,
+          issues_count INTEGER DEFAULT 0,
+          created_by VARCHAR(255) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(encounter_id, ezderm_todo_id)
+        )
+      `;
+
       // Execute table creation queries
       await client.query(createVitalSignsTableQuery);
       await client.query(createUserCredentialsTableQuery);
       await client.query(createUserSessionsTableQuery);
       await client.query(createNoteChecksTableQuery);
       await client.query(createNoteCheckQueueTableQuery);
+      await client.query(createCreatedTodosTableQuery);
 
       // Add MD5 and note content columns if they don't exist (migration)
       const addMd5ColumnQuery = `
@@ -145,7 +166,7 @@ class VitalSignsDatabase {
       `;
       await client.query(addMd5ColumnQuery);
 
-      console.log('Database tables created/verified: processed_vital_signs, user_credentials, user_sessions, note_checks, note_check_queue');
+      console.log('Database tables created/verified: processed_vital_signs, user_credentials, user_sessions, note_checks, note_check_queue, created_todos');
     } finally {
       client.release();
     }
@@ -691,6 +712,98 @@ class VitalSignsDatabase {
 
     await this.pool.query(query);
     console.log(`Cleaned up note checks older than ${daysOld} days`);
+  }
+
+  async saveCreatedToDo(
+    encounterId: string,
+    patientId: string,
+    patientName: string,
+    ezDermToDoId: string,
+    subject: string,
+    description: string,
+    assignedTo: string,
+    assignedToName: string,
+    ccList: any[],
+    issuesCount: number,
+    createdBy: string
+  ): Promise<number> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      INSERT INTO created_todos (
+        encounter_id, patient_id, patient_name, ezderm_todo_id, 
+        subject, description, assigned_to, assigned_to_name, 
+        cc_list, issues_count, created_by
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING id
+    `;
+
+    const result = await this.pool.query(query, [
+      encounterId,
+      patientId,
+      patientName,
+      ezDermToDoId,
+      subject,
+      description,
+      assignedTo,
+      assignedToName,
+      JSON.stringify(ccList),
+      issuesCount,
+      createdBy
+    ]);
+
+    return result.rows[0].id;
+  }
+
+  async getCreatedToDosForEncounter(encounterId: string): Promise<any[]> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      SELECT id, encounter_id, patient_id, patient_name, ezderm_todo_id,
+             subject, description, assigned_to, assigned_to_name, cc_list,
+             issues_count, created_by, created_at
+      FROM created_todos 
+      WHERE encounter_id = $1
+      ORDER BY created_at DESC
+    `;
+
+    const result = await this.pool.query(query, [encounterId]);
+    
+    return result.rows.map(row => ({
+      id: row.id,
+      encounterId: row.encounter_id,
+      patientId: row.patient_id,
+      patientName: row.patient_name,
+      ezDermToDoId: row.ezderm_todo_id,
+      subject: row.subject,
+      description: row.description,
+      assignedTo: row.assigned_to,
+      assignedToName: row.assigned_to_name,
+      ccList: row.cc_list,
+      issuesCount: row.issues_count,
+      createdBy: row.created_by,
+      createdAt: row.created_at
+    }));
+  }
+
+  async hasCreatedToDoForEncounter(encounterId: string): Promise<boolean> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      SELECT 1 FROM created_todos 
+      WHERE encounter_id = $1 
+      LIMIT 1
+    `;
+
+    const result = await this.pool.query(query, [encounterId]);
+    return result.rows.length > 0;
   }
 
   async close(): Promise<void> {

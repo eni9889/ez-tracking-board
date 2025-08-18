@@ -47,7 +47,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import aiNoteCheckerService, { NoteCheckResult, AIAnalysisIssue, CareTeamMember } from '../services/aiNoteChecker.service';
+import aiNoteCheckerService, { NoteCheckResult, AIAnalysisIssue, CareTeamMember, CreatedToDo } from '../services/aiNoteChecker.service';
 
 interface NoteDetailProps {
   encounterId: string;
@@ -69,6 +69,7 @@ const NoteDetail: React.FC = () => {
   const [progressNoteData, setProgressNoteData] = useState<any>(null);
   const [careTeam, setCareTeam] = useState<CareTeamMember[]>([]);
   const [checkHistory, setCheckHistory] = useState<NoteCheckResult[]>([]);
+  const [createdTodos, setCreatedTodos] = useState<CreatedToDo[]>([]);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [creatingToDo, setCreatingToDo] = useState(false);
@@ -97,15 +98,17 @@ const NoteDetail: React.FC = () => {
     setError(null);
 
     try {
-      // Fetch note content and check history
-      const [noteResponse, history] = await Promise.all([
+      // Fetch note content, check history, and created ToDos
+      const [noteResponse, history, todos] = await Promise.all([
         fetchNoteContent(),
-        fetchCheckHistory()
+        fetchCheckHistory(),
+        fetchCreatedTodos()
       ]);
 
       setProgressNoteData(noteResponse.progressNote);
       setCareTeam(noteResponse.careTeam);
       setCheckHistory(history);
+      setCreatedTodos(todos);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch note details');
     } finally {
@@ -140,6 +143,18 @@ const NoteDetail: React.FC = () => {
       return allResults.filter(result => result.encounterId === encounterId);
     } catch (err) {
       console.error('Error fetching check history:', err);
+      return [];
+    }
+  };
+
+  const fetchCreatedTodos = async (): Promise<CreatedToDo[]> => {
+    if (!encounterId) return [];
+    
+    try {
+      const todos = await aiNoteCheckerService.getCreatedToDos(encounterId);
+      return todos;
+    } catch (err: any) {
+      console.error('Error fetching created ToDos:', err);
       return [];
     }
   };
@@ -468,6 +483,52 @@ const NoteDetail: React.FC = () => {
     }
   };
 
+  // Helper functions for ToDo preview
+  const getToDoPreviewData = () => {
+    const latestCheck = checkHistory.find(check => check.issuesFound);
+    if (!latestCheck || !latestCheck.aiAnalysis?.issues) return null;
+
+    const dateOfService = noteData?.dateOfService || new Date().toISOString();
+    const formattedDate = new Date(dateOfService).toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit', 
+      year: 'numeric'
+    });
+
+    const subject = `Note Deficiencies - ${formattedDate}`;
+    
+    const issuesList = latestCheck.aiAnalysis.issues.map((issue, index) => {
+      const issueTypeMap = {
+        'no_explicit_plan': 'Missing Explicit Plan',
+        'chronicity_mismatch': 'Chronicity Mismatch',
+        'unclear_documentation': 'Unclear Documentation'
+      };
+      
+      return `${index + 1}. ${issueTypeMap[issue.issue] || issue.issue}: ${issue.assessment}\n   ${issue.details.correction}`;
+    }).join('\n\n');
+
+    const description = `The following deficiencies were identified in the progress note:\n\n${issuesList}`;
+
+    // Determine assignee and watchers
+    const assignee = careTeam.find(member => member.encounterRoleType === 'SECONDARY_PROVIDER') ||
+                    careTeam.find(member => member.encounterRoleType === 'STAFF') ||
+                    careTeam.find(member => member.encounterRoleType === 'PROVIDER');
+    
+    const watchers = careTeam.filter(member => member.id !== assignee?.id);
+
+    return {
+      subject,
+      description,
+      assignee,
+      watchers,
+      encounterInfo: {
+        encounterId,
+        patientName: noteData?.patientName || 'Unknown Patient',
+        dateOfService: formattedDate
+      }
+    };
+  };
+
   const handleCreateToDo = async () => {
     if (!encounterId) return;
 
@@ -480,9 +541,13 @@ const NoteDetail: React.FC = () => {
       
       if (result.success) {
         setTodoSuccess(`ToDo created successfully! (ID: ${result.todoId})`);
-        // Refresh the check history
-        const newHistory = await fetchCheckHistory();
+        // Refresh the check history and created ToDos
+        const [newHistory, newTodos] = await Promise.all([
+          fetchCheckHistory(),
+          fetchCreatedTodos()
+        ]);
         setCheckHistory(newHistory);
+        setCreatedTodos(newTodos);
         
         // Clear success message after 5 seconds
         setTimeout(() => setTodoSuccess(null), 5000);
@@ -622,21 +687,31 @@ const NoteDetail: React.FC = () => {
           {checking ? 'Checking...' : 'Run AI Check'}
         </Button>
         {checkHistory.some(check => check.issuesFound) && (
-          <Button
-            variant="contained"
-            color="warning"
-            startIcon={<Assignment />}
-            onClick={() => setShowToDoModal(true)}
-            size="small"
-            sx={{ 
-              backgroundColor: 'warning.main',
-              '&:hover': {
-                backgroundColor: 'warning.dark'
-              }
-            }}
-          >
-            Create ToDo for Issues
-          </Button>
+          createdTodos.length > 0 ? (
+            <Chip
+              icon={<CheckCircle />}
+              label={`ToDo Created (${createdTodos.length})`}
+              color="success"
+              size="medium"
+              sx={{ fontWeight: 'bold' }}
+            />
+          ) : (
+            <Button
+              variant="contained"
+              color="warning"
+              startIcon={<Assignment />}
+              onClick={() => setShowToDoModal(true)}
+              size="small"
+              sx={{ 
+                backgroundColor: 'warning.main',
+                '&:hover': {
+                  backgroundColor: 'warning.dark'
+                }
+              }}
+            >
+              Create ToDo for Issues
+            </Button>
+          )
         )}
         <IconButton
           color="inherit"
@@ -730,6 +805,50 @@ const NoteDetail: React.FC = () => {
             {renderCareTeam()}
           </Box>
 
+          {/* Created ToDos Section */}
+          {createdTodos.length > 0 && (
+            <>
+              <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Assignment color="success" />
+                  Created ToDos ({createdTodos.length})
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  ToDos created for note deficiencies
+                </Typography>
+              </Box>
+              <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+                <Stack spacing={1}>
+                  {createdTodos.map((todo, index) => (
+                    <Paper key={todo.id} sx={{ p: 2, bgcolor: 'success.50' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <CheckCircle color="success" sx={{ fontSize: '1rem' }} />
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'success.dark' }}>
+                          ToDo #{todo.ezDermToDoId}
+                        </Typography>
+                        <Chip 
+                          label={`${todo.issuesCount} issues`} 
+                          size="small" 
+                          color="warning"
+                          sx={{ fontSize: '0.7rem' }}
+                        />
+                      </Box>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Subject:</strong> {todo.subject}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Assigned to:</strong> {todo.assignedToName}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Created {aiNoteCheckerService.formatTimeAgo(todo.createdAt.toString())} by {todo.createdBy}
+                      </Typography>
+                    </Paper>
+                  ))}
+                </Stack>
+              </Box>
+            </>
+          )}
+
           {/* AI Check History Section */}
           <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
             <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
@@ -804,6 +923,139 @@ const NoteDetail: React.FC = () => {
           </Box>
         </Paper>
       </Box>
+
+      {/* ToDo Confirmation Modal */}
+      <Dialog
+        open={showToDoModal}
+        onClose={() => setShowToDoModal(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: { borderRadius: 2 }
+        }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Assignment color="warning" />
+            <Typography variant="h6" component="span">
+              Confirm ToDo Creation
+            </Typography>
+          </Box>
+        </DialogTitle>
+        
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            You are about to create a ToDo in EZDerm for the note deficiencies found. Please review the details below:
+          </DialogContentText>
+
+          {(() => {
+            const previewData = getToDoPreviewData();
+            if (!previewData) return null;
+
+            return (
+              <Stack spacing={2}>
+                {/* Encounter Info */}
+                <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                    Encounter Information
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Patient:</strong> {previewData.encounterInfo.patientName}
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Encounter ID:</strong> {previewData.encounterInfo.encounterId}
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Date of Service:</strong> {previewData.encounterInfo.dateOfService}
+                  </Typography>
+                </Paper>
+
+                {/* ToDo Details */}
+                <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                    ToDo Subject
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 2 }}>
+                    {previewData.subject}
+                  </Typography>
+
+                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                    Description
+                  </Typography>
+                  <Paper sx={{ p: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="body2" sx={{ whiteSpace: 'pre-line', fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                      {previewData.description}
+                    </Typography>
+                  </Paper>
+                </Paper>
+
+                {/* Assignment */}
+                <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                    Assignment
+                  </Typography>
+                  {previewData.assignee ? (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="body2">
+                        <strong>Assigned to:</strong> {previewData.assignee.firstName} {previewData.assignee.lastName}
+                        {previewData.assignee.title && ` (${previewData.assignee.title})`}
+                        <Chip 
+                          label={previewData.assignee.encounterRoleType.replace('_', ' ')} 
+                          size="small" 
+                          sx={{ ml: 1 }}
+                        />
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Typography variant="body2" color="warning.main" sx={{ mb: 2 }}>
+                      ⚠️ No care team member found to assign to
+                    </Typography>
+                  )}
+
+                  {previewData.watchers.length > 0 && (
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                        CC'd to ({previewData.watchers.length}):
+                      </Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap">
+                        {previewData.watchers.map((watcher, index) => (
+                          <Chip
+                            key={watcher.id}
+                            label={`${watcher.firstName} ${watcher.lastName}${watcher.title ? ` (${watcher.title})` : ''}`}
+                            size="small"
+                            variant="outlined"
+                          />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                </Paper>
+              </Stack>
+            );
+          })()}
+        </DialogContent>
+        
+        <DialogActions sx={{ p: 2, gap: 1 }}>
+          <Button
+            onClick={() => setShowToDoModal(false)}
+            color="inherit"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={async () => {
+              setShowToDoModal(false);
+              await handleCreateToDo();
+            }}
+            variant="contained"
+            color="warning"
+            startIcon={creatingToDo ? <CircularProgress size={16} color="inherit" /> : <Assignment />}
+            disabled={creatingToDo || !getToDoPreviewData()}
+          >
+            {creatingToDo ? 'Creating ToDo...' : 'Create ToDo'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

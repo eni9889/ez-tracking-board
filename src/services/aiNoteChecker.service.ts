@@ -65,6 +65,22 @@ export interface CareTeamMember {
   fullOnlineCheckInEnabled: boolean;
 }
 
+export interface CreatedToDo {
+  id: number;
+  encounterId: string;
+  patientId: string;
+  patientName: string;
+  ezDermToDoId: string;
+  subject: string;
+  description: string;
+  assignedTo: string;
+  assignedToName: string;
+  ccList: any[];
+  issuesCount: number;
+  createdBy: string;
+  createdAt: Date;
+}
+
 export interface ProgressNoteResponse {
   progressNotes: Array<{
     sectionType: 'SUBJECTIVE' | 'OBJECTIVE' | 'ASSESSMENT_AND_PLAN';
@@ -574,6 +590,46 @@ class AINoteCheckerService {
         return 'Error';
       default:
         return status;
+    }
+  }
+
+  /**
+   * Get created ToDos for an encounter
+   */
+  async getCreatedToDos(encounterId: string): Promise<CreatedToDo[]> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Returning mock created ToDos');
+      await new Promise(resolve => setTimeout(resolve, 300)); // Simulate API delay
+      
+      // Mock data for created ToDos
+      return [
+        {
+          id: 1,
+          encounterId,
+          patientId: 'mock-patient-1',
+          patientName: 'John Doe',
+          ezDermToDoId: 'mock-todo-123',
+          subject: 'Note Deficiencies - 12/25/2023',
+          description: 'Mock description',
+          assignedTo: 'mock-provider-1',
+          assignedToName: 'Dr. Smith',
+          ccList: [],
+          issuesCount: 2,
+          createdBy: 'drgjoka',
+          createdAt: new Date()
+        }
+      ];
+    }
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/notes/${encounterId}/todos`, {
+        headers: this.headers()
+      });
+
+      return response.data.todos || [];
+    } catch (error: any) {
+      console.error('Error fetching created ToDos:', error);
+      throw new Error(error.response?.data?.error || 'Failed to fetch created ToDos');
     }
   }
 }
