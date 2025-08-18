@@ -673,7 +673,7 @@ app.post('/api/notes/incomplete', validateSession, async (req: Request, res: Res
             const isEligible = eligibleStatuses.includes(encounter.status) && serviceDate < twoHoursAgo;
             
             if (!isEligible) {
-              console.log(`⏰ Skipping encounter ${encounter.id}: status=${encounter.status}, dateOfService=${encounter.dateOfService} (not eligible - either wrong status or too recent)`);
+              console.debug(`⏰ Skipping encounter ${encounter.id}: status=${encounter.status}, dateOfService=${encounter.dateOfService} (not eligible - either wrong status or too recent)`);
               return;
             }
             
@@ -916,7 +916,8 @@ app.post('/api/notes/:encounterId/create-todo', validateSession, async (req: Req
       const issueTypeMap: { [key: string]: string } = {
         'no_explicit_plan': 'Missing Explicit Plan',
         'chronicity_mismatch': 'Chronicity Mismatch',
-        'unclear_documentation': 'Unclear Documentation'
+        'unclear_documentation': 'Unclear Documentation',
+        'chief_complaint_structure': 'Chief Complaint Structure'
       };
       return `${index + 1}. ${issueTypeMap[issue.issue] || issue.issue}: ${issue.assessment}\n   ${issue.details.correction}`;
     }).join('\n\n');

@@ -208,9 +208,25 @@ const AINoteChecker: React.FC = () => {
                   {issue.assessment}
                 </Typography>
                 <Chip 
-                  label={issue.issue === 'no_explicit_plan' ? 'Missing Plan' : 'Chronicity Mismatch'}
+                  label={(() => {
+                    const issueLabels = {
+                      'no_explicit_plan': 'Missing Plan',
+                      'chronicity_mismatch': 'Chronicity Mismatch',
+                      'unclear_documentation': 'Unclear Documentation',
+                      'chief_complaint_structure': 'CC Structure'
+                    };
+                    return issueLabels[issue.issue] || issue.issue;
+                  })()}
                   size="small"
-                  color={issue.issue === 'no_explicit_plan' ? 'error' : 'warning'}
+                  color={(() => {
+                    const issueColors: { [key: string]: "error" | "warning" | "info" | "secondary" | "default" } = {
+                      'no_explicit_plan': 'error',
+                      'chronicity_mismatch': 'warning',
+                      'unclear_documentation': 'info',
+                      'chief_complaint_structure': 'secondary'
+                    };
+                    return issueColors[issue.issue] || 'default';
+                  })()}
                   sx={{ ml: 1 }}
                 />
               </Box>

@@ -329,7 +329,7 @@ async function processVitalSignsCarryforward(job: Job): Promise<{ processed: num
         // Check if already processed
         const alreadyProcessed = await vitalSignsDb.hasBeenProcessed(encounter.id);
         if (alreadyProcessed) {
-          console.log(`⏭️ Skipping ${encounter.patientName} - already processed`);
+          console.debug(`⏭️ Skipping ${encounter.patientName} - already processed`);
           continue;
         }
 
@@ -440,7 +440,7 @@ const processAINoteScan = async (job: Job<AINoteScanJobData>) => {
                 totalQueued++;
                 console.log(`📝 Queued note check for encounter: ${encounter.id} (${patientData.firstName} ${patientData.lastName})`);
               } else {
-                console.log(`⏭️ Skipping encounter ${encounter.id}: recent check exists`);
+                console.debug(`⏭️ Skipping encounter ${encounter.id}: recent check exists`);
               }
             }
           }
