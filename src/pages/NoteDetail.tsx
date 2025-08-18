@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -42,6 +42,8 @@ import {
   Description,
   Assessment,
   LocalHospital,
+  NavigateBefore,
+  NavigateNext,
   Person,
   Group,
   Badge,
@@ -79,6 +81,9 @@ const NoteDetail: React.FC = () => {
   const [todoSuccess, setTodoSuccess] = useState<string | null>(null);
   const [showToDoModal, setShowToDoModal] = useState(false);
   const [forceNewCheck, setForceNewCheck] = useState(false);
+  const [encountersList, setEncountersList] = useState<any[]>([]);
+  const [currentIndex, setCurrentIndex] = useState<number>(-1);
+  const [navigationLoading, setNavigationLoading] = useState(false);
 
   useEffect(() => {
     if (encounterId) {
@@ -94,6 +99,162 @@ const NoteDetail: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [encounterId, location.state]);
 
+  // Load encounters list for navigation
+  useEffect(() => {
+    loadEncountersList();
+  }, []);
+
+  // Update current index when encounterId changes
+  useEffect(() => {
+    if (encounterId && encountersList.length > 0) {
+      const currentIdx = encountersList.findIndex(note => note.encounterId === encounterId);
+      setCurrentIndex(currentIdx);
+    }
+  }, [encounterId, encountersList]);
+
+  // Parameterized versions for navigation (defined first)
+  const fetchNoteContentForEncounter = useCallback(async (targetEncounterId: string): Promise<any> => {
+    try {
+      // Find the encounter data to get patientId
+      const encounterData = encountersList.find(enc => enc.encounterId === targetEncounterId);
+      const patientId = encounterData?.patientId;
+      
+      const progressNote = await aiNoteCheckerService.getProgressNote(
+        targetEncounterId,
+        patientId
+      );
+      
+      return progressNote;
+    } catch (err) {
+      console.error('Error fetching note content:', err);
+      throw new Error(`Unable to load note content: ${err}`);
+    }
+  }, [encountersList]);
+
+  const fetchCheckHistoryForEncounter = useCallback(async (targetEncounterId: string): Promise<NoteCheckResult[]> => {
+    try {
+      // Get all check results and filter for this encounter
+      const allResults = await aiNoteCheckerService.getNoteCheckResults(100, 0);
+      return allResults.filter(result => result.encounterId === targetEncounterId);
+    } catch (err) {
+      console.error('Error fetching check history:', err);
+      return [];
+    }
+  }, []);
+
+  const fetchCreatedTodosForEncounter = useCallback(async (targetEncounterId: string): Promise<CreatedToDo[]> => {
+    try {
+      const todos = await aiNoteCheckerService.getCreatedToDos(targetEncounterId);
+      return todos;
+    } catch (err: any) {
+      console.error('Error fetching created ToDos:', err);
+      return [];
+    }
+  }, []);
+
+  // Load note details for navigation (no full page loading state)
+  const loadNoteDetailsForEncounter = useCallback(async (targetEncounterId: string) => {
+    try {
+      // Fetch note content, check history, and created ToDos for the target encounter
+      const [noteResponse, history, todos] = await Promise.all([
+        fetchNoteContentForEncounter(targetEncounterId),
+        fetchCheckHistoryForEncounter(targetEncounterId),
+        fetchCreatedTodosForEncounter(targetEncounterId)
+      ]);
+
+      setProgressNoteData(noteResponse.progressNote);
+      setCareTeam(noteResponse.careTeam);
+      setCheckHistory(history);
+      setCreatedTodos(todos);
+    } catch (err: any) {
+      throw new Error(err.message || 'Failed to fetch note details');
+    }
+  }, [fetchNoteContentForEncounter, fetchCheckHistoryForEncounter, fetchCreatedTodosForEncounter]);
+
+  // Navigation functions (defined before keyboard handler)
+  const navigateToEncounter = useCallback(async (encounter: any) => {
+    setNavigationLoading(true);
+    setError(null);
+    setTodoSuccess(null);
+    
+    try {
+      // Update URL for browser history (but don't trigger navigation)
+      window.history.pushState({}, '', `/ai-note-checker/${encounter.encounterId}`);
+      
+      // Update note data immediately
+      setNoteData(encounter);
+      
+      // Fetch fresh note details for this encounter
+      await loadNoteDetailsForEncounter(encounter.encounterId);
+      
+    } catch (err: any) {
+      setError(err.message || 'Failed to load note details');
+    } finally {
+      setNavigationLoading(false);
+    }
+  }, [loadNoteDetailsForEncounter]);
+
+  const handlePreviousEncounter = useCallback(() => {
+    if (currentIndex > 0) {
+      const prevEncounter = encountersList[currentIndex - 1];
+      navigateToEncounter(prevEncounter);
+    }
+  }, [currentIndex, encountersList, navigateToEncounter]);
+
+  const handleNextEncounter = useCallback(() => {
+    if (currentIndex < encountersList.length - 1) {
+      const nextEncounter = encountersList[currentIndex + 1];
+      navigateToEncounter(nextEncounter);
+    }
+  }, [currentIndex, encountersList, navigateToEncounter]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Only handle if not typing in an input field
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      
+      if (event.key === 'ArrowLeft' && currentIndex > 0) {
+        event.preventDefault();
+        handlePreviousEncounter();
+      } else if (event.key === 'ArrowRight' && currentIndex < encountersList.length - 1) {
+        event.preventDefault();
+        handleNextEncounter();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentIndex, encountersList.length, handlePreviousEncounter, handleNextEncounter]);
+
+  const loadEncountersList = async () => {
+    try {
+      const notes = await aiNoteCheckerService.getIncompleteNotes();
+      
+      // Remove duplicates (same logic as main page)
+      const uniqueNotes = notes.filter((note, index, array) => 
+        array.findIndex(n => n.encounterId === note.encounterId) === index
+      );
+      
+      // Sort by date of service (newest first) - same as main page
+      const sortedNotes = uniqueNotes.sort((a, b) => {
+        return new Date(b.dateOfService).getTime() - new Date(a.dateOfService).getTime();
+      });
+      
+      setEncountersList(sortedNotes);
+      
+      // Find current encounter index
+      if (encounterId) {
+        const currentIdx = sortedNotes.findIndex(note => note.encounterId === encounterId);
+        setCurrentIndex(currentIdx);
+      }
+    } catch (err) {
+      console.error('Failed to load encounters list for navigation:', err);
+    }
+  };
+
   const fetchNoteDetails = async () => {
     if (!encounterId) return;
 
@@ -101,17 +262,7 @@ const NoteDetail: React.FC = () => {
     setError(null);
 
     try {
-      // Fetch note content, check history, and created ToDos
-      const [noteResponse, history, todos] = await Promise.all([
-        fetchNoteContent(),
-        fetchCheckHistory(),
-        fetchCreatedTodos()
-      ]);
-
-      setProgressNoteData(noteResponse.progressNote);
-      setCareTeam(noteResponse.careTeam);
-      setCheckHistory(history);
-      setCreatedTodos(todos);
+      await loadNoteDetailsForEncounter(encounterId);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch note details');
     } finally {
@@ -161,6 +312,8 @@ const NoteDetail: React.FC = () => {
       return [];
     }
   };
+
+
 
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
@@ -567,6 +720,8 @@ const NoteDetail: React.FC = () => {
     }
   };
 
+
+
   const getStatusIcon = (result: NoteCheckResult) => {
     if (result.status === 'error') {
       return <ErrorIcon color="error" />;
@@ -700,6 +855,46 @@ const NoteDetail: React.FC = () => {
             {noteData.chiefComplaint} • {aiNoteCheckerService.formatTimeAgo(noteData.dateOfService)}
           </Typography>
         </Box>
+        
+        {/* Navigation buttons */}
+        {encountersList.length > 0 && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 2 }}>
+            <Tooltip title={`Previous encounter (${currentIndex > 0 ? currentIndex : 1} of ${encountersList.length})`}>
+              <IconButton
+                color="inherit"
+                onClick={handlePreviousEncounter}
+                disabled={currentIndex <= 0 || navigationLoading}
+                size="small"
+                sx={{ 
+                  opacity: currentIndex <= 0 ? 0.5 : 1,
+                  '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' }
+                }}
+              >
+                <NavigateBefore />
+              </IconButton>
+            </Tooltip>
+            
+            <Typography variant="body2" sx={{ minWidth: '60px', textAlign: 'center', fontSize: '0.8rem' }}>
+              {currentIndex >= 0 ? `${currentIndex + 1} / ${encountersList.length}` : '- / -'}
+            </Typography>
+            
+            <Tooltip title={`Next encounter (${currentIndex < encountersList.length - 1 ? currentIndex + 2 : encountersList.length} of ${encountersList.length})`}>
+              <IconButton
+                color="inherit"
+                onClick={handleNextEncounter}
+                disabled={currentIndex >= encountersList.length - 1 || navigationLoading}
+                size="small"
+                sx={{ 
+                  opacity: currentIndex >= encountersList.length - 1 ? 0.5 : 1,
+                  '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' }
+                }}
+              >
+                <NavigateNext />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        )}
+
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Button
             variant="outlined"
@@ -825,11 +1020,11 @@ const NoteDetail: React.FC = () => {
             </Typography>
           </Box>
           <Box sx={{ flex: 1, overflow: 'auto' }}>
-            {loading ? (
+            {(loading || navigationLoading) ? (
               <Box sx={{ p: 4, textAlign: 'center' }}>
                 <CircularProgress />
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                  Loading note content...
+                  Loading Data...
                 </Typography>
               </Box>
             ) : (
@@ -851,11 +1046,20 @@ const NoteDetail: React.FC = () => {
             </Typography>
           </Box>
           <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-            {renderCareTeam()}
+            {(loading || navigationLoading) ? (
+              <Box sx={{ py: 2, textAlign: 'center' }}>
+                <CircularProgress size={24} />
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  Loading Data...
+                </Typography>
+              </Box>
+            ) : (
+              renderCareTeam()
+            )}
           </Box>
 
           {/* Created ToDos Section */}
-          {createdTodos.length > 0 && (
+          {(!loading && !navigationLoading && createdTodos.length > 0) && (
             <>
               <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
                 <Typography variant="h6" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -908,7 +1112,14 @@ const NoteDetail: React.FC = () => {
             </Typography>
           </Box>
           <Box sx={{ flex: 1, overflow: 'auto' }}>
-            {checkHistory.length === 0 ? (
+            {(loading || navigationLoading) ? (
+              <Box sx={{ p: 3, textAlign: 'center' }}>
+                <CircularProgress size={32} />
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                  Loading Data...
+                </Typography>
+              </Box>
+            ) : checkHistory.length === 0 ? (
               <Box sx={{ p: 3, textAlign: 'center' }}>
                 <Psychology sx={{ fontSize: '3rem', color: 'text.secondary', mb: 2 }} />
                 <Typography variant="h6" color="text.secondary">

@@ -661,7 +661,7 @@ app.post('/api/notes/incomplete', validateSession, async (req: Request, res: Res
           patientData.incompleteEncounters.forEach(encounter => {
             // Skip if we've already seen this encounter ID
             if (encounterIds.has(encounter.id)) {
-              console.log(`⚠️ Skipping duplicate encounter ID: ${encounter.id}`);
+              console.debug(`⚠️ Skipping duplicate encounter ID: ${encounter.id}`);
               return;
             }
             
