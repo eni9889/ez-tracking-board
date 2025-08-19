@@ -64,6 +64,11 @@ interface NoteDetailProps {
 }
 
 const NoteDetail: React.FC = () => {
+  // TEST: This should ALWAYS show in console
+  console.log('🚨 COMPONENT LOADED - NoteDetail.tsx');
+  console.warn('🚨 WARNING TEST - This should be visible');
+  console.error('🚨 ERROR TEST - This should be visible');
+  
   const { encounterId } = useParams<{ encounterId: string }>();
   const location = useLocation();
   const navigate = useNavigate();
@@ -174,6 +179,12 @@ const NoteDetail: React.FC = () => {
 
   // Navigation functions (defined before keyboard handler)
   const navigateToEncounter = useCallback(async (encounter: any) => {
+    console.log('🚀 Navigating to encounter:', {
+      from: currentEncounterId,
+      to: encounter.encounterId,
+      toPatient: encounter.patientName
+    });
+    
     setNavigationLoading(true);
     setError(null);
     setTodoSuccess(null);
@@ -184,19 +195,24 @@ const NoteDetail: React.FC = () => {
       
       // Update current encounter ID (this will trigger the useEffect to update currentIndex)
       setCurrentEncounterId(encounter.encounterId);
+      console.log('✅ Updated currentEncounterId to:', encounter.encounterId);
       
       // Update URL for browser history (but keep using our internal state for logic)
       window.history.pushState({}, '', `/ai-note-checker/${encounter.encounterId}`);
+      console.log('✅ Updated URL to:', `/ai-note-checker/${encounter.encounterId}`);
       
       // Fetch fresh note details for this encounter
       await loadNoteDetailsForEncounter(encounter.encounterId);
+      console.log('✅ Loaded note details for:', encounter.encounterId);
       
     } catch (err: any) {
+      console.error('❌ Navigation error:', err);
       setError(err.message || 'Failed to load note details');
     } finally {
       setNavigationLoading(false);
+      console.log('🏁 Navigation completed for:', encounter.encounterId);
     }
-  }, [loadNoteDetailsForEncounter]);
+  }, [loadNoteDetailsForEncounter, currentEncounterId]);
 
   const handlePreviousEncounter = useCallback(() => {
     if (currentEncounterId) {
@@ -208,13 +224,26 @@ const NoteDetail: React.FC = () => {
   }, [currentEncounterId, getPreviousEncounter, navigateToEncounter]);
 
   const handleNextEncounter = useCallback(() => {
+    console.log('🔄 Next Encounter Debug:', {
+      currentEncounterId,
+      currentIndex,
+      encountersListLength: encountersList.length,
+      firstFewEncounters: encountersList.slice(0, 5).map(e => ({ id: e.encounterId, name: e.patientName }))
+    });
+    
     if (currentEncounterId) {
       const nextEncounter = getNextEncounter(currentEncounterId);
+      console.log('🎯 Next encounter found:', nextEncounter ? { id: nextEncounter.encounterId, name: nextEncounter.patientName } : 'null');
+      
       if (nextEncounter) {
         navigateToEncounter(nextEncounter);
+      } else {
+        console.log('❌ No next encounter available');
       }
+    } else {
+      console.log('❌ No currentEncounterId set');
     }
-  }, [currentEncounterId, getNextEncounter, navigateToEncounter]);
+  }, [currentEncounterId, getNextEncounter, navigateToEncounter, currentIndex, encountersList]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -254,23 +283,7 @@ const NoteDetail: React.FC = () => {
     }
   };
 
-  const fetchNoteContent = async (): Promise<any> => {
-    if (!encounterId) throw new Error('No encounter ID available');
-    
-    try {
-      // Try to get progress note with patientId if available, otherwise let backend find it
-      const patientId = noteData?.patientId;
-      const progressNote = await aiNoteCheckerService.getProgressNote(
-        encounterId,
-        patientId
-      );
-      
-      return progressNote;
-    } catch (err) {
-      console.error('Error fetching note content:', err);
-      throw new Error(`Unable to load note content: ${err}`);
-    }
-  };
+
 
   const fetchCheckHistory = async (): Promise<NoteCheckResult[]> => {
     if (!encounterId) return [];
@@ -841,7 +854,16 @@ const NoteDetail: React.FC = () => {
         </Box>
         
         {/* Navigation buttons - only show if encounters list is available */}
-        {encountersList.length > 0 && currentIndex >= 0 && (
+        {(() => {
+          console.log('🎛️ Navigation UI Debug:', {
+            encountersListLength: encountersList.length,
+            currentIndex,
+            currentEncounterId,
+            shouldShowNav: encountersList.length > 0 && currentIndex >= 0,
+            isNextDisabled: currentIndex >= encountersList.length - 1 || navigationLoading
+          });
+          return encountersList.length > 0 && currentIndex >= 0;
+        })() && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 2 }}>
             <Tooltip title={`Previous encounter (${currentIndex > 0 ? currentIndex : 1} of ${encountersList.length})`}>
               <IconButton
@@ -865,7 +887,15 @@ const NoteDetail: React.FC = () => {
             <Tooltip title={`Next encounter (${currentIndex < encountersList.length - 1 ? currentIndex + 2 : encountersList.length} of ${encountersList.length})`}>
               <IconButton
                 color="inherit"
-                onClick={handleNextEncounter}
+                onClick={(e) => {
+                  console.log('🖱️ Next button clicked!', {
+                    disabled: currentIndex >= encountersList.length - 1 || navigationLoading,
+                    currentIndex,
+                    encountersLength: encountersList.length,
+                    navigationLoading
+                  });
+                  handleNextEncounter();
+                }}
                 disabled={currentIndex >= encountersList.length - 1 || navigationLoading}
                 size="small"
                 sx={{ 

@@ -100,22 +100,39 @@ export const EncountersProvider: React.FC<EncountersProviderProps> = ({ children
   }, [loadEncounters]);
 
   const getCurrentIndex = useCallback((encounterId: string): number => {
-    return encounters.findIndex(encounter => encounter.encounterId === encounterId);
+    const index = encounters.findIndex(encounter => encounter.encounterId === encounterId);
+    console.log('📍 getCurrentIndex:', { encounterId, foundIndex: index, totalEncounters: encounters.length });
+    return index;
   }, [encounters]);
 
   const getPreviousEncounter = useCallback((encounterId: string): IncompleteNote | null => {
     const currentIndex = getCurrentIndex(encounterId);
+    console.log('⬅️ getPreviousEncounter:', { encounterId, currentIndex, hasPrevious: currentIndex > 0 });
     if (currentIndex > 0) {
-      return encounters[currentIndex - 1];
+      const prevEncounter = encounters[currentIndex - 1];
+      console.log('✅ Previous encounter:', { id: prevEncounter.encounterId, name: prevEncounter.patientName });
+      return prevEncounter;
     }
     return null;
   }, [encounters, getCurrentIndex]);
 
   const getNextEncounter = useCallback((encounterId: string): IncompleteNote | null => {
     const currentIndex = getCurrentIndex(encounterId);
-    if (currentIndex >= 0 && currentIndex < encounters.length - 1) {
-      return encounters[currentIndex + 1];
+    const hasNext = currentIndex >= 0 && currentIndex < encounters.length - 1;
+    console.log('➡️ getNextEncounter:', { 
+      encounterId, 
+      currentIndex, 
+      encountersLength: encounters.length,
+      hasNext,
+      nextIndex: currentIndex + 1
+    });
+    
+    if (hasNext) {
+      const nextEncounter = encounters[currentIndex + 1];
+      console.log('✅ Next encounter:', { id: nextEncounter.encounterId, name: nextEncounter.patientName });
+      return nextEncounter;
     }
+    console.log('❌ No next encounter available');
     return null;
   }, [encounters, getCurrentIndex]);
 
