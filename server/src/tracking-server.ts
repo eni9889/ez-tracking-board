@@ -861,34 +861,21 @@ app.post('/api/notes/:encounterId/create-todo', validateSession, async (req: Req
       return;
     }
 
-    // Get encounter details from incomplete notes
-    const incompleteNotes = await aiNoteChecker.fetchIncompleteNotes(userTokens.accessToken, {
-      fetchFrom: 0,
-      size: 200
-    });
+    // Get encounter details directly by ID
+    const encounterDetails = await aiNoteChecker.fetchEncounterDetails(userTokens.accessToken, encounterId);
     
-    let encounterData: any = null;
-    let patientData: any = null;
-    
-    // Search for the encounter
-    for (const batch of incompleteNotes) {
-      if (batch.incompletePatientEncounters) {
-        for (const patient of batch.incompletePatientEncounters) {
-          const encounter = patient.incompleteEncounters.find(enc => enc.id === encounterId);
-          if (encounter) {
-            encounterData = encounter;
-            patientData = patient;
-            break;
-          }
-        }
-      }
-      if (encounterData) break;
-    }
-
-    if (!encounterData || !patientData) {
-      res.status(404).json({ error: 'Encounter not found in incomplete notes' });
+    if (!encounterDetails) {
+      res.status(404).json({ error: 'Encounter not found' });
       return;
     }
+
+    // Extract patient and encounter data from the response
+    const encounterData = encounterDetails;
+    const patientData = {
+      id: encounterDetails.patientInfo.id,
+      firstName: encounterDetails.patientInfo.firstName || 'Unknown',
+      lastName: encounterDetails.patientInfo.lastName || 'Patient'
+    };
 
     // Create the ToDo
     const todoId = await aiNoteChecker.createNoteDeficiencyToDo(

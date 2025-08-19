@@ -63,6 +63,7 @@ interface NoteDetailProps {
   chiefComplaint: string;
   dateOfService: string;
   status: string;
+  progressNotes?: any[]; // Optional - may not be available from navigation state
 }
 
 const NoteDetail: React.FC = () => {
@@ -120,13 +121,14 @@ const NoteDetail: React.FC = () => {
   // Parameterized versions for navigation (defined first)
   const fetchNoteContentForEncounter = useCallback(async (targetEncounterId: string): Promise<any> => {
     try {
-      // Find the encounter data to get patientId
+      // Try to find the encounter data to get patientId for optimization, but it's optional
       const encounterData = encountersList.find(enc => enc.encounterId === targetEncounterId);
       const patientId = encounterData?.patientId;
       
+      // Backend will fetch patientId automatically if not provided
       const progressNote = await aiNoteCheckerService.getProgressNote(
         targetEncounterId,
-        patientId
+        patientId // Can be undefined - backend handles it
       );
       
       return progressNote;
@@ -599,10 +601,10 @@ const NoteDetail: React.FC = () => {
 
     try {
       // If we don't have note data, we'll need to get basic info first
-      let patientId = noteData?.patientId;
-      let patientName = noteData?.patientName || 'Unknown Patient';
-      let chiefComplaint = noteData?.chiefComplaint || 'Unknown';
-      let dateOfService = noteData?.dateOfService || new Date().toISOString();
+      let patientId = displayData?.patientId;
+      let patientName = displayData?.patientName || 'Unknown Patient';
+      let chiefComplaint = displayData?.chiefComplaint || 'Unknown';
+      let dateOfService = displayData?.dateOfService || new Date().toISOString();
 
       // If we don't have patient info, try to get it from a progress note call
       if (!patientId) {
@@ -644,7 +646,7 @@ const NoteDetail: React.FC = () => {
     const latestCheck = checkHistory.find(check => check.issuesFound);
     if (!latestCheck || !latestCheck.aiAnalysis?.issues) return null;
 
-    const dateOfService = noteData?.dateOfService || new Date().toISOString();
+    const dateOfService = displayData?.dateOfService || new Date().toISOString();
     const formattedDate = new Date(dateOfService).toLocaleDateString('en-US', {
       month: '2-digit',
       day: '2-digit', 
@@ -680,7 +682,7 @@ const NoteDetail: React.FC = () => {
       watchers,
       encounterInfo: {
         encounterId,
-        patientName: noteData?.patientName || 'Unknown Patient',
+        patientName: displayData?.patientName || 'Unknown Patient',
         dateOfService: formattedDate
       }
     };
@@ -820,12 +822,23 @@ const NoteDetail: React.FC = () => {
     );
   }
 
-  if (!noteData) {
+  // Derive display data from either navigation state or fetched data
+  const displayData = noteData || (progressNoteData ? {
+    encounterId: encounterId!,
+    patientId: progressNoteData.patientId || 'unknown',
+    patientName: 'Loading...', // Will be updated when care team loads
+    chiefComplaint: 'Loading...',
+    dateOfService: new Date().toISOString(),
+    status: 'Loading...',
+    progressNotes: progressNoteData.progressNotes
+  } : null);
+
+  // If we don't have displayData at all, show loading
+  if (!displayData) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error">
-          Note data not found. Please navigate from the notes list.
-        </Alert>
+      <Box sx={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <CircularProgress />
+        <Typography sx={{ ml: 2 }}>Loading note details...</Typography>
       </Box>
     );
   }
@@ -852,10 +865,10 @@ const NoteDetail: React.FC = () => {
         <Assignment sx={{ fontSize: '1.5rem' }} />
         <Box sx={{ flex: 1 }}>
           <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-            Note Detail - {noteData.patientName}
+            Note Detail - {displayData?.patientName || 'Loading...'}
           </Typography>
           <Typography variant="body2" sx={{ opacity: 0.9 }}>
-            {noteData.chiefComplaint} • {aiNoteCheckerService.formatTimeAgo(noteData.dateOfService)}
+            {displayData?.chiefComplaint || 'Loading...'} • {displayData?.dateOfService ? aiNoteCheckerService.formatTimeAgo(displayData.dateOfService) : 'Loading...'}
           </Typography>
         </Box>
         
@@ -1028,7 +1041,7 @@ const NoteDetail: React.FC = () => {
                   <IconButton size="small" onClick={() => {
                     // Use the same data structure handling as renderProgressNote
                     const noteData = progressNoteData?.data || progressNoteData;
-                    const allSections = noteData?.progressNotes?.map((s: any) => s.sectionType) || [];
+                    const allSections = displayData?.progressNotes?.map((s: any) => s.sectionType) || [];
                     console.log('🔧 Collapsing all sections:', allSections);
                     setCollapsedSections(new Set(allSections));
                   }}>
@@ -1038,7 +1051,7 @@ const NoteDetail: React.FC = () => {
               </Stack>
             </Box>
             <Typography variant="body2" color="text.secondary">
-              Status: {noteData?.status || 'Unknown'} • {(() => {
+              Status: {displayData?.status || 'Unknown'} • {(() => {
                 const noteData = progressNoteData?.data || progressNoteData;
                 return noteData?.progressNotes?.length || 0;
               })()} sections
