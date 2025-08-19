@@ -44,6 +44,8 @@ import {
   LocalHospital,
   NavigateBefore,
   NavigateNext,
+  CheckCircleOutline,
+  ErrorOutline,
   Person,
   Group,
   Badge,
@@ -64,11 +66,6 @@ interface NoteDetailProps {
 }
 
 const NoteDetail: React.FC = () => {
-  // TEST: This should ALWAYS show in console
-  console.log('🚨 COMPONENT LOADED - NoteDetail.tsx');
-  console.warn('🚨 WARNING TEST - This should be visible');
-  console.error('🚨 ERROR TEST - This should be visible');
-  
   const { encounterId } = useParams<{ encounterId: string }>();
   const location = useLocation();
   const navigate = useNavigate();
@@ -82,10 +79,12 @@ const NoteDetail: React.FC = () => {
   const [createdTodos, setCreatedTodos] = useState<CreatedToDo[]>([]);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
-  const [creatingToDo, setCreatingToDo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [todoSuccess, setTodoSuccess] = useState<string | null>(null);
   const [showToDoModal, setShowToDoModal] = useState(false);
+  const [modalState, setModalState] = useState<'preview' | 'loading' | 'success' | 'error'>('preview');
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [modalSuccess, setModalSuccess] = useState<string | null>(null);
   const [forceNewCheck, setForceNewCheck] = useState(false);
   const [navigationLoading, setNavigationLoading] = useState(false);
   const [currentEncounterId, setCurrentEncounterId] = useState<string | null>(null);
@@ -690,16 +689,20 @@ const NoteDetail: React.FC = () => {
   const handleCreateToDo = async () => {
     if (!encounterId) return;
 
-    setCreatingToDo(true);
-    setError(null);
-    setTodoSuccess(null);
+    // Set modal to loading state
+    setModalState('loading');
+    setModalError(null);
+    setModalSuccess(null);
 
     try {
       const result = await aiNoteCheckerService.createToDo(encounterId);
       
       if (result.success) {
-        setTodoSuccess(`ToDo created successfully! (ID: ${result.todoId})`);
-        // Refresh the check history and created ToDos
+        // Set modal to success state
+        setModalState('success');
+        setModalSuccess(`ToDo created successfully! (ID: ${result.todoId})`);
+        
+        // Refresh the check history and created ToDos in background
         const [newHistory, newTodos] = await Promise.all([
           fetchCheckHistory(),
           fetchCreatedTodos()
@@ -707,13 +710,16 @@ const NoteDetail: React.FC = () => {
         setCheckHistory(newHistory);
         setCreatedTodos(newTodos);
         
-        // Clear success message after 5 seconds
-        setTimeout(() => setTodoSuccess(null), 5000);
+        // Auto-close modal after 2 seconds on success
+        setTimeout(() => {
+          setShowToDoModal(false);
+          setModalState('preview'); // Reset for next time
+        }, 2000);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to create ToDo');
-    } finally {
-      setCreatingToDo(false);
+      // Set modal to error state
+      setModalState('error');
+      setModalError(err.message || 'Failed to create ToDo');
     }
   };
 
@@ -958,7 +964,12 @@ const NoteDetail: React.FC = () => {
               variant="contained"
               color="warning"
               startIcon={<Assignment />}
-              onClick={() => setShowToDoModal(true)}
+                                onClick={() => {
+                    setShowToDoModal(true);
+                    setModalState('preview'); // Reset modal state
+                    setModalError(null);
+                    setModalSuccess(null);
+                  }}
               size="small"
               sx={{ 
                 backgroundColor: 'warning.main',
@@ -1201,134 +1212,251 @@ const NoteDetail: React.FC = () => {
       {/* ToDo Confirmation Modal */}
       <Dialog
         open={showToDoModal}
-        onClose={() => setShowToDoModal(false)}
+        onClose={() => {
+          // Prevent closing during loading
+          if (modalState !== 'loading') {
+            setShowToDoModal(false);
+            setModalState('preview'); // Reset state
+            setModalError(null);
+            setModalSuccess(null);
+          }
+        }}
         maxWidth="md"
         fullWidth
         PaperProps={{
           sx: { borderRadius: 2 }
         }}
+        // Disable escape key during loading
+        disableEscapeKeyDown={modalState === 'loading'}
       >
-        <DialogTitle sx={{ pb: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Assignment color="warning" />
-            <Typography variant="h6" component="span">
-              Confirm ToDo Creation
-            </Typography>
-          </Box>
-        </DialogTitle>
-        
-        <DialogContent>
-          <DialogContentText sx={{ mb: 2 }}>
-            You are about to create a ToDo in EZDerm for the note deficiencies found. Please review the details below:
-          </DialogContentText>
+        {/* Dynamic content based on modal state */}
+        {modalState === 'preview' && (
+          <>
+            <DialogTitle sx={{ pb: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Assignment color="warning" />
+                <Typography variant="h6" component="span">
+                  Confirm ToDo Creation
+                </Typography>
+              </Box>
+            </DialogTitle>
+            
+            <DialogContent>
+              <DialogContentText sx={{ mb: 2 }}>
+                You are about to create a ToDo in EZDerm for the note deficiencies found. Please review the details below:
+              </DialogContentText>
 
-          {(() => {
-            const previewData = getToDoPreviewData();
-            if (!previewData) return null;
+              {(() => {
+                const previewData = getToDoPreviewData();
+                if (!previewData) return null;
 
-            return (
-              <Stack spacing={2}>
-                {/* Encounter Info */}
-                <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                    Encounter Information
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>Patient:</strong> {previewData.encounterInfo.patientName}
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>Encounter ID:</strong> {previewData.encounterInfo.encounterId}
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>Date of Service:</strong> {previewData.encounterInfo.dateOfService}
-                  </Typography>
-                </Paper>
-
-                {/* ToDo Details */}
-                <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                    ToDo Subject
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 2 }}>
-                    {previewData.subject}
-                  </Typography>
-
-                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                    Description
-                  </Typography>
-                  <Paper sx={{ p: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
-                    <Typography variant="body2" sx={{ whiteSpace: 'pre-line', fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                      {previewData.description}
-                    </Typography>
-                  </Paper>
-                </Paper>
-
-                {/* Assignment */}
-                <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                    Assignment
-                  </Typography>
-                  {previewData.assignee ? (
-                    <Box sx={{ mb: 2 }}>
+                return (
+                  <Stack spacing={2}>
+                    {/* Encounter Info */}
+                    <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                        Encounter Information
+                      </Typography>
                       <Typography variant="body2">
-                        <strong>Assigned to:</strong> {previewData.assignee.firstName} {previewData.assignee.lastName}
-                        {previewData.assignee.title && ` (${previewData.assignee.title})`}
-                        <Chip 
-                          label={previewData.assignee.encounterRoleType.replace('_', ' ')} 
-                          size="small" 
-                          sx={{ ml: 1 }}
-                        />
+                        <strong>Patient:</strong> {previewData.encounterInfo.patientName}
                       </Typography>
-                    </Box>
-                  ) : (
-                    <Typography variant="body2" color="warning.main" sx={{ mb: 2 }}>
-                      ⚠️ No care team member found to assign to
-                    </Typography>
-                  )}
+                      <Typography variant="body2">
+                        <strong>Encounter ID:</strong> {previewData.encounterInfo.encounterId}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Date of Service:</strong> {previewData.encounterInfo.dateOfService}
+                      </Typography>
+                    </Paper>
 
-                  {previewData.watchers.length > 0 && (
-                    <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                        CC'd to ({previewData.watchers.length}):
+                    {/* ToDo Details */}
+                    <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                        ToDo Subject
                       </Typography>
-                      <Stack direction="row" spacing={1} flexWrap="wrap">
-                        {previewData.watchers.map((watcher, index) => (
-                          <Chip
-                            key={watcher.id}
-                            label={`${watcher.firstName} ${watcher.lastName}${watcher.title ? ` (${watcher.title})` : ''}`}
-                            size="small"
-                            variant="outlined"
-                          />
-                        ))}
-                      </Stack>
-                    </Box>
-                  )}
-                </Paper>
-              </Stack>
-            );
-          })()}
-        </DialogContent>
-        
-        <DialogActions sx={{ p: 2, gap: 1 }}>
-          <Button
-            onClick={() => setShowToDoModal(false)}
-            color="inherit"
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={async () => {
-              setShowToDoModal(false);
-              await handleCreateToDo();
-            }}
-            variant="contained"
-            color="warning"
-            startIcon={creatingToDo ? <CircularProgress size={16} color="inherit" /> : <Assignment />}
-            disabled={creatingToDo || !getToDoPreviewData()}
-          >
-            {creatingToDo ? 'Creating ToDo...' : 'Create ToDo'}
-          </Button>
-        </DialogActions>
+                      <Typography variant="body2" sx={{ mb: 2 }}>
+                        {previewData.subject}
+                      </Typography>
+
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                        Description
+                      </Typography>
+                      <Paper sx={{ p: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
+                        <Typography variant="body2" sx={{ whiteSpace: 'pre-line', fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                          {previewData.description}
+                        </Typography>
+                      </Paper>
+                    </Paper>
+
+                    {/* Assignment */}
+                    <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                        Assignment
+                      </Typography>
+                      {previewData.assignee ? (
+                        <Box sx={{ mb: 2 }}>
+                          <Typography variant="body2">
+                            <strong>Assigned to:</strong> {previewData.assignee.firstName} {previewData.assignee.lastName}
+                            {previewData.assignee.title && ` (${previewData.assignee.title})`}
+                            <Chip 
+                              label={previewData.assignee.encounterRoleType.replace('_', ' ')} 
+                              size="small" 
+                              sx={{ ml: 1 }}
+                            />
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="warning.main" sx={{ mb: 2 }}>
+                          ⚠️ No care team member found to assign to
+                        </Typography>
+                      )}
+
+                      {previewData.watchers.length > 0 && (
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                            CC'd to ({previewData.watchers.length}):
+                          </Typography>
+                          <Stack direction="row" spacing={1} flexWrap="wrap">
+                            {previewData.watchers.map((watcher, index) => (
+                              <Chip
+                                key={watcher.id}
+                                label={`${watcher.firstName} ${watcher.lastName}${watcher.title ? ` (${watcher.title})` : ''}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ))}
+                          </Stack>
+                        </Box>
+                      )}
+                    </Paper>
+                  </Stack>
+                );
+              })()}
+            </DialogContent>
+            
+            <DialogActions sx={{ p: 2, gap: 1 }}>
+              <Button
+                onClick={() => {
+                  setShowToDoModal(false);
+                  setModalState('preview');
+                  setModalError(null);
+                  setModalSuccess(null);
+                }}
+                color="inherit"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateToDo}
+                variant="contained"
+                color="warning"
+                startIcon={<Assignment />}
+                disabled={!getToDoPreviewData()}
+              >
+                Create ToDo
+              </Button>
+            </DialogActions>
+          </>
+        )}
+
+        {modalState === 'loading' && (
+          <>
+            <DialogTitle>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CircularProgress size={24} />
+                <Typography variant="h6" component="span">
+                  Creating ToDo...
+                </Typography>
+              </Box>
+            </DialogTitle>
+            
+            <DialogContent sx={{ textAlign: 'center', py: 4 }}>
+              <CircularProgress size={48} sx={{ mb: 2 }} />
+              <Typography variant="body1" color="text.secondary">
+                Please wait while we create the ToDo in EZDerm...
+              </Typography>
+            </DialogContent>
+          </>
+        )}
+
+        {modalState === 'success' && (
+          <>
+            <DialogTitle>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CheckCircleOutline color="success" />
+                <Typography variant="h6" component="span">
+                  ToDo Created Successfully!
+                </Typography>
+              </Box>
+            </DialogTitle>
+            
+            <DialogContent sx={{ textAlign: 'center', py: 4 }}>
+              <CheckCircleOutline color="success" sx={{ fontSize: '4rem', mb: 2 }} />
+              <Typography variant="h6" sx={{ mb: 1, color: 'success.main' }}>
+                Success!
+              </Typography>
+              {modalSuccess && (
+                <Typography variant="body1" color="text.secondary">
+                  {modalSuccess}
+                </Typography>
+              )}
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                This window will close automatically in a moment.
+              </Typography>
+            </DialogContent>
+          </>
+        )}
+
+        {modalState === 'error' && (
+          <>
+            <DialogTitle>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <ErrorOutline color="error" />
+                <Typography variant="h6" component="span">
+                  Failed to Create ToDo
+                </Typography>
+              </Box>
+            </DialogTitle>
+            
+            <DialogContent sx={{ textAlign: 'center', py: 4 }}>
+              <ErrorOutline color="error" sx={{ fontSize: '4rem', mb: 2 }} />
+              <Typography variant="h6" sx={{ mb: 1, color: 'error.main' }}>
+                Error
+              </Typography>
+              {modalError && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {modalError}
+                </Alert>
+              )}
+              <Typography variant="body2" color="text.secondary">
+                Please try again or contact support if the issue persists.
+              </Typography>
+            </DialogContent>
+            
+            <DialogActions sx={{ p: 2, gap: 1 }}>
+              <Button
+                onClick={() => {
+                  setModalState('preview');
+                  setModalError(null);
+                }}
+                color="inherit"
+              >
+                Try Again
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowToDoModal(false);
+                  setModalState('preview');
+                  setModalError(null);
+                  setModalSuccess(null);
+                }}
+                variant="contained"
+                color="primary"
+              >
+                Close
+              </Button>
+            </DialogActions>
+          </>
+        )}
       </Dialog>
     </Box>
   );
