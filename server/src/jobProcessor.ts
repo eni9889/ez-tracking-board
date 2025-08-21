@@ -575,25 +575,35 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
   } catch (error: any) {
     console.error(`❌ AI check failed for encounter: ${encounterId}`, error);
     
-    // Check if this is a 529 (Overloaded) error from Anthropic
-    const isAnthropicOverloaded = (
+    // Check if this is a retryable error from Anthropic (529 overloaded or timeout)
+    const isRetryableError = (
+      // 529 Overloaded errors
       error.message?.includes('Request failed with status code 529') ||
       error.message?.includes('Overloaded') ||
       (error.response?.status === 529) ||
-      (error.response?.data?.error?.type === 'overloaded_error')
+      (error.response?.data?.error?.type === 'overloaded_error') ||
+      // Timeout errors
+      error.message?.includes('timeout of') ||
+      error.message?.includes('exceeded') ||
+      error.code === 'ECONNABORTED' ||
+      error.code === 'ETIMEDOUT'
     );
     
-    if (isAnthropicOverloaded) {
-      console.log(`🔄 Anthropic API overloaded (529) for encounter ${encounterId}, will retry...`);
+    if (isRetryableError) {
+      // Determine error type for logging
+      const isTimeout = error.message?.includes('timeout') || error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT';
+      const errorType = isTimeout ? 'timeout' : 'overloaded (529)';
+      
+      console.log(`🔄 Anthropic API ${errorType} for encounter ${encounterId}, will retry...`);
       
       // Get current attempt count
       const attemptsMade = (job.attemptsMade || 0) + 1;
-      const maxRetries = 5; // Maximum 5 retries for 529 errors
+      const maxRetries = 5; // Maximum 5 retries for API errors
       
       if (attemptsMade < maxRetries) {
         // Calculate exponential backoff delay (2^attempts * 30 seconds)
         const delaySeconds = Math.min(Math.pow(2, attemptsMade) * 30, 300); // Max 5 minutes
-        console.log(`⏱️ Scheduling retry ${attemptsMade}/${maxRetries} in ${delaySeconds} seconds for encounter ${encounterId}`);
+        console.log(`⏱️ Scheduling retry ${attemptsMade}/${maxRetries} in ${delaySeconds} seconds for encounter ${encounterId} (${errorType})`);
         
         // Re-enqueue the job with delay
         await aiNoteCheckQueue.add('ai-note-check', job.data, {
@@ -610,12 +620,12 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
           status: 'retrying',
           attemptsMade,
           nextRetryIn: delaySeconds,
-          reason: 'Anthropic API overloaded (529)',
+          reason: `Anthropic API ${errorType}`,
           scanId
         };
       } else {
-        console.error(`❌ Max retries (${maxRetries}) exceeded for encounter ${encounterId} due to Anthropic 529 errors`);
-        throw new Error(`AI analysis failed after ${maxRetries} retries due to Anthropic API overload (529)`);
+        console.error(`❌ Max retries (${maxRetries}) exceeded for encounter ${encounterId} due to Anthropic ${errorType} errors`);
+        throw new Error(`AI analysis failed after ${maxRetries} retries due to Anthropic API ${errorType}`);
       }
     }
     
