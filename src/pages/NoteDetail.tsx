@@ -54,7 +54,7 @@ import {
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useEncounters } from '../contexts/EncountersContext';
-import aiNoteCheckerService, { NoteCheckResult, AIAnalysisIssue, CareTeamMember, CreatedToDo } from '../services/aiNoteChecker.service';
+import aiNoteCheckerService, { NoteCheckResult, AIAnalysisIssue, CareTeamMember, CreatedToDo, InvalidIssue } from '../services/aiNoteChecker.service';
 
 interface NoteDetailProps {
   encounterId: string;
@@ -78,6 +78,7 @@ const NoteDetail: React.FC = () => {
   const [careTeam, setCareTeam] = useState<CareTeamMember[]>([]);
   const [checkHistory, setCheckHistory] = useState<NoteCheckResult[]>([]);
   const [createdTodos, setCreatedTodos] = useState<CreatedToDo[]>([]);
+  const [invalidIssues, setInvalidIssues] = useState<InvalidIssue[]>([]);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -159,24 +160,36 @@ const NoteDetail: React.FC = () => {
     }
   }, []);
 
+  const fetchInvalidIssuesForEncounter = useCallback(async (targetEncounterId: string): Promise<InvalidIssue[]> => {
+    try {
+      const invalid = await aiNoteCheckerService.getInvalidIssues(targetEncounterId);
+      return invalid;
+    } catch (err: any) {
+      console.error('Error fetching invalid issues:', err);
+      return [];
+    }
+  }, []);
+
   // Load note details for navigation (no full page loading state)
   const loadNoteDetailsForEncounter = useCallback(async (targetEncounterId: string) => {
     try {
-      // Fetch note content, check history, and created ToDos for the target encounter
-      const [noteResponse, history, todos] = await Promise.all([
+      // Fetch note content, check history, created ToDos, and invalid issues for the target encounter
+      const [noteResponse, history, todos, invalid] = await Promise.all([
         fetchNoteContentForEncounter(targetEncounterId),
         fetchCheckHistoryForEncounter(targetEncounterId),
-        fetchCreatedTodosForEncounter(targetEncounterId)
+        fetchCreatedTodosForEncounter(targetEncounterId),
+        fetchInvalidIssuesForEncounter(targetEncounterId)
       ]);
 
       setProgressNoteData(noteResponse.progressNote);
       setCareTeam(noteResponse.careTeam);
       setCheckHistory(history);
       setCreatedTodos(todos);
+      setInvalidIssues(invalid);
     } catch (err: any) {
       throw new Error(err.message || 'Failed to fetch note details');
     }
-  }, [fetchNoteContentForEncounter, fetchCheckHistoryForEncounter, fetchCreatedTodosForEncounter]);
+  }, [fetchNoteContentForEncounter, fetchCheckHistoryForEncounter, fetchCreatedTodosForEncounter, fetchInvalidIssuesForEncounter]);
 
   // Navigation functions (defined before keyboard handler)
   const navigateToEncounter = useCallback(async (encounter: any) => {
@@ -311,6 +324,88 @@ const NoteDetail: React.FC = () => {
     } catch (err: any) {
       console.error('Error fetching created ToDos:', err);
       return [];
+    }
+  };
+
+  const fetchInvalidIssues = async (): Promise<InvalidIssue[]> => {
+    const targetEncounterId = currentEncounterId || encounterId;
+    if (!targetEncounterId) return [];
+    
+    try {
+      const invalid = await aiNoteCheckerService.getInvalidIssues(targetEncounterId);
+      return invalid;
+    } catch (err: any) {
+      console.error('Error fetching invalid issues:', err);
+      return [];
+    }
+  };
+
+  // Helper functions for invalid issues
+  const isIssueMarkedInvalid = (checkId: number, issueIndex: number): boolean => {
+    return invalidIssues.some(invalid => 
+      invalid.checkId === checkId && invalid.issueIndex === issueIndex
+    );
+  };
+
+  const getValidIssues = (result: NoteCheckResult): AIAnalysisIssue[] => {
+    if (!result.aiAnalysis?.issues) return [];
+    
+    return result.aiAnalysis.issues.filter((_, index) => 
+      !isIssueMarkedInvalid(result.id!, index)
+    );
+  };
+
+  const hasValidIssues = (result: NoteCheckResult): boolean => {
+    return getValidIssues(result).length > 0;
+  };
+
+  const markIssueAsInvalid = async (checkId: number, issueIndex: number, issue: AIAnalysisIssue, reason?: string) => {
+    try {
+      const targetEncounterId = currentEncounterId || encounterId;
+      if (!targetEncounterId) return;
+
+      // Create a hash for the issue
+      const issueHash = await crypto.subtle.digest('SHA-256', 
+        new TextEncoder().encode(issue.assessment + issue.issue + JSON.stringify(issue.details))
+      ).then(hashBuffer => 
+        Array.from(new Uint8Array(hashBuffer))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('')
+          .substring(0, 16) // First 16 chars for brevity
+      );
+
+      await aiNoteCheckerService.markIssueAsInvalid(
+        targetEncounterId,
+        checkId,
+        issueIndex,
+        issue.issue,
+        issue.assessment,
+        issueHash,
+        reason
+      );
+
+      // Refresh invalid issues
+      const newInvalid = await fetchInvalidIssues();
+      setInvalidIssues(newInvalid);
+    } catch (err: any) {
+      console.error('Error marking issue as invalid:', err);
+      setError(err.message || 'Failed to mark issue as invalid');
+    }
+  };
+
+  const unmarkIssueAsInvalid = async (checkId: number, issueIndex: number) => {
+    try {
+      const targetEncounterId = currentEncounterId || encounterId;
+      if (!targetEncounterId) return;
+
+      await aiNoteCheckerService.unmarkIssueAsInvalid(targetEncounterId, checkId, issueIndex);
+
+      // Refresh invalid issues
+      const newInvalid = await fetchInvalidIssues();
+      setInvalidIssues(newInvalid);
+    } catch (err: any) {
+      console.error('Error unmarking issue as invalid:', err);
+      setError(err.message || 'Failed to unmark issue as invalid');
     }
   };
 
@@ -650,8 +745,11 @@ const NoteDetail: React.FC = () => {
 
   // Helper functions for ToDo preview
   const getToDoPreviewData = () => {
-    const latestCheck = checkHistory.find(check => check.issuesFound);
-    if (!latestCheck || !latestCheck.aiAnalysis?.issues) return null;
+    const latestCheck = checkHistory.find(check => hasValidIssues(check));
+    if (!latestCheck) return null;
+    
+    const validIssues = getValidIssues(latestCheck);
+    if (validIssues.length === 0) return null;
 
     const dateOfService = displayData?.dateOfService || new Date().toISOString();
     const formattedDate = new Date(dateOfService).toLocaleDateString('en-US', {
@@ -662,7 +760,7 @@ const NoteDetail: React.FC = () => {
 
     const subject = `Note Deficiencies - ${formattedDate}`;
     
-    const issuesList = latestCheck.aiAnalysis.issues.map((issue, index) => {
+    const issuesList = validIssues.map((issue, index) => {
       const issueTypeMap = {
         'no_explicit_plan': 'Missing Explicit Plan',
         'chronicity_mismatch': 'Chronicity Mismatch',
