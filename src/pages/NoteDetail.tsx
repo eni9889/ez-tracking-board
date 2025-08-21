@@ -270,13 +270,14 @@ const NoteDetail: React.FC = () => {
 
 
   const fetchNoteDetails = async () => {
-    if (!encounterId) return;
+    const targetEncounterId = currentEncounterId || encounterId;
+    if (!targetEncounterId) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      await loadNoteDetailsForEncounter(encounterId);
+      await loadNoteDetailsForEncounter(targetEncounterId);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch note details');
     } finally {
@@ -287,12 +288,13 @@ const NoteDetail: React.FC = () => {
 
 
   const fetchCheckHistory = async (): Promise<NoteCheckResult[]> => {
-    if (!encounterId) return [];
+    const targetEncounterId = currentEncounterId || encounterId;
+    if (!targetEncounterId) return [];
     
     try {
       // Get all check results and filter for this encounter
       const allResults = await aiNoteCheckerService.getNoteCheckResults(100, 0);
-      return allResults.filter(result => result.encounterId === encounterId);
+      return allResults.filter(result => result.encounterId === targetEncounterId);
     } catch (err) {
       console.error('Error fetching check history:', err);
       return [];
@@ -300,10 +302,11 @@ const NoteDetail: React.FC = () => {
   };
 
   const fetchCreatedTodos = async (): Promise<CreatedToDo[]> => {
-    if (!encounterId) return [];
+    const targetEncounterId = currentEncounterId || encounterId;
+    if (!targetEncounterId) return [];
     
     try {
-      const todos = await aiNoteCheckerService.getCreatedToDos(encounterId);
+      const todos = await aiNoteCheckerService.getCreatedToDos(targetEncounterId);
       return todos;
     } catch (err: any) {
       console.error('Error fetching created ToDos:', err);
@@ -594,7 +597,11 @@ const NoteDetail: React.FC = () => {
   };
 
   const handleCheckNote = async () => {
-    if (!encounterId) return;
+    // Use currentEncounterId (internal state) instead of URL params for navigation
+    const targetEncounterId = currentEncounterId || encounterId;
+    if (!targetEncounterId) return;
+
+    console.log('🤖 Running AI check for encounter:', targetEncounterId, '(currentEncounterId:', currentEncounterId, ', URL encounterId:', encounterId, ')');
 
     setChecking(true);
     setError(null);
@@ -609,7 +616,7 @@ const NoteDetail: React.FC = () => {
       // If we don't have patient info, try to get it from a progress note call
       if (!patientId) {
         try {
-          const noteResponse = await aiNoteCheckerService.getProgressNote(encounterId);
+          const noteResponse = await aiNoteCheckerService.getProgressNote(targetEncounterId);
           // The backend should return patientId in the response
           patientId = (noteResponse.progressNote as any).patientId;
         } catch (err) {
@@ -620,7 +627,7 @@ const NoteDetail: React.FC = () => {
       }
 
       await aiNoteCheckerService.checkSingleNote(
-        encounterId,
+        targetEncounterId,
         patientId!,
         patientName,
         chiefComplaint,
@@ -689,7 +696,11 @@ const NoteDetail: React.FC = () => {
   };
 
   const handleCreateToDo = async () => {
-    if (!encounterId) return;
+    // Use currentEncounterId (internal state) instead of URL params for navigation
+    const targetEncounterId = currentEncounterId || encounterId;
+    if (!targetEncounterId) return;
+
+    console.log('🎯 Creating ToDo for encounter:', targetEncounterId, '(currentEncounterId:', currentEncounterId, ', URL encounterId:', encounterId, ')');
 
     // Set modal to loading state
     setModalState('loading');
@@ -697,7 +708,7 @@ const NoteDetail: React.FC = () => {
     setModalSuccess(null);
 
     try {
-      const result = await aiNoteCheckerService.createToDo(encounterId);
+      const result = await aiNoteCheckerService.createToDo(targetEncounterId);
       
       if (result.success) {
         // Set modal to success state
