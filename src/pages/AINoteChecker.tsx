@@ -15,13 +15,17 @@ import {
   Tooltip,
   IconButton,
   CircularProgress,
-  Grid
+  Grid,
+  Checkbox,
+
 } from '@mui/material';
 import {
   Psychology,
   Refresh,
   Assignment,
-  ArrowBack
+  ArrowBack,
+
+  PlayArrow
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -44,6 +48,8 @@ const AINoteChecker: React.FC = () => {
   const [checking, setChecking] = useState<Set<string>>(new Set());
   const [autoRefreshing, setAutoRefreshing] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [selectedNotes, setSelectedNotes] = useState<Set<string>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const {} = useAuth();
@@ -106,6 +112,85 @@ const AINoteChecker: React.FC = () => {
     navigate(`/ai-note-checker/${note.encounterId}`, {
       state: { note }
     });
+  };
+
+  // Selection handlers
+  const handleSelectNote = (encounterId: string, checked: boolean) => {
+    setSelectedNotes(prev => {
+      const newSet = new Set(prev);
+      if (checked) {
+        newSet.add(encounterId);
+      } else {
+        newSet.delete(encounterId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedNotes(new Set(incompleteNotes.map(note => note.encounterId)));
+    } else {
+      setSelectedNotes(new Set());
+    }
+  };
+
+  // Bulk force re-check functionality
+  const handleBulkForceRecheck = async () => {
+    if (selectedNotes.size === 0) {
+      setLocalError('Please select at least one note to re-check');
+      return;
+    }
+
+    setBulkProcessing(true);
+    setLocalError(null);
+
+    try {
+      const selectedNotesArray = incompleteNotes.filter(note => 
+        selectedNotes.has(note.encounterId)
+      );
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      // Process notes sequentially to avoid overwhelming the API
+      for (const note of selectedNotesArray) {
+        try {
+          await aiNoteCheckerService.checkSingleNote(
+            note.encounterId,
+            note.patientId,
+            note.patientName,
+            note.chiefComplaint,
+            note.dateOfService,
+            true // force = true
+          );
+          successCount++;
+        } catch (err: any) {
+          console.error(`Error checking note ${note.encounterId}:`, err);
+          errorCount++;
+        }
+      }
+
+      // Clear selection after processing
+      setSelectedNotes(new Set());
+
+      // Refresh the data to show updated results
+      await refreshEncounters();
+
+      // Show result summary
+      if (errorCount === 0) {
+        setLocalError(null);
+        // Could add a success message state if needed
+      } else {
+        setLocalError(`Bulk re-check completed: ${successCount} successful, ${errorCount} failed`);
+      }
+
+    } catch (err: any) {
+      console.error('Error during bulk re-check:', err);
+      setLocalError(err.message || 'Failed to perform bulk re-check');
+    } finally {
+      setBulkProcessing(false);
+    }
   };
 
   const getStatusChip = (note: IncompleteNote) => {
@@ -213,6 +298,20 @@ const AINoteChecker: React.FC = () => {
         >
           {loading ? 'Refreshing...' : 'Refresh'}
         </Button>
+        
+        {selectedNotes.size > 0 && (
+          <Button
+            variant="contained"
+            color="warning"
+            startIcon={bulkProcessing ? <CircularProgress size={16} color="inherit" /> : <PlayArrow />}
+            onClick={handleBulkForceRecheck}
+            disabled={bulkProcessing || loading}
+            size="small"
+            sx={{ ml: 1 }}
+          >
+            {bulkProcessing ? 'Processing...' : `Force Re-check (${selectedNotes.size})`}
+          </Button>
+        )}
       </Box>
 
       {/* Status Info */}
@@ -273,6 +372,14 @@ const AINoteChecker: React.FC = () => {
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa', width: 50 }}>
+                    <Checkbox
+                      checked={selectedNotes.size === incompleteNotes.length && incompleteNotes.length > 0}
+                      indeterminate={selectedNotes.size > 0 && selectedNotes.size < incompleteNotes.length}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      disabled={bulkProcessing}
+                    />
+                  </TableCell>
                   <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
                     Patient
                   </TableCell>
@@ -298,10 +405,22 @@ const AINoteChecker: React.FC = () => {
                   <TableRow 
                     key={note.encounterId} 
                     hover 
-                    sx={{ cursor: 'pointer' }}
-                    onClick={() => handleViewNote(note)}
+                    selected={selectedNotes.has(note.encounterId)}
                   >
                     <TableCell>
+                      <Checkbox
+                        checked={selectedNotes.has(note.encounterId)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          handleSelectNote(note.encounterId, e.target.checked);
+                        }}
+                        disabled={bulkProcessing}
+                      />
+                    </TableCell>
+                    <TableCell 
+                      sx={{ cursor: 'pointer' }}
+                      onClick={() => handleViewNote(note)}
+                    >
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                         {note.patientName}
                       </Typography>
@@ -309,17 +428,26 @@ const AINoteChecker: React.FC = () => {
                         {note.status}
                       </Typography>
                     </TableCell>
-                    <TableCell>
+                    <TableCell 
+                      sx={{ cursor: 'pointer' }}
+                      onClick={() => handleViewNote(note)}
+                    >
                       <Typography variant="body2">
                         {note.chiefComplaint}
                       </Typography>
                     </TableCell>
-                    <TableCell>
+                    <TableCell 
+                      sx={{ cursor: 'pointer' }}
+                      onClick={() => handleViewNote(note)}
+                    >
                       <Typography variant="body2">
                         {aiNoteCheckerService.formatTimeAgo(note.dateOfService)}
                       </Typography>
                     </TableCell>
-                    <TableCell>
+                    <TableCell 
+                      sx={{ cursor: 'pointer' }}
+                      onClick={() => handleViewNote(note)}
+                    >
                       <Chip
                         label={note.status}
                         size="small"
@@ -330,7 +458,10 @@ const AINoteChecker: React.FC = () => {
                         }
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell 
+                      sx={{ cursor: 'pointer' }}
+                      onClick={() => handleViewNote(note)}
+                    >
                       {getStatusChip(note)}
                       {note.lastCheckDate && (
                         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
