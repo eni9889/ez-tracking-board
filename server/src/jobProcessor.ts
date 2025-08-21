@@ -574,6 +574,52 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
     
   } catch (error: any) {
     console.error(`❌ AI check failed for encounter: ${encounterId}`, error);
+    
+    // Check if this is a 529 (Overloaded) error from Anthropic
+    const isAnthropicOverloaded = (
+      error.message?.includes('Request failed with status code 529') ||
+      error.message?.includes('Overloaded') ||
+      (error.response?.status === 529) ||
+      (error.response?.data?.error?.type === 'overloaded_error')
+    );
+    
+    if (isAnthropicOverloaded) {
+      console.log(`🔄 Anthropic API overloaded (529) for encounter ${encounterId}, will retry...`);
+      
+      // Get current attempt count
+      const attemptsMade = (job.attemptsMade || 0) + 1;
+      const maxRetries = 5; // Maximum 5 retries for 529 errors
+      
+      if (attemptsMade < maxRetries) {
+        // Calculate exponential backoff delay (2^attempts * 30 seconds)
+        const delaySeconds = Math.min(Math.pow(2, attemptsMade) * 30, 300); // Max 5 minutes
+        console.log(`⏱️ Scheduling retry ${attemptsMade}/${maxRetries} in ${delaySeconds} seconds for encounter ${encounterId}`);
+        
+        // Re-enqueue the job with delay
+        await aiNoteCheckQueue.add('ai-note-check', job.data, {
+          delay: delaySeconds * 1000, // Convert to milliseconds
+          attempts: 1, // Each retry is treated as a new job
+          removeOnComplete: 10,
+          removeOnFail: 50
+        });
+        
+        // Mark this job as completed successfully (since we're handling the retry manually)
+        return {
+          encounterId,
+          patientName,
+          status: 'retrying',
+          attemptsMade,
+          nextRetryIn: delaySeconds,
+          reason: 'Anthropic API overloaded (529)',
+          scanId
+        };
+      } else {
+        console.error(`❌ Max retries (${maxRetries}) exceeded for encounter ${encounterId} due to Anthropic 529 errors`);
+        throw new Error(`AI analysis failed after ${maxRetries} retries due to Anthropic API overload (529)`);
+      }
+    }
+    
+    // For other errors, throw immediately (no retry)
     throw error;
   }
 };
