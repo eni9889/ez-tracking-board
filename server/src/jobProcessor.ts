@@ -465,10 +465,13 @@ const processAINoteScan = async (job: Job<AINoteScanJobData>) => {
 
 // AI Note Check Job Processor
 const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
-  const { encounterId, patientId, patientName, chiefComplaint, dateOfService, scanId } = job.data;
+  const { encounterId, patientId, patientName, chiefComplaint, dateOfService, scanId, force } = job.data;
   
   console.log(`🤖 Starting AI check for encounter: ${encounterId} (${patientName})`);
   console.log(`📅 Date of service: ${dateOfService} (type: ${typeof dateOfService})`);
+  if (force) {
+    console.log(`🔄 Force flag enabled - bypassing MD5 duplicate detection`);
+  }
   
   try {
     // Get stored credentials (SAME PATTERN AS VITAL SIGNS)
@@ -485,7 +488,7 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
     }
     console.log(`✅ AI Job: Got valid tokens for ${credentials.username}`);
 
-    // Perform the AI check
+    // Perform the AI check with force flag
     const checkId = await aiNoteChecker.checkSingleNote(
       tokens.accessToken,  // 1st: accessToken
       encounterId,         // 2nd: encounterId  
@@ -493,7 +496,8 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
       patientName,         // 4th: patientName
       chiefComplaint,      // 5th: chiefComplaint
       dateOfService,       // 6th: dateOfService
-      credentials.username // 7th: checkedBy
+      credentials.username,// 7th: checkedBy
+      Boolean(force)       // 8th: force flag
     );
 
     // Get the AI analysis result to check for issues

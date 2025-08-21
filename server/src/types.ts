@@ -185,6 +185,7 @@ export interface AINoteCheckJobData {
   chiefComplaint: string;
   dateOfService: string;
   scanId: string;
+  force?: boolean; // Optional force flag to bypass MD5 checking
 }
 
 // EZDerm ToDo Types

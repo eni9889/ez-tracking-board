@@ -722,6 +722,41 @@ class AINoteCheckerService {
       throw new Error(error.response?.data?.error || 'Failed to fetch invalid issues');
     }
   }
+
+  /**
+   * Enqueue bulk force re-check jobs
+   */
+  async enqueueBulkForceRecheck(jobs: Array<{
+    encounterId: string;
+    patientId: string;
+    patientName: string;
+    chiefComplaint: string;
+    dateOfService: string;
+    force: boolean;
+  }>): Promise<{ success: boolean; message: string; enqueuedCount: number }> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Simulating bulk force re-check job enqueue');
+      return {
+        success: true,
+        message: `Enqueued ${jobs.length} notes for force re-check (mock mode)`,
+        enqueuedCount: jobs.length
+      };
+    }
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}/notes/bulk-force-recheck`, 
+        { jobs },
+        {
+          headers: this.headers()
+        }
+      );
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error enqueuing bulk force re-check jobs:', error);
+      throw new Error(error.response?.data?.error || 'Failed to enqueue bulk force re-check jobs');
+    }
+  }
 }
 
 const aiNoteCheckerService = new AINoteCheckerService();

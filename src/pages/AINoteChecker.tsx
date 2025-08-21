@@ -135,7 +135,7 @@ const AINoteChecker: React.FC = () => {
     }
   };
 
-  // Bulk force re-check functionality
+  // Bulk force re-check functionality - ENQUEUE JOBS, don't run synchronously
   const handleBulkForceRecheck = async () => {
     if (selectedNotes.size === 0) {
       setLocalError('Please select at least one note to re-check');
@@ -150,44 +150,29 @@ const AINoteChecker: React.FC = () => {
         selectedNotes.has(note.encounterId)
       );
 
-      let successCount = 0;
-      let errorCount = 0;
+      // Enqueue all selected notes as jobs - this is the correct approach
+      const jobs = selectedNotesArray.map(note => ({
+        encounterId: note.encounterId,
+        patientId: note.patientId,
+        patientName: note.patientName,
+        chiefComplaint: note.chiefComplaint,
+        dateOfService: note.dateOfService,
+        force: true // Force re-check flag
+      }));
 
-      // Process notes sequentially to avoid overwhelming the API
-      for (const note of selectedNotesArray) {
-        try {
-          await aiNoteCheckerService.checkSingleNote(
-            note.encounterId,
-            note.patientId,
-            note.patientName,
-            note.chiefComplaint,
-            note.dateOfService,
-            true // force = true
-          );
-          successCount++;
-        } catch (err: any) {
-          console.error(`Error checking note ${note.encounterId}:`, err);
-          errorCount++;
-        }
-      }
+      // Call the backend to enqueue all jobs at once
+      await aiNoteCheckerService.enqueueBulkForceRecheck(jobs);
 
-      // Clear selection after processing
+      // Clear selection after enqueuing
       setSelectedNotes(new Set());
 
-      // Refresh the data to show updated results
-      await refreshEncounters();
-
-      // Show result summary
-      if (errorCount === 0) {
-        setLocalError(null);
-        // Could add a success message state if needed
-      } else {
-        setLocalError(`Bulk re-check completed: ${successCount} successful, ${errorCount} failed`);
-      }
+      // Show success message
+      setLocalError(null);
+      console.log(`✅ Enqueued ${jobs.length} notes for force re-check`);
 
     } catch (err: any) {
-      console.error('Error during bulk re-check:', err);
-      setLocalError(err.message || 'Failed to perform bulk re-check');
+      console.error('Error enqueuing bulk re-check jobs:', err);
+      setLocalError(err.message || 'Failed to enqueue bulk re-check jobs');
     } finally {
       setBulkProcessing(false);
     }

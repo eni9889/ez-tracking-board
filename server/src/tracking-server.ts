@@ -1164,6 +1164,68 @@ app.get('/api/notes/:encounterId/invalid-issues', validateSession, async (req: R
   }
 });
 
+// Bulk force re-check: Enqueue multiple notes for force re-check
+app.post('/api/notes/bulk-force-recheck', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { jobs } = req.body;
+    
+    if (!jobs || !Array.isArray(jobs) || jobs.length === 0) {
+      res.status(400).json({ error: 'Jobs array is required and must not be empty' });
+      return;
+    }
+    
+    console.log(`🔄 Bulk force re-check requested for ${jobs.length} notes`);
+    
+    // Import the aiNoteCheckQueue from jobProcessor
+    const { aiNoteCheckQueue } = require('./jobProcessor');
+    
+    let enqueuedCount = 0;
+    const scanId = `bulk-force-${Date.now()}`;
+    
+    // Enqueue each job with force flag
+    for (const [index, job] of jobs.entries()) {
+      const { encounterId, patientId, patientName, chiefComplaint, dateOfService, force } = job;
+      
+      if (!encounterId || !patientId || !patientName || !chiefComplaint || !dateOfService) {
+        console.warn(`⚠️ Skipping invalid job data for encounter ${encounterId}`);
+        continue;
+      }
+      
+      try {
+        // Add individual note check job directly to the queue (same pattern as AI scan processor)
+        await aiNoteCheckQueue.add('check-note', {
+          encounterId,
+          patientId,
+          patientName,
+          chiefComplaint,
+          dateOfService,
+          scanId,
+          force: Boolean(force) // Include force flag to bypass MD5 checking
+        }, {
+          delay: index * 2000, // Stagger jobs every 2 seconds
+          attempts: 1,
+          removeOnComplete: 10,
+          removeOnFail: 50
+        });
+        
+        enqueuedCount++;
+        console.log(`✅ Enqueued force re-check for encounter ${encounterId} (${patientName})`);
+      } catch (jobError: any) {
+        console.error(`❌ Failed to enqueue job for encounter ${encounterId}:`, jobError);
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Successfully enqueued ${enqueuedCount} out of ${jobs.length} notes for force re-check`,
+      enqueuedCount
+    });
+  } catch (error: any) {
+    console.error('Error processing bulk force re-check:', error);
+    res.status(500).json({ error: 'Failed to process bulk force re-check', details: error.message });
+  }
+});
+
 // Token refresh function
 async function refreshEZDermToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string } | null> {
   try {
