@@ -81,6 +81,19 @@ export interface CreatedToDo {
   createdAt: Date;
 }
 
+export interface InvalidIssue {
+  id: number;
+  encounterId: string;
+  checkId: number;
+  issueIndex: number;
+  issueType: string;
+  assessment: string;
+  issueHash: string;
+  markedInvalidBy: string;
+  markedInvalidAt: Date;
+  reason?: string;
+}
+
 export interface ProgressNoteResponse {
   progressNotes: Array<{
     sectionType: 'SUBJECTIVE' | 'OBJECTIVE' | 'ASSESSMENT_AND_PLAN';

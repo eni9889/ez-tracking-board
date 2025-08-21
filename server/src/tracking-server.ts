@@ -1083,6 +1083,87 @@ app.get('/api/notes/result/:encounterId', validateSession, async (req: Request, 
   }
 });
 
+// Mark an issue as invalid
+app.post('/api/notes/:encounterId/issues/:checkId/:issueIndex/mark-invalid', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { encounterId, checkId, issueIndex } = req.params;
+    const { reason, issueType, assessment, issueHash } = req.body;
+    const username = (req as any).user.username;
+    
+    if (!encounterId || !checkId || issueIndex === undefined) {
+      res.status(400).json({ error: 'Encounter ID, check ID, and issue index are required' });
+      return;
+    }
+    
+    await vitalSignsDb.markIssueAsInvalid(
+      encounterId,
+      parseInt(checkId),
+      parseInt(issueIndex),
+      issueType,
+      assessment,
+      issueHash,
+      username,
+      reason
+    );
+    
+    res.json({ 
+      success: true, 
+      message: 'Issue marked as invalid successfully'
+    });
+  } catch (error: any) {
+    console.error('Error marking issue as invalid:', error);
+    res.status(500).json({ error: 'Failed to mark issue as invalid', details: error.message });
+  }
+});
+
+// Remove invalid marking from an issue
+app.delete('/api/notes/:encounterId/issues/:checkId/:issueIndex/mark-invalid', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { encounterId, checkId, issueIndex } = req.params;
+    
+    if (!encounterId || !checkId || issueIndex === undefined) {
+      res.status(400).json({ error: 'Encounter ID, check ID, and issue index are required' });
+      return;
+    }
+    
+    await vitalSignsDb.unmarkIssueAsInvalid(
+      encounterId,
+      parseInt(checkId),
+      parseInt(issueIndex)
+    );
+    
+    res.json({ 
+      success: true, 
+      message: 'Invalid marking removed successfully'
+    });
+  } catch (error: any) {
+    console.error('Error removing invalid marking:', error);
+    res.status(500).json({ error: 'Failed to remove invalid marking', details: error.message });
+  }
+});
+
+// Get invalid issues for an encounter
+app.get('/api/notes/:encounterId/invalid-issues', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { encounterId } = req.params;
+    
+    if (!encounterId) {
+      res.status(400).json({ error: 'Encounter ID is required' });
+      return;
+    }
+    
+    const invalidIssues = await vitalSignsDb.getInvalidIssuesForEncounter(encounterId);
+    
+    res.json({ 
+      success: true, 
+      invalidIssues
+    });
+  } catch (error: any) {
+    console.error('Error fetching invalid issues:', error);
+    res.status(500).json({ error: 'Failed to fetch invalid issues', details: error.message });
+  }
+});
+
 // Token refresh function
 async function refreshEZDermToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string } | null> {
   try {
