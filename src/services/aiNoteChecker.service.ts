@@ -647,6 +647,81 @@ class AINoteCheckerService {
       throw new Error(error.response?.data?.error || 'Failed to fetch created ToDos');
     }
   }
+
+  /**
+   * Mark an issue as invalid
+   */
+  async markIssueAsInvalid(
+    encounterId: string,
+    checkId: number,
+    issueIndex: number,
+    issueType: string,
+    assessment: string,
+    issueHash: string,
+    reason?: string
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/notes/${encounterId}/issues/${checkId}/${issueIndex}/mark-invalid`,
+        {
+          issueType,
+          assessment,
+          issueHash,
+          reason
+        },
+        {
+          headers: this.headers()
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Error marking issue as invalid:', error);
+      throw new Error(error.response?.data?.error || 'Failed to mark issue as invalid');
+    }
+  }
+
+  /**
+   * Remove invalid marking from an issue
+   */
+  async unmarkIssueAsInvalid(
+    encounterId: string,
+    checkId: number,
+    issueIndex: number
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const response = await axios.delete(
+        `${API_BASE_URL}/notes/${encounterId}/issues/${checkId}/${issueIndex}/mark-invalid`,
+        {
+          headers: this.headers()
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Error removing invalid marking:', error);
+      throw new Error(error.response?.data?.error || 'Failed to remove invalid marking');
+    }
+  }
+
+  /**
+   * Get invalid issues for an encounter
+   */
+  async getInvalidIssues(encounterId: string): Promise<InvalidIssue[]> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Returning mock invalid issues');
+      return [];
+    }
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/notes/${encounterId}/invalid-issues`, {
+        headers: this.headers()
+      });
+
+      return response.data.invalidIssues || [];
+    } catch (error: any) {
+      console.error('Error fetching invalid issues:', error);
+      throw new Error(error.response?.data?.error || 'Failed to fetch invalid issues');
+    }
+  }
 }
 
 const aiNoteCheckerService = new AINoteCheckerService();

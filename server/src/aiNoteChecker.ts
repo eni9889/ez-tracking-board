@@ -259,7 +259,7 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
       for (const item of section.items) {
         if (item.elementType === 'HISTORY_OF_PRESENT_ILLNESS') {
           formattedNote += `\n${item.elementType}:\n${item.note}\n`;
-        } else (item.text && item.text.trim()) {
+        } else if (item.text && item.text.trim()) {
           formattedNote += `\n${item.elementType}:\n${item.text}\n`;
           
           if (item.note && item.note.trim()) {
