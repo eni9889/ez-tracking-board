@@ -398,7 +398,7 @@ class VitalSignsService {
         encounter.patientInfo.id,
         accessToken
       );
-      console.log('recentVitalSigns', recentVitalSigns);
+      console.debug('recentVitalSigns', recentVitalSigns);
 
       if (!recentVitalSigns) {
         console.log(`No historical vital signs found for patient ${encounter.patientInfo.id}`);
