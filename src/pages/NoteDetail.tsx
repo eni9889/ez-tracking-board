@@ -11,9 +11,7 @@ import {
   Divider,
   List,
   ListItem,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
+
   Card,
   CardContent,
   CardHeader,
@@ -32,7 +30,7 @@ import {
   ArrowBack,
   Psychology,
   Refresh,
-  ExpandMore,
+
   CheckCircle,
   Warning,
   Error as ErrorIcon,
@@ -49,7 +47,8 @@ import {
   Person,
   Group,
   Badge,
-  MedicalServices
+  MedicalServices,
+  Block
 } from '@mui/icons-material';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -407,6 +406,104 @@ const NoteDetail: React.FC = () => {
       console.error('Error unmarking issue as invalid:', err);
       setError(err.message || 'Failed to unmark issue as invalid');
     }
+  };
+
+  // Render individual issues with invalid marking functionality
+  const renderIssuesDetails = (issues: AIAnalysisIssue[], checkId: number) => {
+    const issueTypeMap: { [key: string]: string } = {
+      'no_explicit_plan': 'Missing Explicit Plan',
+      'chronicity_mismatch': 'Chronicity Mismatch', 
+      'unclear_documentation': 'Unclear Documentation',
+      'chief_complaint_structure': 'Chief Complaint Structure'
+    };
+
+    const issueColors: { [key: string]: "error" | "warning" | "info" | "secondary" | "default" } = {
+      'no_explicit_plan': 'error',
+      'chronicity_mismatch': 'warning',
+      'unclear_documentation': 'info',
+      'chief_complaint_structure': 'secondary'
+    };
+
+    return (
+      <Box sx={{ mt: 1 }}>
+        {issues.map((issue, index) => {
+          const isInvalid = isIssueMarkedInvalid(checkId, index);
+          
+          return (
+            <Box 
+              key={index} 
+              sx={{ 
+                mb: 2, 
+                p: 2, 
+                border: 1, 
+                borderColor: isInvalid ? 'action.disabled' : issueColors[issue.issue] + '.main',
+                borderRadius: 1,
+                bgcolor: isInvalid ? 'action.hover' : 'background.paper',
+                opacity: isInvalid ? 0.6 : 1
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Chip
+                  label={issueTypeMap[issue.issue] || issue.issue}
+                  color={isInvalid ? 'default' : (issueColors[issue.issue] || 'default')}
+                  size="small"
+                />
+                {isInvalid && (
+                  <Chip
+                    label="Invalid"
+                    color="default"
+                    size="small"
+                    icon={<Block />}
+                  />
+                )}
+              </Box>
+
+              <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                Assessment: {issue.assessment}
+              </Typography>
+
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                <strong>A&P Section:</strong> {issue.details['A&P']}
+              </Typography>
+
+              {issue.details.HPI && (
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  <strong>HPI Section:</strong> {issue.details.HPI}
+                </Typography>
+              )}
+
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                <strong>Correction:</strong> {issue.details.correction}
+              </Typography>
+
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                {!isInvalid ? (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="error"
+                    startIcon={<Block />}
+                    onClick={() => markIssueAsInvalid(checkId, index, issue)}
+                  >
+                    Mark as Invalid
+                  </Button>
+                ) : (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="success"
+                    startIcon={<CheckCircle />}
+                    onClick={() => unmarkIssueAsInvalid(checkId, index)}
+                  >
+                    Mark as Valid
+                  </Button>
+                )}
+              </Box>
+            </Box>
+          );
+        })}
+      </Box>
+    );
   };
 
 
@@ -852,76 +949,7 @@ const NoteDetail: React.FC = () => {
     return 'success';
   };
 
-  const renderIssuesDetails = (issues: AIAnalysisIssue[]) => {
-    return (
-      <Box sx={{ mt: 2 }}>
-        {issues.map((issue, index) => (
-          <Accordion key={index} sx={{ mb: 1 }}>
-            <AccordionSummary expandIcon={<ExpandMore />}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Warning color="warning" sx={{ fontSize: '1rem' }} />
-                <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-                  {issue.assessment}
-                </Typography>
-                <Chip 
-                  label={(() => {
-                    const issueLabels = {
-                      'no_explicit_plan': 'Missing Plan',
-                      'chronicity_mismatch': 'Chronicity Mismatch',
-                      'unclear_documentation': 'Unclear Documentation',
-                      'chief_complaint_structure': 'CC Structure'
-                    };
-                    return issueLabels[issue.issue] || issue.issue;
-                  })()}
-                  size="small"
-                  color={(() => {
-                    const issueColors: { [key: string]: "error" | "warning" | "info" | "secondary" | "default" } = {
-                      'no_explicit_plan': 'error',
-                      'chronicity_mismatch': 'warning',
-                      'unclear_documentation': 'info',
-                      'chief_complaint_structure': 'secondary'
-                    };
-                    return issueColors[issue.issue] || 'default';
-                  })()}
-                  sx={{ ml: 1 }}
-                />
-              </Box>
-            </AccordionSummary>
-            <AccordionDetails>
-              <Box sx={{ pl: 2 }}>
-                {issue.details.HPI && (
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'info.dark' }}>
-                      HPI Reference:
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                      {issue.details.HPI}
-                    </Typography>
-                  </Box>
-                )}
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'warning.dark' }}>
-                    A&P Issue:
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                    {issue.details['A&P']}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'success.dark' }}>
-                    Recommended Correction:
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: 'success.dark' }}>
-                    {issue.details.correction}
-                  </Typography>
-                </Box>
-              </Box>
-            </AccordionDetails>
-          </Accordion>
-        ))}
-      </Box>
-    );
-  };
+
 
   if (loading) {
     return (
@@ -1285,8 +1313,8 @@ const NoteDetail: React.FC = () => {
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                           {getStatusIcon(result)}
                           <Chip
-                            label={result.issuesFound ? 'Issues Found' : result.status === 'error' ? 'Error' : 'Clean'}
-                            color={getStatusColor(result) as any}
+                            label={hasValidIssues(result) ? 'Issues Found' : result.status === 'error' ? 'Error' : 'Clean'}
+                            color={hasValidIssues(result) ? 'error' : result.status === 'error' ? 'error' : 'success'}
                             size="small"
                           />
                           <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
@@ -1304,19 +1332,22 @@ const NoteDetail: React.FC = () => {
                           </Alert>
                         )}
 
-                        {result.issuesFound && result.aiAnalysis?.issues && (
+                        {result.aiAnalysis?.issues && result.aiAnalysis.issues.length > 0 && (
                           <Box sx={{ mt: 1 }}>
                             <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                              Issues Found ({result.aiAnalysis.issues.length}):
+                              Issues Found ({getValidIssues(result).length} valid, {result.aiAnalysis.issues.length} total):
                             </Typography>
-                            {renderIssuesDetails(result.aiAnalysis.issues)}
+                            {renderIssuesDetails(result.aiAnalysis.issues, result.id!)}
                           </Box>
                         )}
 
-                        {!result.issuesFound && result.status === 'completed' && (
+                        {!hasValidIssues(result) && result.status === 'completed' && (
                           <Box sx={{ mt: 1 }}>
                             <Alert severity="success" sx={{ fontSize: '0.75rem' }}>
-                              ✅ All checks passed - note meets coding requirements
+                              {result.aiAnalysis?.issues && result.aiAnalysis.issues.length > 0 
+                                ? '✅ All issues marked as invalid - note now meets coding requirements'
+                                : '✅ All checks passed - note meets coding requirements'
+                              }
                             </Alert>
                           </Box>
                         )}
