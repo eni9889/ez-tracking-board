@@ -370,4 +370,17 @@ export interface CreatedToDo {
   issuesCount: number;
   createdBy: string;
   createdAt: Date;
+}
+
+export interface InvalidIssue {
+  id: number;
+  encounterId: string;
+  checkId: number;
+  issueIndex: number;
+  issueType: string;
+  assessment: string;
+  issueHash: string;
+  markedInvalidBy: string;
+  markedInvalidAt: Date;
+  reason?: string;
 } 

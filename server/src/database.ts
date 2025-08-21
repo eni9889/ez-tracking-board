@@ -150,6 +150,24 @@ class VitalSignsDatabase {
         )
       `;
 
+      // Create invalid_issues table to track issues marked as invalid by users
+      const createInvalidIssuesTableQuery = `
+        CREATE TABLE IF NOT EXISTS invalid_issues (
+          id SERIAL PRIMARY KEY,
+          encounter_id TEXT NOT NULL,
+          check_id INTEGER NOT NULL,
+          issue_index INTEGER NOT NULL,
+          issue_type VARCHAR(100) NOT NULL,
+          assessment TEXT NOT NULL,
+          issue_hash VARCHAR(64) NOT NULL,
+          marked_invalid_by VARCHAR(255) NOT NULL,
+          marked_invalid_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          reason TEXT,
+          UNIQUE(encounter_id, check_id, issue_index),
+          FOREIGN KEY (check_id) REFERENCES note_checks(id) ON DELETE CASCADE
+        )
+      `;
+
       // Execute table creation queries
       await client.query(createVitalSignsTableQuery);
       await client.query(createUserCredentialsTableQuery);
@@ -157,6 +175,7 @@ class VitalSignsDatabase {
       await client.query(createNoteChecksTableQuery);
       await client.query(createNoteCheckQueueTableQuery);
       await client.query(createCreatedTodosTableQuery);
+      await client.query(createInvalidIssuesTableQuery);
 
       // Add MD5 and note content columns if they don't exist (migration)
       const addMd5ColumnQuery = `
@@ -166,7 +185,7 @@ class VitalSignsDatabase {
       `;
       await client.query(addMd5ColumnQuery);
 
-      console.log('Database tables created/verified: processed_vital_signs, user_credentials, user_sessions, note_checks, note_check_queue, created_todos');
+      console.log('Database tables created/verified: processed_vital_signs, user_credentials, user_sessions, note_checks, note_check_queue, created_todos, invalid_issues');
     } finally {
       client.release();
     }
@@ -803,6 +822,108 @@ class VitalSignsDatabase {
     `;
 
     const result = await this.pool.query(query, [encounterId]);
+    return result.rows.length > 0;
+  }
+
+  /**
+   * Mark an issue as invalid
+   */
+  async markIssueAsInvalid(
+    encounterId: string,
+    checkId: number,
+    issueIndex: number,
+    issueType: string,
+    assessment: string,
+    issueHash: string,
+    markedBy: string,
+    reason?: string
+  ): Promise<void> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      INSERT INTO invalid_issues (encounter_id, check_id, issue_index, issue_type, assessment, issue_hash, marked_invalid_by, reason)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (encounter_id, check_id, issue_index) 
+      DO UPDATE SET
+        marked_invalid_by = EXCLUDED.marked_invalid_by,
+        marked_invalid_at = CURRENT_TIMESTAMP,
+        reason = EXCLUDED.reason
+    `;
+
+    await this.pool.query(query, [
+      encounterId,
+      checkId,
+      issueIndex,
+      issueType,
+      assessment,
+      issueHash,
+      markedBy,
+      reason || null
+    ]);
+  }
+
+  /**
+   * Remove invalid marking from an issue
+   */
+  async unmarkIssueAsInvalid(encounterId: string, checkId: number, issueIndex: number): Promise<void> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      DELETE FROM invalid_issues 
+      WHERE encounter_id = $1 AND check_id = $2 AND issue_index = $3
+    `;
+
+    await this.pool.query(query, [encounterId, checkId, issueIndex]);
+  }
+
+  /**
+   * Get invalid issues for an encounter
+   */
+  async getInvalidIssuesForEncounter(encounterId: string): Promise<any[]> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      SELECT * FROM invalid_issues 
+      WHERE encounter_id = $1 
+      ORDER BY marked_invalid_at ASC
+    `;
+
+    const result = await this.pool.query(query, [encounterId]);
+    return result.rows.map(row => ({
+      id: row.id,
+      encounterId: row.encounter_id,
+      checkId: row.check_id,
+      issueIndex: row.issue_index,
+      issueType: row.issue_type,
+      assessment: row.assessment,
+      issueHash: row.issue_hash,
+      markedInvalidBy: row.marked_invalid_by,
+      markedInvalidAt: row.marked_invalid_at,
+      reason: row.reason
+    }));
+  }
+
+  /**
+   * Check if a specific issue is marked as invalid
+   */
+  async isIssueMarkedInvalid(encounterId: string, checkId: number, issueIndex: number): Promise<boolean> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      SELECT 1 FROM invalid_issues 
+      WHERE encounter_id = $1 AND check_id = $2 AND issue_index = $3
+      LIMIT 1
+    `;
+
+    const result = await this.pool.query(query, [encounterId, checkId, issueIndex]);
     return result.rows.length > 0;
   }
 
