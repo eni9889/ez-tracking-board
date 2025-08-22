@@ -1,7 +1,10 @@
 import axios, { AxiosResponse } from 'axios';
 
-// Configure axios to be less verbose
-axios.defaults.timeout = 10000;
+// Configure axios timeouts
+// Default timeout for most API calls (EZDerm, etc.)
+axios.defaults.timeout = 30000; // Increased from 10s to 30s
+
+// Note: Anthropic API calls may use longer timeouts specified per-request
 
 // Only log errors and important info, not all requests
 if (process.env.NODE_ENV === 'development') {

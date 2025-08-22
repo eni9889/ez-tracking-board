@@ -304,7 +304,8 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
             'Content-Type': 'application/json',
             'x-api-key': this.claudeApiKey,
             'anthropic-version': '2023-06-01'
-          }
+          },
+          timeout: 120000 // 2 minutes timeout for Anthropic API calls
         }
       );
 
