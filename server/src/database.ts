@@ -1,6 +1,5 @@
 import { Pool, PoolClient, QueryResult } from 'pg';
 import { appConfig } from './config';
-import { Runner } from 'node-pg-migrate';
 
 class VitalSignsDatabase {
   private pool: Pool | null = null;
