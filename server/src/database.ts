@@ -218,6 +218,20 @@ class VitalSignsDatabase {
         )
       `;
 
+      // Create refresh_tokens table
+      const createRefreshTokensTableQuery = `
+        CREATE TABLE IF NOT EXISTS refresh_tokens (
+          id SERIAL PRIMARY KEY,
+          refresh_token TEXT UNIQUE NOT NULL,
+          username TEXT NOT NULL,
+          session_token TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          expires_at TIMESTAMP NOT NULL,
+          is_active BOOLEAN DEFAULT true,
+          FOREIGN KEY (session_token) REFERENCES user_sessions(session_token) ON DELETE CASCADE
+        )
+      `;
+
       // Create note_checks table
       const createNoteChecksTableQuery = `
         CREATE TABLE IF NOT EXISTS note_checks (
@@ -296,6 +310,7 @@ class VitalSignsDatabase {
       await client.query(createVitalSignsTableQuery);
       await client.query(createUserCredentialsTableQuery);
       await client.query(createUserSessionsTableQuery);
+      await client.query(createRefreshTokensTableQuery);
       await client.query(createNoteChecksTableQuery);
       await client.query(createNoteCheckQueueTableQuery);
       await client.query(createCreatedTodosTableQuery);
@@ -309,7 +324,7 @@ class VitalSignsDatabase {
       `;
       await client.query(addMd5ColumnQuery);
 
-      console.log('Database tables created/verified: processed_vital_signs, user_credentials, user_sessions, note_checks, note_check_queue, created_todos, invalid_issues');
+      console.log('Database tables created/verified: processed_vital_signs, user_credentials, user_sessions, refresh_tokens, note_checks, note_check_queue, created_todos, invalid_issues');
     } finally {
       client.release();
     }
@@ -509,6 +524,84 @@ class VitalSignsDatabase {
 
     await this.pool.query(query, [sessionToken, username, expiresAt, userAgent, ipAddress]);
     console.log(`Created session for user: ${username}`);
+  }
+
+  async createRefreshToken(refreshToken: string, sessionToken: string, username: string, expiresAt: Date): Promise<void> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      INSERT INTO refresh_tokens 
+      (refresh_token, session_token, username, expires_at) 
+      VALUES ($1, $2, $3, $4)
+    `;
+
+    await this.pool.query(query, [refreshToken, sessionToken, username, expiresAt]);
+    console.log(`Created refresh token for user: ${username}`);
+  }
+
+  async validateRefreshToken(refreshToken: string): Promise<{ username: string; sessionToken: string } | null> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    console.log('🔍 DB: Validating refresh token:', refreshToken.substring(0, 20) + '...');
+
+    const query = `
+      SELECT rt.username, rt.session_token, rt.expires_at
+      FROM refresh_tokens rt
+      JOIN user_sessions us ON rt.session_token = us.session_token
+      WHERE rt.refresh_token = $1 
+        AND rt.is_active = true 
+        AND rt.expires_at > NOW()
+        AND us.is_active = true
+    `;
+    
+    const result = await this.pool.query(query, [refreshToken]);
+
+    if (result.rows.length === 0) {
+      console.log('❌ DB: No valid refresh token found');
+      return null;
+    }
+
+    const row = result.rows[0];
+    console.log('✅ DB: Valid refresh token found for user:', row.username);
+
+    return {
+      username: row.username,
+      sessionToken: row.session_token
+    };
+  }
+
+  async invalidateRefreshToken(refreshToken: string): Promise<void> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      UPDATE refresh_tokens 
+      SET is_active = false 
+      WHERE refresh_token = $1
+    `;
+
+    await this.pool.query(query, [refreshToken]);
+    console.log(`Invalidated refresh token: ${refreshToken.substring(0, 20)}...`);
+  }
+
+  async invalidateAllRefreshTokensForSession(sessionToken: string): Promise<void> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      UPDATE refresh_tokens 
+      SET is_active = false 
+      WHERE session_token = $1
+    `;
+
+    await this.pool.query(query, [sessionToken]);
+    console.log(`Invalidated all refresh tokens for session: ${sessionToken.substring(0, 20)}...`);
   }
 
   async validateSession(sessionToken: string): Promise<{ username: string; expiresAt: Date } | null> {

@@ -22,7 +22,20 @@ export interface LoginResponse {
   username: string;
   serverUrl: string;
   sessionToken?: string;
+  refreshToken?: string;
   expiresAt?: string;
+}
+
+export interface RefreshTokenRequest {
+  refreshToken: string;
+}
+
+export interface RefreshTokenResponse {
+  success: boolean;
+  sessionToken: string;
+  refreshToken: string;
+  expiresAt: string;
+  error?: string;
 }
 
 export interface SessionValidationResponse {

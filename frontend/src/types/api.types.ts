@@ -9,6 +9,7 @@ export interface LoginResponse {
   username: string;
   serverUrl: string;
   sessionToken?: string;
+  refreshToken?: string;
   expiresAt?: string;
 }
 

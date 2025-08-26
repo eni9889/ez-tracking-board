@@ -83,8 +83,8 @@ class PatientTrackingService {
         
         // For clinic dashboard, try to auto-recover instead of immediate logout
         try {
-          const reauthed = await authService.attemptAutoReauth();
-          if (reauthed) {
+          const refreshed = await authService.attemptTokenRefresh();
+          if (refreshed) {
             console.log('✅ Auto-recovery successful - clinic dashboard stays online');
             // Could retry the request here, but for now just let user retry manually
           } else {
@@ -195,4 +195,5 @@ class PatientTrackingService {
 
 }
 
-export default new PatientTrackingService(); 
+const patientTrackingService = new PatientTrackingService();
+export default patientTrackingService; 

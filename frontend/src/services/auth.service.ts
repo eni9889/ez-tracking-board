@@ -1,38 +1,31 @@
 import axios from 'axios';
 import { LoginResponse } from '../types/api.types';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL ? `${process.env.REACT_APP_API_URL}/api` : 'http://localhost:5001/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
 // Development flag - matches the one in patientTracking.service.ts
 const USE_MOCK_DATA = process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_MOCK_DATA === 'true';
 
 interface SessionData {
   sessionToken: string;
+  refreshToken: string;
   username: string;
   expiresAt: string;
   serverUrl?: string;
 }
 
-interface CredentialData {
-  username: string;
-  password: string;
-  rememberCredentials: boolean;
-  lastLoginAt: string;
-}
+// Removed CredentialData interface for security reasons
+// Credentials should never be stored in localStorage
 
 class AuthService {
   private currentUser: string | null = null;
   private sessionToken: string | null = null;
   private readonly SESSION_STORAGE_KEY = 'ez_tracking_session';
-  private readonly CREDENTIALS_STORAGE_KEY = 'ez_tracking_credentials';
-  private storedCredentials: CredentialData | null = null;
+  // Removed CREDENTIALS_STORAGE_KEY for security - never store passwords in localStorage
 
   private sessionRestorePromise: Promise<void>;
 
   constructor() {
-    // Load stored credentials
-    this.loadStoredCredentials();
-    
     // Restore session from localStorage on service initialization (async)
     this.sessionRestorePromise = this.restoreSession().catch(error => {
       console.error('Failed to restore session:', error);
@@ -74,17 +67,17 @@ class AuthService {
           this.sessionToken = sessionData.sessionToken;
           console.log('🔄 Session restored and validated for user:', sessionData.username);
         } else {
-          console.log('🚫 Session invalid on server, attempting auto-reauth...');
-          await this.attemptAutoReauth();
+          console.log('🚫 Session invalid on server, attempting refresh...');
+          await this.attemptTokenRefresh();
         }
       } else {
-        // Session expired, attempt auto-reauth
-        console.log('⏰ Session expired locally, attempting auto-reauth...');
-        await this.attemptAutoReauth();
+        // Session expired, attempt refresh
+        console.log('⏰ Session expired locally, attempting refresh...');
+        await this.attemptTokenRefresh();
       }
     } catch (error) {
       console.error('💥 Error restoring session:', error);
-      await this.attemptAutoReauth();
+      this.clearStoredSession();
     }
   }
 
@@ -106,71 +99,66 @@ class AuthService {
     }
   }
 
-  private loadStoredCredentials(): void {
+  // Removed all credential storage methods for security reasons
+  // Passwords should never be stored in localStorage
+
+  async attemptTokenRefresh(): Promise<boolean> {
     try {
-      const storedData = localStorage.getItem(this.CREDENTIALS_STORAGE_KEY);
-      if (storedData) {
-        this.storedCredentials = JSON.parse(storedData);
-        console.log('🔐 Loaded stored credentials for clinic dashboard');
+      const storedData = localStorage.getItem(this.SESSION_STORAGE_KEY);
+      if (!storedData) {
+        console.log('❌ No session data available for token refresh');
+        return false;
       }
-    } catch (error) {
-      console.error('💥 Error loading stored credentials:', error);
-      this.storedCredentials = null;
-    }
-  }
 
-  private storeCredentials(username: string, password: string, rememberCredentials: boolean = true): void {
-    if (rememberCredentials) {
-      const credentialData: CredentialData = {
-        username,
-        password,
-        rememberCredentials,
-        lastLoginAt: new Date().toISOString()
-      };
-      
-      try {
-        localStorage.setItem(this.CREDENTIALS_STORAGE_KEY, JSON.stringify(credentialData));
-        this.storedCredentials = credentialData;
-        console.log('🔐 Credentials stored for always-on dashboard');
-      } catch (error) {
-        console.error('💥 Error storing credentials:', error);
-      }
-    }
-  }
-
-  private clearStoredCredentials(): void {
-    localStorage.removeItem(this.CREDENTIALS_STORAGE_KEY);
-    this.storedCredentials = null;
-    console.log('🗑️ Cleared stored credentials');
-  }
-
-  async attemptAutoReauth(): Promise<boolean> {
-    try {
-      if (!this.storedCredentials) {
-        console.log('❌ No stored credentials available for auto-reauth');
+      const sessionData: SessionData = JSON.parse(storedData);
+      if (!sessionData.refreshToken) {
+        console.log('❌ No refresh token available');
         this.clearStoredSession();
         return false;
       }
 
-      console.log('🔄 Attempting automatic re-authentication for clinic dashboard...');
-      console.log('📅 Last login was at:', this.storedCredentials.lastLoginAt);
+      console.log('🔄 Attempting token refresh...');
+      
+      if (USE_MOCK_DATA) {
+        console.log('🚧 Development Mode: Mock token refresh successful');
+        // Just update the expiration time for mock data
+        const newExpiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
+        const updatedSessionData = {
+          ...sessionData,
+          expiresAt: newExpiresAt
+        };
+        this.storeSession(updatedSessionData);
+        return true;
+      }
 
-      // Attempt to login with stored credentials
-      const response = await this.login(
-        this.storedCredentials.username, 
-        this.storedCredentials.password
-      );
+      const response = await axios.post(`${API_BASE_URL}/refresh-token`, {
+        refreshToken: sessionData.refreshToken
+      });
 
-      if (response.success) {
-        console.log('✅ Auto-reauth successful - clinic dashboard stays online!');
+      if (response.data.success) {
+        console.log('✅ Token refresh successful');
+        
+        // Update tokens
+        this.sessionToken = response.data.sessionToken;
+        this.currentUser = sessionData.username;
+        
+        // Store new session data
+        this.storeSession({
+          sessionToken: response.data.sessionToken,
+          refreshToken: response.data.refreshToken,
+          username: sessionData.username,
+          expiresAt: response.data.expiresAt,
+          serverUrl: sessionData.serverUrl
+        });
+        
         return true;
       } else {
-        console.log('❌ Auto-reauth failed');
+        console.log('❌ Token refresh failed');
         this.clearStoredSession();
         return false;
       }
-    } catch (error) {
-      console.error('💥 Auto-reauth error:', error);
+    } catch (error: any) {
+      console.error('💥 Token refresh error:', error);
       this.clearStoredSession();
       return false;
     }
@@ -239,12 +227,8 @@ class AuthService {
       
       if (isValid) {
         // Update the local expiration time by validating again
-        const storedData = localStorage.getItem(this.SESSION_STORAGE_KEY);
-        if (storedData) {
-          const sessionData: SessionData = JSON.parse(storedData);
-          // The validation call would have updated the last_accessed time on the server
-          console.log('✅ Session refreshed successfully');
-        }
+        // The validation call would have updated the last_accessed time on the server
+        console.log('✅ Session refreshed successfully');
       }
       
       return isValid;
@@ -254,7 +238,7 @@ class AuthService {
     }
   }
 
-  async login(username: string, password: string, rememberCredentials: boolean = true): Promise<LoginResponse> {
+  async login(username: string, password: string): Promise<LoginResponse> {
     try {
       // Mock login in development mode
       if (USE_MOCK_DATA) {
@@ -263,11 +247,13 @@ class AuthService {
         
         // Create mock session
         const mockSessionToken = 'mock_session_' + Date.now();
+        const mockRefreshToken = 'mock_refresh_' + Date.now();
         const mockExpiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(); // 8 hours
         this.sessionToken = mockSessionToken;
         
         this.storeSession({
           sessionToken: mockSessionToken,
+          refreshToken: mockRefreshToken,
           username,
           expiresAt: mockExpiresAt,
           serverUrl: process.env.REACT_APP_API_URL || 'http://localhost:5001'
@@ -280,6 +266,7 @@ class AuthService {
           username,
           serverUrl: process.env.REACT_APP_API_URL || 'http://localhost:5001',
           sessionToken: mockSessionToken,
+          refreshToken: mockRefreshToken,
           expiresAt: mockExpiresAt
         };
       }
@@ -289,20 +276,18 @@ class AuthService {
         password
       });
 
-      if (response.data.success && response.data.sessionToken && response.data.expiresAt) {
+      if (response.data.success && response.data.sessionToken && response.data.refreshToken && response.data.expiresAt) {
         this.currentUser = username;
         this.sessionToken = response.data.sessionToken;
         
         // Store session data
         this.storeSession({
           sessionToken: response.data.sessionToken,
+          refreshToken: response.data.refreshToken,
           username,
           expiresAt: response.data.expiresAt,
           serverUrl: response.data.serverUrl
         });
-
-        // Store credentials for always-on dashboard
-        this.storeCredentials(username, password, rememberCredentials);
       }
 
       return response.data;
@@ -341,19 +326,12 @@ class AuthService {
       console.log('🧹 Clearing local session data');
       this.currentUser = null;
       this.clearStoredSession();
-      // Note: We keep stored credentials for always-on dashboard
-      // Only clear them if it's a manual logout (not auto-reauth failure)
     }
   }
 
   async manualLogout(): Promise<void> {
-    // Manual logout clears everything including stored credentials
-    try {
-      await this.logout();
-    } finally {
-      this.clearStoredCredentials();
-      console.log('🏥 Manual logout - credentials cleared for clinic dashboard');
-    }
+    // Manual logout - same as regular logout now (no credentials to clear)
+    await this.logout();
   }
 
   getCurrentUser(): string | null {
@@ -396,4 +374,5 @@ class AuthService {
   }
 }
 
-export default new AuthService(); 
+const authService = new AuthService();
+export default authService; 

@@ -28,7 +28,9 @@ import {
   Encounter,
   EncounterStatus,
   StoredTokens,
-  TokenStore
+  TokenStore,
+  RefreshTokenRequest,
+  RefreshTokenResponse
 } from './types';
 
 // Load environment variables
@@ -57,10 +59,16 @@ const tokenStore: TokenStore = new Map<string, StoredTokens>();
 
 // Session configuration
 const SESSION_DURATION = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+const REFRESH_TOKEN_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
 
 // Generate secure session token
 function generateSessionToken(): string {
   return crypto.randomBytes(32).toString('hex');
+}
+
+// Generate secure refresh token
+function generateRefreshToken(): string {
+  return crypto.randomBytes(48).toString('hex');
 }
 
 // Session validation middleware
@@ -200,44 +208,50 @@ app.post('/login', async (req: Request<{}, LoginResponse | ErrorResponse, LoginR
 
     console.log(`✅ EZDerm API login successful for user: ${username}`);
 
-    const { accessToken, refreshToken, servers } = loginResponse.data;
+    const { accessToken, refreshToken: ezDermRefreshToken, servers } = loginResponse.data;
 
     // Store user credentials in database for job system
     await vitalSignsDb.storeUserCredentials(username, password);
-    await vitalSignsDb.storeTokens(username, accessToken, refreshToken, servers.app);
+    await vitalSignsDb.storeTokens(username, accessToken, ezDermRefreshToken, servers.app);
 
     // Store tokens with username as key (for backwards compatibility with existing endpoints)
     const tokenData: StoredTokens = {
       accessToken,
-      refreshToken,
+      refreshToken: ezDermRefreshToken,
       serverUrl: servers.app,
       timestamp: Date.now()
     };
     
     tokenStore.set(username, tokenData);
 
-    // Create session
+    // Create session and refresh token
     const sessionToken = generateSessionToken();
-    const expiresAt = new Date(Date.now() + SESSION_DURATION);
+    const userRefreshToken = generateRefreshToken();
+    const sessionExpiresAt = new Date(Date.now() + SESSION_DURATION);
+    const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_DURATION);
     const userAgent = req.headers['user-agent'];
     const ipAddress = req.ip || req.connection.remoteAddress;
 
-    console.log('💾 Creating session in database:', {
+    console.log('💾 Creating session and refresh token in database:', {
       username,
       sessionToken: sessionToken.substring(0, 20) + '...',
-      expiresAt: expiresAt.toISOString()
+      refreshToken: userRefreshToken.substring(0, 20) + '...',
+      sessionExpiresAt: sessionExpiresAt.toISOString(),
+      refreshExpiresAt: refreshExpiresAt.toISOString()
     });
 
-    await vitalSignsDb.createSession(sessionToken, username, expiresAt, userAgent, ipAddress);
-    console.log('✅ Session created successfully');
+    await vitalSignsDb.createSession(sessionToken, username, sessionExpiresAt, userAgent, ipAddress);
+    await vitalSignsDb.createRefreshToken(userRefreshToken, sessionToken, username, refreshExpiresAt);
+    console.log('✅ Session and refresh token created successfully');
 
-    // Return success response with session token
+    // Return success response with session and refresh tokens
     res.json({
       success: true,
       username,
       serverUrl: servers.app,
       sessionToken,
-      expiresAt: expiresAt.toISOString()
+      refreshToken: userRefreshToken,
+      expiresAt: sessionExpiresAt.toISOString()
     });
 
   } catch (error: any) {
@@ -380,6 +394,65 @@ app.post('/validate-session', async (req: Request, res: Response): Promise<void>
   } catch (error) {
     console.error('💥 Session validation error:', error);
     res.status(500).json({ valid: false, error: 'Session validation failed' });
+  }
+});
+
+// Refresh token endpoint
+app.post('/refresh-token', async (req: Request<{}, RefreshTokenResponse | ErrorResponse, RefreshTokenRequest>, res: Response<RefreshTokenResponse | ErrorResponse>): Promise<void> => {
+  try {
+    const { refreshToken } = req.body;
+    
+    console.log('🔄 Refresh token request received');
+    console.log('🔑 Refresh token (first 20 chars):', refreshToken ? refreshToken.substring(0, 20) + '...' : 'NONE');
+    
+    if (!refreshToken) {
+      console.log('❌ No refresh token provided');
+      res.status(400).json({ error: 'Refresh token is required' });
+      return;
+    }
+
+    console.log('📊 Validating refresh token in database...');
+    const tokenData = await vitalSignsDb.validateRefreshToken(refreshToken);
+    
+    if (!tokenData) {
+      console.log('❌ Refresh token not found or expired in database');
+      res.status(401).json({ error: 'Invalid or expired refresh token' });
+      return;
+    }
+
+    console.log('✅ Refresh token is valid for user:', tokenData.username);
+    
+    // Generate new session and refresh tokens
+    const newSessionToken = generateSessionToken();
+    const newRefreshToken = generateRefreshToken();
+    const sessionExpiresAt = new Date(Date.now() + SESSION_DURATION);
+    const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_DURATION);
+    const userAgent = req.headers['user-agent'];
+    const ipAddress = req.ip || req.connection.remoteAddress;
+
+    console.log('🔄 Creating new session and refresh token pair');
+    
+    // Invalidate old refresh token
+    await vitalSignsDb.invalidateRefreshToken(refreshToken);
+    
+    // Invalidate old session
+    await vitalSignsDb.deleteSession(tokenData.sessionToken);
+    
+    // Create new session and refresh token
+    await vitalSignsDb.createSession(newSessionToken, tokenData.username, sessionExpiresAt, userAgent, ipAddress);
+    await vitalSignsDb.createRefreshToken(newRefreshToken, newSessionToken, tokenData.username, refreshExpiresAt);
+    
+    console.log('✅ Token refresh successful for user:', tokenData.username);
+    
+    res.json({
+      success: true,
+      sessionToken: newSessionToken,
+      refreshToken: newRefreshToken,
+      expiresAt: sessionExpiresAt.toISOString()
+    });
+  } catch (error) {
+    console.error('💥 Token refresh error:', error);
+    res.status(500).json({ error: 'Token refresh failed' });
   }
 });
 
