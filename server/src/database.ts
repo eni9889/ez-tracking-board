@@ -85,31 +85,49 @@ class VitalSignsDatabase {
       const { runner } = require('node-pg-migrate');
       const path = require('path');
       
-      // Build database URL with SSL parameters for production
-      const sslParams = process.env.NODE_ENV === 'production' ? '?sslmode=require' : '';
-      const databaseUrl = `postgresql://${appConfig.database.user}:${appConfig.database.password}@${appConfig.database.host}:${appConfig.database.port}/${appConfig.database.database}${sslParams}`;
+      // For node-pg-migrate, we need to use dbClient approach to properly handle SSL with CA cert
+      const { Client } = require('pg');
+      
+      // Create a database client with proper SSL configuration (including CA cert)
+      const dbClient = new Client({
+        host: appConfig.database.host,
+        port: appConfig.database.port,
+        database: appConfig.database.database,
+        user: appConfig.database.user,
+        password: appConfig.database.password,
+        ssl: getSSLConfig(),
+        connectionTimeoutMillis: 10000, // 10 second timeout
+      });
 
-      // Add timeout to migration process
-      const migrationPromise = runner({
-        databaseUrl,
-        dir: path.join(__dirname, '../migrations'),
-        direction: 'up',
-        migrationsTable: 'pgmigrations',
-        schema: 'public',
-        createSchema: true,
-        checkOrder: true,
-        singleTransaction: true,
-        lock: true,
-        verbose: true,
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-      });
+      // Connect the client before passing to runner
+      await dbClient.connect();
+
+      try {
+        // Add timeout to migration process
+        const migrationPromise = runner({
+          dbClient,
+          dir: path.join(__dirname, '../migrations'),
+          direction: 'up',
+          migrationsTable: 'pgmigrations',
+          schema: 'public',
+          createSchema: true,
+          checkOrder: true,
+          singleTransaction: true,
+          lock: true,
+          verbose: true,
+        });
+        
+        // Set a timeout for migrations (30 seconds)
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Migration timeout after 30 seconds')), 30000);
+        });
+        
+        await Promise.race([migrationPromise, timeoutPromise]);
+      } finally {
+        // Always close the client
+        await dbClient.end();
+      }
       
-      // Set a timeout for migrations (30 seconds)
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Migration timeout after 30 seconds')), 30000);
-      });
-      
-      await Promise.race([migrationPromise, timeoutPromise]);
       console.log('✅ Database migrations completed successfully');
       
     } catch (error) {
