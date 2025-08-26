@@ -36,6 +36,7 @@ ingress:
   rules:
   - component:
       name: backend
+      preserve_path_prefix: true
     match:
       path:
         prefix: /api
@@ -149,22 +150,22 @@ services:
   - key: BULL_BOARD_USERNAME
     scope: RUN_AND_BUILD_TIME
     type: SECRET
-    value: EV[1:bull_board_username_secret_key:base64_encoded_username]
-  - key: BULL_BOARD_PASSWORD
-    scope: RUN_AND_BUILD_TIME
-    type: SECRET
-    value: EV[1:bull_board_password_secret_key:base64_encoded_secure_password]
+    value: EV[1:t8nsHbVPol4s+gRvdem1Wifz5sI0d4xq:q7O22FEPKF9WygdgAt9vvxbtA24avhDljb5nh4GpEM0fUTk=]
   - key: BULL_BOARD_SESSION_SECRET
     scope: RUN_AND_BUILD_TIME
     type: SECRET
-    value: EV[1:bull_board_session_secret_key:base64_encoded_session_secret]
+    value: EV[1:MN/d9yflO1OAwAY7OM9tPgcLbOdSVelj:aAK5m/1BwIp//s6pNZD62lW0VKuHifPQ0R8MUb6Ngq3dGE+wjHR1vhDFu0MP]
+  - key: BULL_BOARD_PASSWORD
+    scope: RUN_AND_BUILD_TIME
+    type: SECRET
+    value: EV[1:6tq6jbk9sLtzfF4g9dc6IOvjgo+9oskz:G63urXiHFje/hpg32otePMFppuhov4Bi1c0P/FSvIIp+9l4=]
   github:
     branch: production
     deploy_on_push: true
     repo: eni9889/ez-tracking-board
   health_check:
     failure_threshold: 3
-    http_path: /health
+    http_path: /bull-board/health
     initial_delay_seconds: 60
     period_seconds: 10
     success_threshold: 1

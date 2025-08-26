@@ -156,7 +156,11 @@ const AINoteChecker: React.FC = () => {
 
   const handleViewNote = (note: IncompleteNote) => {
     navigate(`/ai-note-checker/${note.encounterId}`, {
-      state: { note }
+      state: { 
+        note,
+        currentFilter,
+        filteredNotes
+      }
     });
   };
 

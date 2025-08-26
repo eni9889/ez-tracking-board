@@ -173,11 +173,7 @@ createBullBoard({
   serverAdapter: serverAdapter,
 });
 
-// Mount the Bull Board UI with authentication
-// Mount Bull Board UI (base path is handled by serverAdapter)
-app.use('/', requireAuth, serverAdapter.getRouter());
-
-// Health check endpoint
+// Health check endpoints (accessible without authentication) - MUST be before auth middleware
 app.get('/health', (req: express.Request, res: express.Response) => {
   res.json({
     status: 'healthy',
@@ -190,6 +186,29 @@ app.get('/health', (req: express.Request, res: express.Response) => {
     }
   });
 });
+
+// Also support health check at the base path (for production routing)
+// Always create this endpoint regardless of environment for testing
+app.get('/bull-board/health', (req: express.Request, res: express.Response) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    redis: redis.status,
+    queues: {
+      vitalSigns: 'vital-signs-processing',
+      aiNoteScan: 'ai-note-scan', 
+      aiNoteCheck: 'ai-note-check'
+    }
+  });
+});
+
+console.log('📋 Health check endpoints configured:');
+console.log('   - /health (always available)');
+console.log('   - /bull-board/health (for production)');
+
+// Mount the Bull Board UI with authentication
+// Mount Bull Board UI (base path is handled by serverAdapter)
+app.use('/', requireAuth, serverAdapter.getRouter());
 
 // Error handling
 app.use((error: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
