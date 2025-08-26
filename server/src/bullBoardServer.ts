@@ -103,10 +103,10 @@ async function startBullBoardServer() {
     await redis.ping();
     console.log('✅ Redis connection established');
     
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Bull Board is running on port ${PORT}`);
-      console.log(`📊 Dashboard: http://localhost:${PORT}`);
-      console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+      console.log(`📊 Dashboard: http://0.0.0.0:${PORT}`);
+      console.log(`🏥 Health check: http://0.0.0.0:${PORT}/health`);
       console.log(`📋 Monitoring queues:`);
       console.log(`   - Vital Signs Processing: vital-signs-processing`);
       console.log(`   - AI Note Scan: ai-note-scan`);
