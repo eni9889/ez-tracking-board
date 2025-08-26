@@ -1,5 +1,6 @@
 import { Pool, PoolClient, QueryResult } from 'pg';
 import { appConfig } from './config';
+import { MigrationRunner } from './migrations/MigrationRunner';
 
 class VitalSignsDatabase {
   private pool: Pool | null = null;
@@ -29,12 +30,31 @@ class VitalSignsDatabase {
       
       console.log('Connected to PostgreSQL database for vital signs tracking');
       
-      // Create tables if they don't exist
-      await this.createTables();
+      // Run migrations in production, create tables directly in development
+      if (process.env.NODE_ENV === 'production') {
+        console.log('Running database migrations...');
+        await this.runMigrations();
+      } else {
+        console.log('Development mode: Creating tables directly...');
+        // Create tables if they don't exist (for backward compatibility in development)
+        await this.createTables();
+      }
     } catch (error) {
       console.error('Error connecting to PostgreSQL database:', error);
       throw error;
     }
+  }
+
+  /**
+   * Run database migrations
+   */
+  async runMigrations(): Promise<void> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const migrationRunner = new MigrationRunner(this.pool);
+    await migrationRunner.migrate();
   }
 
   private async createTables(): Promise<void> {

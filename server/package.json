@@ -12,7 +12,12 @@
     "bull-board:dev": "nodemon src/bullBoardServer.ts",
     "build": "tsc",
     "build:watch": "tsc --watch",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "migrate": "ts-node src/migrations/migrate.ts migrate",
+    "migrate:rollback": "ts-node src/migrations/migrate.ts rollback",
+    "migrate:status": "ts-node src/migrations/migrate.ts status",
+    "migrate:create": "ts-node src/migrations/migrate.ts create",
+    "migrate:prod": "node dist/migrations/migrate.js migrate"
   },
   "dependencies": {
     "@bull-board/api": "^6.12.6",
