@@ -1,7 +1,8 @@
 {
-  "name": "ez-tracking-board",
+  "name": "ez-tracking-board-frontend",
   "version": "0.1.0",
   "private": true,
+  "description": "Frontend React application for EZ Patient Tracking Dashboard",
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
@@ -26,16 +27,14 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "concurrently \"npm run server\" \"npm run client\"",
-    "server": "cd server && npm run dev",
-    "client": "react-scripts start",
-    "start:frontend": "react-scripts start",
-    "start:backend": "cd server && npm run dev",
-    "start:prod": "concurrently \"npm run server:prod\" \"npm run client\"",
-    "server:prod": "cd server && npm start",
+    "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "test:coverage": "react-scripts test --coverage --watchAll=false",
+    "eject": "react-scripts eject",
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix",
+    "type-check": "tsc --noEmit"
   },
   "eslintConfig": {
     "extends": [
@@ -55,7 +54,9 @@
       "last 1 safari version"
     ]
   },
-  "devDependencies": {
-    "concurrently": "^9.2.0"
-  }
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "homepage": "."
 }

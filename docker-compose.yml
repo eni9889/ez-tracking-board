@@ -114,7 +114,7 @@ services:
   # Frontend React App
   frontend:
     build:
-      context: .
+      context: ./frontend
       dockerfile: Dockerfile.dev
     container_name: ez-tracking-frontend
     ports:
@@ -123,8 +123,8 @@ services:
       REACT_APP_API_URL: http://localhost:5001
       CHOKIDAR_USEPOLLING: true
     volumes:
-      - ./src:/app/src
-      - ./public:/app/public
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
       - /app/node_modules
     depends_on:
       - backend

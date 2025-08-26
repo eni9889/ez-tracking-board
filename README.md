@@ -70,11 +70,13 @@ cd ez-tracking-board
 
 2. Install dependencies:
 ```bash
-# Frontend dependencies
-npm install
+# Install all dependencies (root, frontend, and backend)
+npm run install:all
 
-# Backend dependencies
-cd server && npm install
+# Or install individually:
+npm install                    # Root dependencies
+cd frontend && npm install     # Frontend dependencies
+cd ../server && npm install    # Backend dependencies
 cd ..
 ```
 
@@ -91,11 +93,19 @@ createdb vital_signs_tracking
 
 4. Start the services:
 ```bash
+# Start both frontend and backend together
+npm start
+
+# Or start individually:
+npm run start:backend    # Backend only
+npm run start:frontend   # Frontend only
+
+# Or in separate terminals:
 # Terminal 1: Backend
 cd server && npm run dev
 
-# Terminal 2: Frontend
-npm start
+# Terminal 2: Frontend  
+cd frontend && npm start
 ```
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser
@@ -113,13 +123,24 @@ npm start
 ### Project Structure
 
 ```
-src/
-├── components/      # Reusable UI components
-├── contexts/        # React contexts (Auth)
-├── pages/          # Page components (Login, Dashboard)
-├── services/       # API services
-├── types/          # TypeScript type definitions
-└── utils/          # Utility functions
+ez-tracking-board/
+├── frontend/           # React frontend application
+│   ├── src/
+│   │   ├── components/     # Reusable UI components
+│   │   ├── contexts/       # React contexts (Auth)
+│   │   ├── pages/         # Page components (Login, Dashboard)
+│   │   ├── services/      # API services
+│   │   └── types/         # TypeScript type definitions
+│   ├── public/            # Static assets
+│   ├── package.json       # Frontend dependencies
+│   └── Dockerfile.dev     # Frontend Docker config
+├── server/            # Node.js backend application
+│   ├── src/              # TypeScript source code
+│   ├── package.json      # Backend dependencies
+│   └── Dockerfile        # Backend Docker config
+├── .do/              # DigitalOcean App Platform config
+├── docker-compose.yml # Local development setup
+└── package.json      # Root monorepo configuration
 ```
 
 ### Key Technologies

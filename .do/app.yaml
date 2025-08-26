@@ -8,7 +8,7 @@ region: nyc
 static_sites:
   # Frontend React Application
   - name: frontend
-    source_dir: /
+    source_dir: /frontend
     github:
       repo: eni9889/ez-tracking-board
       branch: main
@@ -51,25 +51,25 @@ services:
       - key: PORT
         value: "5001"
       - key: DB_HOST
-        value: ${db.HOSTNAME}
+        value: ${ez-tracking-postgres.HOSTNAME}
       - key: DB_PORT
-        value: ${db.PORT}
+        value: ${ez-tracking-postgres.PORT}
       - key: DB_NAME
-        value: ${db.DATABASE}
+        value: ${ez-tracking-postgres.DATABASE}
       - key: DB_USER
-        value: ${db.USERNAME}
+        value: ${ez-tracking-postgres.USERNAME}
       - key: DB_PASSWORD
-        value: ${db.PASSWORD}
+        value: ${ez-tracking-postgres.PASSWORD}
       - key: DATABASE_URL
-        value: ${db.DATABASE_URL}
+        value: ${ez-tracking-postgres.DATABASE_URL}
       - key: REDIS_HOST
-        value: ${redis.HOSTNAME}
+        value: ${ez-tracking-redis.HOSTNAME}
       - key: REDIS_PORT
-        value: ${redis.PORT}
+        value: ${ez-tracking-redis.PORT}
       - key: REDIS_PASSWORD
-        value: ${redis.PASSWORD}
+        value: ${ez-tracking-redis.PASSWORD}
       - key: REDIS_URL
-        value: ${redis.DATABASE_URL}
+        value: ${ez-tracking-redis.DATABASE_URL}
       - key: CORS_ORIGIN
         value: ${frontend.PUBLIC_URL}
       - key: DEBUG_AXIOS
@@ -119,13 +119,13 @@ services:
       - key: BULL_BOARD_PORT
         value: "3001"
       - key: REDIS_HOST
-        value: ${redis.HOSTNAME}
+        value: ${ez-tracking-redis.HOSTNAME}
       - key: REDIS_PORT
-        value: ${redis.PORT}
+        value: ${ez-tracking-redis.PORT}
       - key: REDIS_PASSWORD
-        value: ${redis.PASSWORD}
+        value: ${ez-tracking-redis.PASSWORD}
       - key: REDIS_URL
-        value: ${redis.DATABASE_URL}
+        value: ${ez-tracking-redis.DATABASE_URL}
 
 # Workers
 workers:
@@ -144,25 +144,25 @@ workers:
       - key: NODE_ENV
         value: production
       - key: DB_HOST
-        value: ${db.HOSTNAME}
+        value: ${ez-tracking-postgres.HOSTNAME}
       - key: DB_PORT
-        value: ${db.PORT}
+        value: ${ez-tracking-postgres.PORT}
       - key: DB_NAME
-        value: ${db.DATABASE}
+        value: ${ez-tracking-postgres.DATABASE}
       - key: DB_USER
-        value: ${db.USERNAME}
+        value: ${ez-tracking-postgres.USERNAME}
       - key: DB_PASSWORD
-        value: ${db.PASSWORD}
+        value: ${ez-tracking-postgres.PASSWORD}
       - key: DATABASE_URL
-        value: ${db.DATABASE_URL}
+        value: ${ez-tracking-postgres.DATABASE_URL}
       - key: REDIS_HOST
-        value: ${redis.HOSTNAME}
+        value: ${ez-tracking-redis.HOSTNAME}
       - key: REDIS_PORT
-        value: ${redis.PORT}
+        value: ${ez-tracking-redis.PORT}
       - key: REDIS_PASSWORD
-        value: ${redis.PASSWORD}
+        value: ${ez-tracking-redis.PASSWORD}
       - key: REDIS_URL
-        value: ${redis.DATABASE_URL}
+        value: ${ez-tracking-redis.DATABASE_URL}
       - key: DEBUG_AXIOS
         value: "false"
       - key: CLAUDE_API_KEY
