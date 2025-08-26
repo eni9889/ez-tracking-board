@@ -1,0 +1,206 @@
+name: ez-tracking-board
+region: nyc
+
+# DigitalOcean App Platform specification for EZ Tracking Board
+# This mirrors the docker-compose.yml setup but uses DO managed services for production
+
+services:
+  # Frontend React Application
+  - name: frontend
+    type: static
+    source_dir: /
+    github:
+      repo: your-github-username/ez-tracking-board
+      branch: main
+      deploy_on_push: true
+    build_command: npm ci && npm run build
+    output_dir: build
+    routes:
+      - path: /
+    envs:
+      - key: REACT_APP_API_URL
+        value: ${backend.PUBLIC_URL}
+      - key: REACT_APP_USE_MOCK_DATA
+        value: "false"
+      - key: NODE_ENV
+        value: production
+
+  # Backend API Service
+  - name: backend
+    type: service
+    source_dir: /server
+    github:
+      repo: your-github-username/ez-tracking-board
+      branch: main
+      deploy_on_push: true
+    dockerfile_path: server/Dockerfile
+    http_port: 5001
+    instance_count: 2
+    instance_size_slug: basic-xxs
+    health_check:
+      http_path: /api/health
+      initial_delay_seconds: 60
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "5001"
+      - key: DB_HOST
+        value: ${db.HOSTNAME}
+      - key: DB_PORT
+        value: ${db.PORT}
+      - key: DB_NAME
+        value: ${db.DATABASE}
+      - key: DB_USER
+        value: ${db.USERNAME}
+      - key: DB_PASSWORD
+        value: ${db.PASSWORD}
+      - key: DATABASE_URL
+        value: ${db.DATABASE_URL}
+      - key: REDIS_HOST
+        value: ${redis.HOSTNAME}
+      - key: REDIS_PORT
+        value: ${redis.PORT}
+      - key: REDIS_PASSWORD
+        value: ${redis.PASSWORD}
+      - key: REDIS_URL
+        value: ${redis.DATABASE_URL}
+      - key: CORS_ORIGIN
+        value: ${frontend.PUBLIC_URL}
+      - key: DEBUG_AXIOS
+        value: "false"
+      - key: CLAUDE_API_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+    routes:
+      - path: /api
+
+  # Background Worker Service
+  - name: worker
+    type: worker
+    source_dir: /server
+    github:
+      repo: your-github-username/ez-tracking-board
+      branch: main
+      deploy_on_push: true
+    dockerfile_path: server/Dockerfile
+    run_command: node dist/jobProcessor.js
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: DB_HOST
+        value: ${db.HOSTNAME}
+      - key: DB_PORT
+        value: ${db.PORT}
+      - key: DB_NAME
+        value: ${db.DATABASE}
+      - key: DB_USER
+        value: ${db.USERNAME}
+      - key: DB_PASSWORD
+        value: ${db.PASSWORD}
+      - key: DATABASE_URL
+        value: ${db.DATABASE_URL}
+      - key: REDIS_HOST
+        value: ${redis.HOSTNAME}
+      - key: REDIS_PORT
+        value: ${redis.PORT}
+      - key: REDIS_PASSWORD
+        value: ${redis.PASSWORD}
+      - key: REDIS_URL
+        value: ${redis.DATABASE_URL}
+      - key: DEBUG_AXIOS
+        value: "false"
+      - key: CLAUDE_API_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+
+  # Bull Board Job Monitoring (Optional - can be disabled in production)
+  - name: bull-board
+    type: service
+    source_dir: /server
+    github:
+      repo: your-github-username/ez-tracking-board
+      branch: main
+      deploy_on_push: true
+    dockerfile_path: server/Dockerfile
+    http_port: 3001
+    run_command: node src/bullBoardServer.js
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    health_check:
+      http_path: /
+      initial_delay_seconds: 30
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: BULL_BOARD_PORT
+        value: "3001"
+      - key: REDIS_HOST
+        value: ${redis.HOSTNAME}
+      - key: REDIS_PORT
+        value: ${redis.PORT}
+      - key: REDIS_PASSWORD
+        value: ${redis.PASSWORD}
+      - key: REDIS_URL
+        value: ${redis.DATABASE_URL}
+    routes:
+      - path: /bull-board
+
+# Managed Database Services
+databases:
+  # PostgreSQL Database
+  - name: db
+    engine: PG
+    version: "14"
+    size: db-s-1vcpu-1gb
+    num_nodes: 1
+    production: true
+
+  # Redis Cache
+  - name: redis
+    engine: REDIS
+    version: "7"
+    size: db-s-1vcpu-1gb
+    num_nodes: 1
+    production: true
+
+# Domain and Alerts (Optional)
+domains:
+  - domain: your-domain.com
+    type: PRIMARY
+    wildcard: false
+    zone: your-domain.com
+
+alerts:
+  - rule: CPU_UTILIZATION
+    disabled: false
+    value: 80
+  - rule: MEM_UTILIZATION
+    disabled: false
+    value: 80
+  - rule: RESTART_COUNT
+    disabled: false
+    value: 10
+
+# Features
+features:
+  - buildpack-stack=ubuntu-18
+
+# Ingress (Load Balancer Configuration)
+ingress:
+  load_balancer:
+    algorithm: round_robin
+    sticky_sessions:
+      type: cookies
+      cookie_name: _do_lb
+      cookie_ttl_seconds: 300
