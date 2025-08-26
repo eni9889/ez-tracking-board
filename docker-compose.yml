@@ -35,6 +35,7 @@ services:
     container_name: ez-tracking-migrate
     environment:
       NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/vital_signs_tracking
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: vital_signs_tracking

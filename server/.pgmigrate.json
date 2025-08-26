@@ -1,11 +1,7 @@
 {
-  "host": "localhost",
-  "port": 5432,
-  "database": "vital_signs_tracking",
-  "user": "postgres",
-  "password": "postgres",
+  "database-url-var": "DATABASE_URL",
   "migration-filename-format": "utc",
-  "migration-file-language": "ts",
+  "migration-file-language": "js",
   "dir": "migrations",
   "schema": "public",
   "create-schema": true,

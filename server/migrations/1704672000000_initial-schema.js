@@ -1,8 +1,6 @@
-import { MigrationBuilder, ColumnDefinitions } from 'node-pg-migrate';
+const shorthands = undefined;
 
-export const shorthands: ColumnDefinitions | undefined = undefined;
-
-export async function up(pgm: MigrationBuilder): Promise<void> {
+async function up(pgm) {
   // Create processed_vital_signs table
   pgm.createTable('processed_vital_signs', {
     id: 'id',
@@ -136,7 +134,7 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
   pgm.createIndex('note_check_queue', 'status');
 }
 
-export async function down(pgm: MigrationBuilder): Promise<void> {
+async function down(pgm) {
   // Drop tables in reverse order to respect foreign key constraints
   pgm.dropTable('invalid_issues', { cascade: true });
   pgm.dropTable('created_todos', { cascade: true });
@@ -146,3 +144,5 @@ export async function down(pgm: MigrationBuilder): Promise<void> {
   pgm.dropTable('user_credentials', { cascade: true });
   pgm.dropTable('processed_vital_signs', { cascade: true });
 }
+
+module.exports = { up, down, shorthands };
