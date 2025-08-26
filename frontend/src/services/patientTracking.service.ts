@@ -3,7 +3,7 @@ import { Encounter, EncountersRequest, EncountersResponse } from '../types/api.t
 import authService from './auth.service';
 import { mockEncounters } from './mockData';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL ? `${process.env.REACT_APP_API_URL}/api` : 'http://localhost:5001/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://0.0.0.0:5001';
 
 // Development flag - set to true to use mock data
 const USE_MOCK_DATA = process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_MOCK_DATA === 'true';
@@ -83,8 +83,8 @@ class PatientTrackingService {
         
         // For clinic dashboard, try to auto-recover instead of immediate logout
         try {
-          const reauthed = await authService.attemptAutoReauth();
-          if (reauthed) {
+          const refreshed = await authService.attemptTokenRefresh();
+          if (refreshed) {
             console.log('✅ Auto-recovery successful - clinic dashboard stays online');
             // Could retry the request here, but for now just let user retry manually
           } else {
@@ -195,4 +195,5 @@ class PatientTrackingService {
 
 }
 
-export default new PatientTrackingService(); 
+const patientTrackingService = new PatientTrackingService();
+export default patientTrackingService; 

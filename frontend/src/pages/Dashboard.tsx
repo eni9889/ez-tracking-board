@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -13,10 +13,7 @@ import {
   Alert,
   Tooltip,
   IconButton,
-  CircularProgress,
-  Fade,
-  Slide,
-  Collapse
+  CircularProgress
 } from '@mui/material';
 import {
   LocalHospital,
@@ -24,7 +21,6 @@ import {
   Refresh,
   Person,
   Schedule,
-  CheckCircle,
   Login,
   MeetingRoom,
   MedicalServices,
@@ -50,10 +46,11 @@ const Dashboard: React.FC = () => {
   const [previousEncounters, setPreviousEncounters] = useState<Encounter[]>([]);
   const [changedRows, setChangedRows] = useState<Set<string>>(new Set());
   const [newRows, setNewRows] = useState<Set<string>>(new Set());
-  const [sessionTimeRemaining, setSessionTimeRemaining] = useState<number | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [sessionTimeRemaining, setSessionTimeRemaining] = useState<number | null>(null); // Used for session monitoring
   const [deletingRows, setDeletingRows] = useState<Set<string>>(new Set());
 
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
 
   // Check if we're in mock data mode
@@ -61,7 +58,7 @@ const Dashboard: React.FC = () => {
 
 
 
-  const fetchEncounters = async (isRefresh = false) => {
+  const fetchEncounters = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) {
         setRefreshing(true);
@@ -138,7 +135,7 @@ const Dashboard: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   // Sort encounters by room number, including those being deleted for animation
   const getAllEncounters = () => {
@@ -182,13 +179,13 @@ const Dashboard: React.FC = () => {
         setSessionTimeRemaining(sessionInfo.timeRemaining);
         
         if (sessionInfo.timeRemaining !== null && sessionInfo.timeRemaining < 60 * 60 * 1000) { // 1 hour
-          console.log('⚠️ Session expiring soon, attempting auto-reauth...');
-          const reauthed = await authService.attemptAutoReauth();
-          if (!reauthed) {
-            console.log('❌ Auto-reauth failed - clinic dashboard needs attention');
+          console.log('⚠️ Session expiring soon, attempting token refresh...');
+          const refreshed = await authService.attemptTokenRefresh();
+          if (!refreshed) {
+            console.log('❌ Token refresh failed - clinic dashboard needs attention');
             setError('Session expired. Dashboard will attempt to reconnect automatically.');
           } else {
-            console.log('✅ Auto-reauth successful - clinic dashboard stays online');
+            console.log('✅ Token refresh successful - clinic dashboard stays online');
             setError(null); // Clear any previous errors
           }
         }
@@ -201,7 +198,7 @@ const Dashboard: React.FC = () => {
       clearInterval(interval);
       clearInterval(sessionCheckInterval);
     };
-  }, []);
+  }, [fetchEncounters]);
 
   const handleLogout = async () => {
     try {

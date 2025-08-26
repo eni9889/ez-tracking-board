@@ -53,7 +53,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsLoading(true);
       setError(null);
       
-      await authService.login(username, password, persistentLogin);
+      await authService.login(username, password);
       setUser({ username });
     } catch (err: any) {
       setError(err.message || 'Login failed');

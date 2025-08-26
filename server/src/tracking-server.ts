@@ -28,7 +28,9 @@ import {
   Encounter,
   EncounterStatus,
   StoredTokens,
-  TokenStore
+  TokenStore,
+  RefreshTokenRequest,
+  RefreshTokenResponse
 } from './types';
 
 // Load environment variables
@@ -50,17 +52,23 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
-app.use('/api/', limiter);
+app.use('/', limiter);
 
 // Store tokens in memory (in production, use Redis or a database)
 const tokenStore: TokenStore = new Map<string, StoredTokens>();
 
 // Session configuration
 const SESSION_DURATION = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+const REFRESH_TOKEN_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
 
 // Generate secure session token
 function generateSessionToken(): string {
   return crypto.randomBytes(32).toString('hex');
+}
+
+// Generate secure refresh token
+function generateRefreshToken(): string {
+  return crypto.randomBytes(48).toString('hex');
 }
 
 // Session validation middleware
@@ -97,7 +105,7 @@ async function validateSession(req: Request, res: Response, next: any): Promise<
 
 // EZDerm API endpoints
 const EZDERM_LOGIN_URL = 'https://login.ezinfra.net/api/login';
-const EZDERM_REFRESH_URL = 'https://login.ezinfra.net/api/refresh';
+const EZDERM_REFRESH_URL = 'https://login.ezinfra.net/api/refreshToken/getAccessToken';
 const EZDERM_API_BASE = 'https://srvprod.ezinfra.net';
 
 // Constants
@@ -164,7 +172,7 @@ const transformEZDermEncounter = (encounter: EZDermEncounter): Encounter => {
 };
 
 // Login endpoint
-app.post('/api/login', async (req: Request<{}, LoginResponse | ErrorResponse, LoginRequest>, res: Response<LoginResponse | ErrorResponse>) => {
+app.post('/login', async (req: Request<{}, LoginResponse | ErrorResponse, LoginRequest>, res: Response<LoginResponse | ErrorResponse>) => {
   try {
     console.log('🔐 Login attempt received');
     const { username, password } = req.body;
@@ -200,44 +208,50 @@ app.post('/api/login', async (req: Request<{}, LoginResponse | ErrorResponse, Lo
 
     console.log(`✅ EZDerm API login successful for user: ${username}`);
 
-    const { accessToken, refreshToken, servers } = loginResponse.data;
+    const { accessToken, refreshToken: ezDermRefreshToken, servers } = loginResponse.data;
 
     // Store user credentials in database for job system
     await vitalSignsDb.storeUserCredentials(username, password);
-    await vitalSignsDb.storeTokens(username, accessToken, refreshToken, servers.app);
+    await vitalSignsDb.storeTokens(username, accessToken, ezDermRefreshToken, servers.app);
 
     // Store tokens with username as key (for backwards compatibility with existing endpoints)
     const tokenData: StoredTokens = {
       accessToken,
-      refreshToken,
+      refreshToken: ezDermRefreshToken,
       serverUrl: servers.app,
       timestamp: Date.now()
     };
     
     tokenStore.set(username, tokenData);
 
-    // Create session
+    // Create session and refresh token
     const sessionToken = generateSessionToken();
-    const expiresAt = new Date(Date.now() + SESSION_DURATION);
+    const userRefreshToken = generateRefreshToken();
+    const sessionExpiresAt = new Date(Date.now() + SESSION_DURATION);
+    const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_DURATION);
     const userAgent = req.headers['user-agent'];
     const ipAddress = req.ip || req.connection.remoteAddress;
 
-    console.log('💾 Creating session in database:', {
+    console.log('💾 Creating session and refresh token in database:', {
       username,
       sessionToken: sessionToken.substring(0, 20) + '...',
-      expiresAt: expiresAt.toISOString()
+      refreshToken: userRefreshToken.substring(0, 20) + '...',
+      sessionExpiresAt: sessionExpiresAt.toISOString(),
+      refreshExpiresAt: refreshExpiresAt.toISOString()
     });
 
-    await vitalSignsDb.createSession(sessionToken, username, expiresAt, userAgent, ipAddress);
-    console.log('✅ Session created successfully');
+    await vitalSignsDb.createSession(sessionToken, username, sessionExpiresAt, userAgent, ipAddress);
+    await vitalSignsDb.createRefreshToken(userRefreshToken, sessionToken, username, refreshExpiresAt);
+    console.log('✅ Session and refresh token created successfully');
 
-    // Return success response with session token
+    // Return success response with session and refresh tokens
     res.json({
       success: true,
       username,
       serverUrl: servers.app,
       sessionToken,
-      expiresAt: expiresAt.toISOString()
+      refreshToken: userRefreshToken,
+      expiresAt: sessionExpiresAt.toISOString()
     });
 
   } catch (error: any) {
@@ -262,7 +276,7 @@ app.post('/api/login', async (req: Request<{}, LoginResponse | ErrorResponse, Lo
 });
 
 // Get encounters endpoint
-app.post('/api/encounters', validateSession, async (req: Request<{}, EncountersResponse | ErrorResponse, EncountersRequest>, res: Response<EncountersResponse | ErrorResponse>) => {
+app.post('/encounters', validateSession, async (req: Request<{}, EncountersResponse | ErrorResponse, EncountersRequest>, res: Response<EncountersResponse | ErrorResponse>) => {
   try {
     const username = (req as any).user.username; // From session validation middleware
     const { dateRangeStart, dateRangeEnd, clinicId, providerIds } = req.body;
@@ -345,7 +359,7 @@ app.post('/api/encounters', validateSession, async (req: Request<{}, EncountersR
 });
 
 // Session validation endpoint
-app.post('/api/validate-session', async (req: Request, res: Response): Promise<void> => {
+app.post('/validate-session', async (req: Request, res: Response): Promise<void> => {
   try {
     const sessionToken = req.headers.authorization?.replace('Bearer ', '');
     
@@ -383,8 +397,67 @@ app.post('/api/validate-session', async (req: Request, res: Response): Promise<v
   }
 });
 
+// Refresh token endpoint
+app.post('/refresh-token', async (req: Request<{}, RefreshTokenResponse | ErrorResponse, RefreshTokenRequest>, res: Response<RefreshTokenResponse | ErrorResponse>): Promise<void> => {
+  try {
+    const { refreshToken } = req.body;
+    
+    console.log('🔄 Refresh token request received');
+    console.log('🔑 Refresh token (first 20 chars):', refreshToken ? refreshToken.substring(0, 20) + '...' : 'NONE');
+    
+    if (!refreshToken) {
+      console.log('❌ No refresh token provided');
+      res.status(400).json({ error: 'Refresh token is required' });
+      return;
+    }
+
+    console.log('📊 Validating refresh token in database...');
+    const tokenData = await vitalSignsDb.validateRefreshToken(refreshToken);
+    
+    if (!tokenData) {
+      console.log('❌ Refresh token not found or expired in database');
+      res.status(401).json({ error: 'Invalid or expired refresh token' });
+      return;
+    }
+
+    console.log('✅ Refresh token is valid for user:', tokenData.username);
+    
+    // Generate new session and refresh tokens
+    const newSessionToken = generateSessionToken();
+    const newRefreshToken = generateRefreshToken();
+    const sessionExpiresAt = new Date(Date.now() + SESSION_DURATION);
+    const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_DURATION);
+    const userAgent = req.headers['user-agent'];
+    const ipAddress = req.ip || req.connection.remoteAddress;
+
+    console.log('🔄 Creating new session and refresh token pair');
+    
+    // Invalidate old refresh token
+    await vitalSignsDb.invalidateRefreshToken(refreshToken);
+    
+    // Invalidate old session
+    await vitalSignsDb.deleteSession(tokenData.sessionToken);
+    
+    // Create new session and refresh token
+    await vitalSignsDb.createSession(newSessionToken, tokenData.username, sessionExpiresAt, userAgent, ipAddress);
+    await vitalSignsDb.createRefreshToken(newRefreshToken, newSessionToken, tokenData.username, refreshExpiresAt);
+    
+    console.log('✅ Token refresh successful for user:', tokenData.username);
+    
+    res.json({
+      success: true,
+      sessionToken: newSessionToken,
+      refreshToken: newRefreshToken,
+      expiresAt: sessionExpiresAt.toISOString()
+    });
+  } catch (error) {
+    console.error('💥 Token refresh error:', error);
+    res.status(500).json({ error: 'Token refresh failed' });
+  }
+});
+
 // Debug endpoint to check sessions in database (development only)
-app.get('/api/debug/sessions', async (req: Request, res: Response) => {
+app.get('/debug/sessions', async (req: Request, res: Response) => {
   if (process.env.NODE_ENV === 'production') {
     res.status(404).json({ error: 'Not found' });
     return;
@@ -400,7 +473,7 @@ app.get('/api/debug/sessions', async (req: Request, res: Response) => {
 });
 
 // Logout endpoint
-app.post('/api/logout', async (req: Request<{}, { success: boolean }, LogoutRequest>, res: Response<{ success: boolean }>) => {
+app.post('/logout', async (req: Request<{}, { success: boolean }, LogoutRequest>, res: Response<{ success: boolean }>) => {
   try {
     const sessionToken = req.headers.authorization?.replace('Bearer ', '');
     const { username } = req.body;
@@ -426,7 +499,7 @@ app.post('/api/logout', async (req: Request<{}, { success: boolean }, LogoutRequ
 });
 
 // Health check endpoint
-app.get('/api/health', (req: Request, res: Response<HealthResponse>) => {
+app.get('/health', (req: Request, res: Response<HealthResponse>) => {
   console.log('🏥 Health check requested');
   res.json({ 
     status: 'healthy', 
@@ -439,7 +512,7 @@ app.get('/api/health', (req: Request, res: Response<HealthResponse>) => {
 // Vital signs management endpoints
 
 // Process vital signs carryforward for specific encounter
-app.post('/api/vital-signs/process/:encounterId', validateSession, async (req: Request, res: Response) => {
+app.post('/vital-signs/process/:encounterId', validateSession, async (req: Request, res: Response) => {
   try {
     const encounterId = req.params.encounterId;
     const username = (req as any).user.username; // From session validation middleware
@@ -515,7 +588,7 @@ app.post('/api/vital-signs/process/:encounterId', validateSession, async (req: R
 });
 
 // Process vital signs carryforward for all eligible encounters
-app.post('/api/vital-signs/process-all', validateSession, async (req: Request, res: Response) => {
+app.post('/vital-signs/process-all', validateSession, async (req: Request, res: Response) => {
   try {
     const username = (req as any).user.username; // From session validation middleware
     
@@ -572,7 +645,7 @@ app.post('/api/vital-signs/process-all', validateSession, async (req: Request, r
 });
 
 // Get vital signs processing statistics
-app.get('/api/vital-signs/stats', async (req: Request, res: Response) => {
+app.get('/vital-signs/stats', async (req: Request, res: Response) => {
   try {
     const stats = await vitalSignsService.getProcessingStats();
     res.json(stats);
@@ -585,21 +658,21 @@ app.get('/api/vital-signs/stats', async (req: Request, res: Response) => {
 // AI Note Checking Job System Endpoints
 
 // Start AI note checking job system
-app.post('/api/ai-notes/jobs/start', validateSession, async (req: Request, res: Response) => {
+app.post('/ai-notes/jobs/start', validateSession, async (req: Request, res: Response) => {
   res.status(501).json({ 
     error: 'Job control is managed by the dedicated worker service. Use docker-compose restart worker to restart job processing.' 
   });
 });
 
 // Stop AI note checking job system
-app.post('/api/ai-notes/jobs/stop', validateSession, async (req: Request, res: Response) => {
+app.post('/ai-notes/jobs/stop', validateSession, async (req: Request, res: Response) => {
   res.status(501).json({ 
     error: 'Job control is managed by the dedicated worker service. Use docker-compose stop worker to stop job processing.' 
   });
 });
 
 // Trigger manual AI note scan
-app.post('/api/ai-notes/jobs/scan', validateSession, async (req: Request, res: Response) => {
+app.post('/ai-notes/jobs/scan', validateSession, async (req: Request, res: Response) => {
   try {
     const scanId = await triggerAINoteScan();
     
@@ -618,7 +691,7 @@ app.post('/api/ai-notes/jobs/scan', validateSession, async (req: Request, res: R
 });
 
 // Get AI note checking job statistics
-app.get('/api/ai-notes/jobs/stats', validateSession, async (req: Request, res: Response) => {
+app.get('/ai-notes/jobs/stats', validateSession, async (req: Request, res: Response) => {
   try {
     const stats = await getAINoteJobStats();
     res.json({ 
@@ -637,7 +710,7 @@ app.get('/api/ai-notes/jobs/stats', validateSession, async (req: Request, res: R
 // AI Note Checker Endpoints
 
 // Get incomplete notes from EZDerm
-app.post('/api/notes/incomplete', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.post('/notes/incomplete', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const username = (req as any).user.username;
     const { fetchFrom, size, group } = req.body;
@@ -704,7 +777,7 @@ app.post('/api/notes/incomplete', validateSession, async (req: Request, res: Res
 });
 
 // Get all eligible encounters for AI checking
-app.get('/api/notes/eligible', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.get('/notes/eligible', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const username = (req as any).user.username;
     
@@ -737,7 +810,7 @@ app.get('/api/notes/eligible', validateSession, async (req: Request, res: Respon
 });
 
 // Get progress note for specific encounter
-app.get('/api/notes/progress/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.get('/notes/progress/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const username = (req as any).user.username;
     const { encounterId } = req.params;
@@ -835,7 +908,7 @@ app.get('/api/notes/progress/:encounterId', validateSession, async (req: Request
 });
 
 // Create ToDo for note deficiencies
-app.post('/api/notes/:encounterId/create-todo', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.post('/notes/:encounterId/create-todo', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const { encounterId } = req.params;
     const username = (req as any).user.username;
@@ -954,7 +1027,7 @@ app.post('/api/notes/:encounterId/create-todo', validateSession, async (req: Req
 });
 
 // Get created ToDos for a specific encounter
-app.get('/api/notes/:encounterId/todos', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.get('/notes/:encounterId/todos', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const { encounterId } = req.params;
     
@@ -976,7 +1049,7 @@ app.get('/api/notes/:encounterId/todos', validateSession, async (req: Request, r
 });
 
 // Check specific encounter note with AI
-app.post('/api/notes/check/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.post('/notes/check/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const username = (req as any).user.username;
     const { encounterId } = req.params;
@@ -1022,7 +1095,7 @@ app.post('/api/notes/check/:encounterId', validateSession, async (req: Request, 
 });
 
 // Process all eligible encounters
-app.post('/api/notes/check-all', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.post('/notes/check-all', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const username = (req as any).user.username;
     
@@ -1047,7 +1120,7 @@ app.post('/api/notes/check-all', validateSession, async (req: Request, res: Resp
 });
 
 // Get note check results
-app.get('/api/notes/results', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.get('/notes/results', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const { limit = 50, offset = 0 } = req.query;
     
@@ -1064,7 +1137,7 @@ app.get('/api/notes/results', validateSession, async (req: Request, res: Respons
 });
 
 // Get specific note check result
-app.get('/api/notes/result/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.get('/notes/result/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const { encounterId } = req.params;
     
@@ -1088,7 +1161,7 @@ app.get('/api/notes/result/:encounterId', validateSession, async (req: Request, 
 });
 
 // Mark an issue as invalid
-app.post('/api/notes/:encounterId/issues/:checkId/:issueIndex/mark-invalid', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.post('/notes/:encounterId/issues/:checkId/:issueIndex/mark-invalid', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const { encounterId, checkId, issueIndex } = req.params;
     const { reason, issueType, assessment, issueHash } = req.body;
@@ -1121,7 +1194,7 @@ app.post('/api/notes/:encounterId/issues/:checkId/:issueIndex/mark-invalid', val
 });
 
 // Remove invalid marking from an issue
-app.delete('/api/notes/:encounterId/issues/:checkId/:issueIndex/mark-invalid', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.delete('/notes/:encounterId/issues/:checkId/:issueIndex/mark-invalid', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const { encounterId, checkId, issueIndex } = req.params;
     
@@ -1147,7 +1220,7 @@ app.delete('/api/notes/:encounterId/issues/:checkId/:issueIndex/mark-invalid', v
 });
 
 // Get invalid issues for an encounter
-app.get('/api/notes/:encounterId/invalid-issues', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.get('/notes/:encounterId/invalid-issues', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const { encounterId } = req.params;
     
@@ -1169,7 +1242,7 @@ app.get('/api/notes/:encounterId/invalid-issues', validateSession, async (req: R
 });
 
 // Bulk force re-check: Enqueue multiple notes for force re-check
-app.post('/api/notes/bulk-force-recheck', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.post('/notes/bulk-force-recheck', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const { jobs } = req.body;
     
@@ -1235,26 +1308,27 @@ async function refreshEZDermToken(refreshToken: string): Promise<{ accessToken: 
   try {
     console.log('🔄 Attempting to refresh EZDerm token...');
     
-    const response: AxiosResponse<EZDermLoginResponse> = await axios.post(EZDERM_REFRESH_URL, {
-      refreshToken,
-      application: 'EZDERM',
-      clientVersion: '4.28.0'
-    }, {
+    const response: AxiosResponse<{ accessToken: string }> = await axios.get(EZDERM_REFRESH_URL, {
       headers: {
         'Host': 'login.ezinfra.net',
         'accept': 'application/json',
+        'accept-language': 'en-US,en;q=0.9',
+        'authorization': `Bearer ${refreshToken}`,
         'content-type': 'application/json',
-        'user-agent': 'ezDerm/4.28.0 (com.ezderm.ezderm; build:132.19; macOS(Catalyst) 15.5.0) Alamofire/5.10.2',
-        'accept-language': 'en-US;q=1.0'
+        'origin': 'https://pms.ezderm.com',
+        'referer': 'https://pms.ezderm.com/',
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
       }
     });
 
-    const { accessToken, refreshToken: newRefreshToken } = response.data;
+    const { accessToken } = response.data;
     console.log('✅ Token refresh successful');
     
+    // Note: EZDerm refresh token API only returns new accessToken, not a new refreshToken
+    // The refresh token remains the same and can be reused
     return {
       accessToken,
-      refreshToken: newRefreshToken
+      refreshToken: refreshToken // Keep the same refresh token
     };
   } catch (error: any) {
     console.error('❌ Token refresh failed:', error.response?.data || error.message);
@@ -1388,9 +1462,9 @@ async function startServer() {
       console.log(`🏥 EZDerm API Base: ${EZDERM_LOGIN_URL}`);
       console.log(`🩺 Vital signs carryforward enabled (server-side jobs)`);
       console.log(`🤖 AI Note Checker enabled (Claude AI integration)`);
-      console.log(`🌐 Health check: http://0.0.0.0:${PORT}/api/health`);
-      console.log(`🔐 Login endpoint: http://0.0.0.0:${PORT}/api/login`);
-      console.log(`📝 AI Note Checker endpoints: /api/notes/*`);
+      console.log(`🌐 Health check: http://0.0.0.0:${PORT}/health`);
+      console.log(`🔐 Login endpoint: http://0.0.0.0:${PORT}/login`);
+      console.log(`📝 AI Note Checker endpoints: /notes/*`);
       console.log(`✅ Server startup complete!`);
     });
   } catch (error) {
