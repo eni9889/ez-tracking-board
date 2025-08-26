@@ -17,7 +17,9 @@ import {
   CircularProgress,
   Grid,
   Checkbox,
-
+  Tabs,
+  Tab,
+  Badge,
 } from '@mui/material';
 import {
   Psychology,
@@ -44,15 +46,18 @@ interface IncompleteNote {
   issuesFound?: boolean;
 }
 
+type FilterType = 'all' | 'clean' | 'issues' | 'unchecked';
+
 const AINoteChecker: React.FC = () => {
   const [checking, setChecking] = useState<Set<string>>(new Set());
   const [autoRefreshing, setAutoRefreshing] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [selectedNotes, setSelectedNotes] = useState<Set<string>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [currentFilter, setCurrentFilter] = useState<FilterType>('all');
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const {} = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { 
     encounters: incompleteNotes, 
@@ -79,6 +84,47 @@ const AINoteChecker: React.FC = () => {
     
     return () => clearInterval(refreshInterval);
   }, [loadEncounters, refreshEncounters]);
+
+  // Filter notes based on current filter
+  const getFilteredNotes = (): IncompleteNote[] => {
+    switch (currentFilter) {
+      case 'clean':
+        return incompleteNotes.filter(note => 
+          note.lastCheckStatus === 'completed' && !note.issuesFound
+        );
+      case 'issues':
+        return incompleteNotes.filter(note => 
+          note.lastCheckStatus === 'completed' && note.issuesFound
+        );
+      case 'unchecked':
+        return incompleteNotes.filter(note => 
+          !note.lastCheckStatus || note.lastCheckStatus === 'pending'
+        );
+      case 'all':
+      default:
+        return incompleteNotes;
+    }
+  };
+
+  const filteredNotes = getFilteredNotes();
+
+  // Count notes for each filter
+  const getNoteCounts = () => {
+    return {
+      all: incompleteNotes.length,
+      clean: incompleteNotes.filter(note => 
+        note.lastCheckStatus === 'completed' && !note.issuesFound
+      ).length,
+      issues: incompleteNotes.filter(note => 
+        note.lastCheckStatus === 'completed' && note.issuesFound
+      ).length,
+      unchecked: incompleteNotes.filter(note => 
+        !note.lastCheckStatus || note.lastCheckStatus === 'pending'
+      ).length,
+    };
+  };
+
+  const noteCounts = getNoteCounts();
 
 
 
@@ -110,7 +156,11 @@ const AINoteChecker: React.FC = () => {
 
   const handleViewNote = (note: IncompleteNote) => {
     navigate(`/ai-note-checker/${note.encounterId}`, {
-      state: { note }
+      state: { 
+        note,
+        currentFilter,
+        filteredNotes
+      }
     });
   };
 
@@ -129,7 +179,7 @@ const AINoteChecker: React.FC = () => {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedNotes(new Set(incompleteNotes.map(note => note.encounterId)));
+      setSelectedNotes(new Set(filteredNotes.map(note => note.encounterId)));
     } else {
       setSelectedNotes(new Set());
     }
@@ -325,6 +375,48 @@ const AINoteChecker: React.FC = () => {
         </Grid>
       </Box>
 
+      {/* Filter Tabs */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', backgroundColor: 'white' }}>
+        <Tabs 
+          value={currentFilter} 
+          onChange={(_, newValue) => setCurrentFilter(newValue as FilterType)}
+          sx={{ px: 3 }}
+        >
+          <Tab 
+            label={
+              <Badge badgeContent={noteCounts.all} color="default" max={999}>
+                All Notes
+              </Badge>
+            } 
+            value="all" 
+          />
+          <Tab 
+            label={
+              <Badge badgeContent={noteCounts.clean} color="success" max={999}>
+                Clean Notes
+              </Badge>
+            } 
+            value="clean" 
+          />
+          <Tab 
+            label={
+              <Badge badgeContent={noteCounts.issues} color="error" max={999}>
+                Notes with Issues
+              </Badge>
+            } 
+            value="issues" 
+          />
+          <Tab 
+            label={
+              <Badge badgeContent={noteCounts.unchecked} color="warning" max={999}>
+                Unchecked Notes
+              </Badge>
+            } 
+            value="unchecked" 
+          />
+        </Tabs>
+      </Box>
+
       {/* Error Alerts */}
       {error && (
         <Box sx={{ px: 3, pt: 2 }}>
@@ -359,8 +451,8 @@ const AINoteChecker: React.FC = () => {
                 <TableRow>
                   <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa', width: 50 }}>
                     <Checkbox
-                      checked={selectedNotes.size === incompleteNotes.length && incompleteNotes.length > 0}
-                      indeterminate={selectedNotes.size > 0 && selectedNotes.size < incompleteNotes.length}
+                      checked={selectedNotes.size === filteredNotes.length && filteredNotes.length > 0}
+                      indeterminate={selectedNotes.size > 0 && selectedNotes.size < filteredNotes.length}
                       onChange={(e) => handleSelectAll(e.target.checked)}
                       disabled={bulkProcessing}
                     />
@@ -386,7 +478,7 @@ const AINoteChecker: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {incompleteNotes.map((note) => (
+                {filteredNotes.map((note) => (
                   <TableRow 
                     key={note.encounterId} 
                     hover 
@@ -472,14 +564,23 @@ const AINoteChecker: React.FC = () => {
             </Table>
           </TableContainer>
           
-          {incompleteNotes.length === 0 && !loading && (
+          {filteredNotes.length === 0 && !loading && (
             <Box sx={{ p: 4, textAlign: 'center' }}>
               <Assignment sx={{ fontSize: '3rem', color: 'text.secondary', mb: 2 }} />
               <Typography variant="h6" color="text.secondary">
-                No incomplete notes found
+                {incompleteNotes.length === 0 
+                  ? 'No incomplete notes found'
+                  : `No ${currentFilter === 'all' ? '' : 
+                      currentFilter === 'clean' ? 'clean ' :
+                      currentFilter === 'issues' ? 'notes with issues ' :
+                      'unchecked '}notes found`
+                }
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                All notes have been completed, signed, or are less than 2 hours old
+                {incompleteNotes.length === 0 
+                  ? 'All notes have been completed, signed, or are less than 2 hours old'
+                  : currentFilter !== 'all' ? `Try switching to another filter to see more notes.` : ''
+                }
               </Typography>
             </Box>
           )}

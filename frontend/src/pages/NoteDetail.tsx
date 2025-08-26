@@ -65,12 +65,20 @@ interface NoteDetailProps {
   progressNotes?: any[]; // Optional - may not be available from navigation state
 }
 
+type FilterType = 'all' | 'clean' | 'issues' | 'unchecked';
+
+interface FilteredNavigationState {
+  note: NoteDetailProps;
+  currentFilter: FilterType;
+  filteredNotes: any[];
+}
+
 const NoteDetail: React.FC = () => {
   const { encounterId } = useParams<{ encounterId: string }>();
   const location = useLocation();
   const navigate = useNavigate();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const {} = useAuth();
+  const { user } = useAuth();
 
   const [noteData, setNoteData] = useState<NoteDetailProps | null>(null);
   const [progressNoteData, setProgressNoteData] = useState<any>(null);
@@ -89,6 +97,7 @@ const NoteDetail: React.FC = () => {
   const [forceNewCheck, setForceNewCheck] = useState(false);
   const [navigationLoading, setNavigationLoading] = useState(false);
   const [currentEncounterId, setCurrentEncounterId] = useState<string | null>(null);
+  const [filteredNavigationData, setFilteredNavigationData] = useState<FilteredNavigationState | null>(null);
   
   // Use encounters context for navigation
   const { 
@@ -107,6 +116,22 @@ const NoteDetail: React.FC = () => {
       const stateNote = location.state?.note;
       if (stateNote) {
         setNoteData(stateNote);
+      }
+      
+      // Check if we have filtered navigation data
+      if (location.state?.currentFilter && location.state?.filteredNotes) {
+        setFilteredNavigationData({
+          note: stateNote,
+          currentFilter: location.state.currentFilter,
+          filteredNotes: location.state.filteredNotes
+        });
+        console.log('🔍 Using filtered navigation:', {
+          filter: location.state.currentFilter,
+          filteredCount: location.state.filteredNotes.length
+        });
+      } else {
+        setFilteredNavigationData(null);
+        console.log('📋 Using full encounter list navigation');
       }
       
       // Always fetch note details - we can get everything from the encounterId
@@ -227,6 +252,7 @@ const NoteDetail: React.FC = () => {
     }
   }, [loadNoteDetailsForEncounter, currentEncounterId]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handlePreviousEncounter = useCallback(() => {
     if (currentEncounterId) {
       const prevEncounter = getPreviousEncounter(currentEncounterId);
@@ -236,6 +262,7 @@ const NoteDetail: React.FC = () => {
     }
   }, [currentEncounterId, getPreviousEncounter, navigateToEncounter]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleNextEncounter = useCallback(() => {
     console.log('🔄 Next Encounter Debug:', {
       currentEncounterId,
@@ -258,6 +285,78 @@ const NoteDetail: React.FC = () => {
     }
   }, [currentEncounterId, getNextEncounter, navigateToEncounter, currentIndex, encountersList]);
 
+  // Filtered navigation functions
+  const getFilteredCurrentIndex = useCallback((encounterId: string): number => {
+    if (!filteredNavigationData) return -1;
+    return filteredNavigationData.filteredNotes.findIndex(note => note.encounterId === encounterId);
+  }, [filteredNavigationData]);
+
+  const getFilteredPreviousEncounter = useCallback((encounterId: string) => {
+    if (!filteredNavigationData) return null;
+    const currentIndex = getFilteredCurrentIndex(encounterId);
+    if (currentIndex > 0) {
+      return filteredNavigationData.filteredNotes[currentIndex - 1];
+    }
+    return null;
+  }, [filteredNavigationData, getFilteredCurrentIndex]);
+
+  const getFilteredNextEncounter = useCallback((encounterId: string) => {
+    if (!filteredNavigationData) return null;
+    const currentIndex = getFilteredCurrentIndex(encounterId);
+    const hasNext = currentIndex >= 0 && currentIndex < filteredNavigationData.filteredNotes.length - 1;
+    if (hasNext) {
+      return filteredNavigationData.filteredNotes[currentIndex + 1];
+    }
+    return null;
+  }, [filteredNavigationData, getFilteredCurrentIndex]);
+
+  // Smart navigation that uses filtered navigation when available
+  const handleSmartPreviousEncounter = useCallback(() => {
+    if (currentEncounterId) {
+      const prevEncounter = filteredNavigationData 
+        ? getFilteredPreviousEncounter(currentEncounterId)
+        : getPreviousEncounter(currentEncounterId);
+      
+      if (prevEncounter) {
+        // Preserve filter state when navigating through filtered results
+        if (filteredNavigationData) {
+          navigate(`/ai-note-checker/${prevEncounter.encounterId}`, {
+            state: {
+              note: prevEncounter,
+              currentFilter: filteredNavigationData.currentFilter,
+              filteredNotes: filteredNavigationData.filteredNotes
+            }
+          });
+        } else {
+          navigateToEncounter(prevEncounter);
+        }
+      }
+    }
+  }, [currentEncounterId, filteredNavigationData, getFilteredPreviousEncounter, getPreviousEncounter, navigateToEncounter, navigate]);
+
+  const handleSmartNextEncounter = useCallback(() => {
+    if (currentEncounterId) {
+      const nextEncounter = filteredNavigationData 
+        ? getFilteredNextEncounter(currentEncounterId)
+        : getNextEncounter(currentEncounterId);
+      
+      if (nextEncounter) {
+        // Preserve filter state when navigating through filtered results
+        if (filteredNavigationData) {
+          navigate(`/ai-note-checker/${nextEncounter.encounterId}`, {
+            state: {
+              note: nextEncounter,
+              currentFilter: filteredNavigationData.currentFilter,
+              filteredNotes: filteredNavigationData.filteredNotes
+            }
+          });
+        } else {
+          navigateToEncounter(nextEncounter);
+        }
+      }
+    }
+  }, [currentEncounterId, filteredNavigationData, getFilteredNextEncounter, getNextEncounter, navigateToEncounter, navigate]);
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -266,18 +365,18 @@ const NoteDetail: React.FC = () => {
         return;
       }
       
-      if (event.key === 'ArrowLeft' && currentIndex > 0) {
+      if (event.key === 'ArrowLeft') {
         event.preventDefault();
-        handlePreviousEncounter();
-      } else if (event.key === 'ArrowRight' && currentIndex < encountersList.length - 1) {
+        handleSmartPreviousEncounter();
+      } else if (event.key === 'ArrowRight') {
         event.preventDefault();
-        handleNextEncounter();
+        handleSmartNextEncounter();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentIndex, encountersList.length, handlePreviousEncounter, handleNextEncounter]);
+  }, [handleSmartPreviousEncounter, handleSmartNextEncounter]);
 
 
 
@@ -1021,47 +1120,61 @@ const NoteDetail: React.FC = () => {
           return encountersList.length > 0 && currentIndex >= 0;
         })() && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 2 }}>
-            <Tooltip title={`Previous encounter (${currentIndex > 0 ? currentIndex : 1} of ${encountersList.length})`}>
-              <IconButton
-                color="inherit"
-                onClick={handlePreviousEncounter}
-                disabled={currentIndex <= 0 || navigationLoading}
-                size="small"
-                sx={{ 
-                  opacity: currentIndex <= 0 ? 0.5 : 1,
-                  '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' }
-                }}
-              >
-                <NavigateBefore />
-              </IconButton>
-            </Tooltip>
-            
-            <Typography variant="body2" sx={{ minWidth: '60px', textAlign: 'center', fontSize: '0.8rem' }}>
-              {currentIndex >= 0 ? `${currentIndex + 1} / ${encountersList.length}` : '- / -'}
-            </Typography>
-            
-            <Tooltip title={`Next encounter (${currentIndex < encountersList.length - 1 ? currentIndex + 2 : encountersList.length} of ${encountersList.length})`}>
-              <IconButton
-                color="inherit"
-                onClick={(e) => {
-                  console.log('🖱️ Next button clicked!', {
-                    disabled: currentIndex >= encountersList.length - 1 || navigationLoading,
-                    currentIndex,
-                    encountersLength: encountersList.length,
-                    navigationLoading
-                  });
-                  handleNextEncounter();
-                }}
-                disabled={currentIndex >= encountersList.length - 1 || navigationLoading}
-                size="small"
-                sx={{ 
-                  opacity: currentIndex >= encountersList.length - 1 ? 0.5 : 1,
-                  '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' }
-                }}
-              >
-                <NavigateNext />
-              </IconButton>
-            </Tooltip>
+            {(() => {
+              // Calculate navigation info based on filtered vs unfiltered mode
+              const isFiltered = !!filteredNavigationData;
+              const notesList = isFiltered ? filteredNavigationData!.filteredNotes : encountersList;
+              const activeIndex = isFiltered ? getFilteredCurrentIndex(currentEncounterId!) : currentIndex;
+              const hasPrevious = isFiltered 
+                ? !!getFilteredPreviousEncounter(currentEncounterId!) 
+                : currentIndex > 0;
+              const hasNext = isFiltered 
+                ? !!getFilteredNextEncounter(currentEncounterId!) 
+                : currentIndex < encountersList.length - 1;
+              
+              return (
+                <>
+                  <Tooltip title={`Previous encounter${isFiltered ? ` (filtered: ${filteredNavigationData!.currentFilter})` : ''}`}>
+                    <IconButton
+                      color="inherit"
+                      onClick={handleSmartPreviousEncounter}
+                      disabled={!hasPrevious || navigationLoading}
+                      size="small"
+                      sx={{ 
+                        opacity: !hasPrevious ? 0.5 : 1,
+                        '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' }
+                      }}
+                    >
+                      <NavigateBefore />
+                    </IconButton>
+                  </Tooltip>
+                  
+                  <Typography variant="body2" sx={{ minWidth: '60px', textAlign: 'center', fontSize: '0.8rem' }}>
+                    {activeIndex >= 0 ? `${activeIndex + 1} / ${notesList.length}` : '- / -'}
+                    {isFiltered && (
+                      <Typography variant="caption" sx={{ display: 'block', fontSize: '0.6rem', color: 'rgba(255,255,255,0.7)' }}>
+                        {filteredNavigationData!.currentFilter}
+                      </Typography>
+                    )}
+                  </Typography>
+                  
+                  <Tooltip title={`Next encounter${isFiltered ? ` (filtered: ${filteredNavigationData!.currentFilter})` : ''}`}>
+                    <IconButton
+                      color="inherit"
+                      onClick={handleSmartNextEncounter}
+                      disabled={!hasNext || navigationLoading}
+                      size="small"
+                      sx={{ 
+                        opacity: !hasNext ? 0.5 : 1,
+                        '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' }
+                      }}
+                    >
+                      <NavigateNext />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              );
+            })()}
           </Box>
         )}
 
