@@ -63,15 +63,11 @@ class VitalSignsDatabase {
       // Import node-pg-migrate with proper typing for production builds
       const { runner } = require('node-pg-migrate');
       
+      // Construct database URL for node-pg-migrate
+      const databaseUrl = `postgresql://${appConfig.database.user}:${appConfig.database.password}@${appConfig.database.host}:${appConfig.database.port}/${appConfig.database.database}${process.env.NODE_ENV === 'production' ? '?sslmode=require' : ''}`;
+      
       await runner({
-        database: {
-          host: appConfig.database.host,
-          port: appConfig.database.port,
-          database: appConfig.database.database,
-          user: appConfig.database.user,
-          password: appConfig.database.password,
-          ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-        },
+        databaseUrl,
         dir: 'migrations',
         direction: 'up',
         migrationsTable: 'pgmigrations',
