@@ -644,64 +644,37 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
   }
 };
 
-// Create workers
-export const vitalSignsWorker = new Worker('vital-signs-processing', processVitalSignsCarryforward, {
-  connection: redis,
-  concurrency: 1, // Only one job at a time
-});
+// Workers - will be created only when explicitly started
+export let vitalSignsWorker: Worker | null = null;
+export let aiNoteScanWorker: Worker | null = null;
+export let aiNoteCheckWorker: Worker | null = null;
 
-export const aiNoteScanWorker = new Worker('ai-note-scan', processAINoteScan, {
-  connection: redis,
-  concurrency: 1, // Only one scan at a time
-});
-
-export const aiNoteCheckWorker = new Worker('ai-note-check', processAINoteCheck, {
-  connection: redis,
-  concurrency: 3, // Allow multiple AI checks in parallel
-});
-
-// Worker event handlers
-vitalSignsWorker.on('completed', (job) => {
-  console.log(`✅ Job ${job.id} completed successfully`);
-});
-
-vitalSignsWorker.on('failed', (job, err) => {
-  console.error(`❌ Job ${job?.id} failed:`, err);
-});
-
-vitalSignsWorker.on('error', (err) => {
-  console.error('🚨 Worker error:', err);
-});
-
-// AI Note Scan Worker event handlers
-aiNoteScanWorker.on('completed', (job) => {
-  console.log(`✅ AI Note Scan ${job.id} completed successfully`);
-});
-
-aiNoteScanWorker.on('failed', (job, err) => {
-  console.error(`❌ AI Note Scan ${job?.id} failed:`, err);
-});
-
-aiNoteScanWorker.on('error', (err) => {
-  console.error('🚨 AI Note Scan Worker error:', err);
-});
-
-// AI Note Check Worker event handlers
-aiNoteCheckWorker.on('completed', (job) => {
-  console.log(`✅ AI Note Check ${job.id} completed successfully`);
-});
-
-aiNoteCheckWorker.on('failed', (job, err) => {
-  console.error(`❌ AI Note Check ${job?.id} failed:`, err);
-});
-
-aiNoteCheckWorker.on('error', (err) => {
-  console.error('🚨 AI Note Check Worker error:', err);
-});
+// Worker event handlers - will be set up when workers are created
 
 // Start the recurring job
 export async function startVitalSignsJob(): Promise<void> {
   try {
+    // Create the worker if it doesn't exist
+    if (!vitalSignsWorker) {
+      vitalSignsWorker = new Worker('vital-signs-processing', processVitalSignsCarryforward, {
+        connection: redis,
+        concurrency: 1, // Only one job at a time
+      });
+
+      // Set up event handlers
+      vitalSignsWorker.on('completed', (job) => {
+        console.log(`✅ Job ${job.id} completed successfully`);
+      });
+
+      vitalSignsWorker.on('failed', (job, err) => {
+        console.error(`❌ Job ${job?.id} failed:`, err);
+      });
+
+      vitalSignsWorker.on('error', (err) => {
+        console.error('🚨 Worker error:', err);
+      });
+    }
+
     // Pause the queue first, then clear any existing jobs
     await vitalSignsQueue.pause();
     await vitalSignsQueue.obliterate({ force: true });
@@ -732,6 +705,47 @@ export async function startVitalSignsJob(): Promise<void> {
 export async function startAINoteCheckingJob(): Promise<void> {
   try {
     console.log('🚀 Starting AI note checking job system...');
+    
+    // Create the workers if they don't exist
+    if (!aiNoteScanWorker) {
+      aiNoteScanWorker = new Worker('ai-note-scan', processAINoteScan, {
+        connection: redis,
+        concurrency: 1, // Only one scan at a time
+      });
+
+      // Set up event handlers for scan worker
+      aiNoteScanWorker.on('completed', (job) => {
+        console.log(`✅ AI Note Scan ${job.id} completed successfully`);
+      });
+
+      aiNoteScanWorker.on('failed', (job, err) => {
+        console.error(`❌ AI Note Scan ${job?.id} failed:`, err);
+      });
+
+      aiNoteScanWorker.on('error', (err) => {
+        console.error('🚨 AI Note Scan Worker error:', err);
+      });
+    }
+
+    if (!aiNoteCheckWorker) {
+      aiNoteCheckWorker = new Worker('ai-note-check', processAINoteCheck, {
+        connection: redis,
+        concurrency: 3, // Allow multiple AI checks in parallel
+      });
+
+      // Set up event handlers for check worker
+      aiNoteCheckWorker.on('completed', (job) => {
+        console.log(`✅ AI Note Check ${job.id} completed successfully`);
+      });
+
+      aiNoteCheckWorker.on('failed', (job, err) => {
+        console.error(`❌ AI Note Check ${job?.id} failed:`, err);
+      });
+
+      aiNoteCheckWorker.on('error', (err) => {
+        console.error('🚨 AI Note Check Worker error:', err);
+      });
+    }
     
     // Pause the queues first, then clear any existing jobs
     console.log('⏸️ Pausing AI note queues...');
@@ -832,9 +846,11 @@ export async function getAINoteJobStats() {
 // Stop the job systems
 export async function stopVitalSignsJob(): Promise<void> {
   try {
-    await vitalSignsWorker.close();
+    if (vitalSignsWorker) {
+      await vitalSignsWorker.close();
+      vitalSignsWorker = null;
+    }
     await vitalSignsQueue.close();
-    await redis.quit();
     console.log('🛑 Vital signs job system stopped');
   } catch (error) {
     console.error('Error stopping vital signs job system:', error);
@@ -843,8 +859,14 @@ export async function stopVitalSignsJob(): Promise<void> {
 
 export async function stopAINoteCheckingJob(): Promise<void> {
   try {
-    await aiNoteScanWorker.close();
-    await aiNoteCheckWorker.close();
+    if (aiNoteScanWorker) {
+      await aiNoteScanWorker.close();
+      aiNoteScanWorker = null;
+    }
+    if (aiNoteCheckWorker) {
+      await aiNoteCheckWorker.close();
+      aiNoteCheckWorker = null;
+    }
     await aiNoteScanQueue.close();
     await aiNoteCheckQueue.close();
     console.log('🛑 AI note checking job system stopped');
