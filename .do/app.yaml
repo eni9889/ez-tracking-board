@@ -40,7 +40,9 @@ services:
       repo: eni9889/ez-tracking-board
       branch: main
       deploy_on_push: true
-    dockerfile_path: server/Dockerfile
+    environment_slug: node-js
+    build_command: npm ci && npm run build
+    run_command: npm start
     http_port: 5001
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-0.5gb
@@ -104,9 +106,10 @@ services:
       repo: eni9889/ez-tracking-board
       branch: main
       deploy_on_push: true
-    dockerfile_path: server/Dockerfile
-    http_port: 3001
+    environment_slug: node-js
+    build_command: npm ci && npm run build
     run_command: npm run bull-board
+    http_port: 3001
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-0.5gb
     health_check:
@@ -139,7 +142,8 @@ workers:
       repo: eni9889/ez-tracking-board
       branch: main
       deploy_on_push: true
-    dockerfile_path: server/Dockerfile
+    environment_slug: node-js
+    build_command: npm ci && npm run build
     run_command: node dist/jobProcessor.js
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-0.5gb
