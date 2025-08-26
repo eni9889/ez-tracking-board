@@ -10,7 +10,7 @@ services:
     type: static
     source_dir: /
     github:
-      repo: your-github-username/ez-tracking-board
+      repo: eni9889/ez-tracking-board
       branch: main
       deploy_on_push: true
     build_command: npm ci && npm run build
@@ -30,7 +30,7 @@ services:
     type: service
     source_dir: /server
     github:
-      repo: your-github-username/ez-tracking-board
+      repo: eni9889/ez-tracking-board
       branch: main
       deploy_on_push: true
     dockerfile_path: server/Dockerfile
@@ -84,7 +84,7 @@ services:
     type: worker
     source_dir: /server
     github:
-      repo: your-github-username/ez-tracking-board
+      repo: eni9889/ez-tracking-board
       branch: main
       deploy_on_push: true
     dockerfile_path: server/Dockerfile
@@ -125,7 +125,7 @@ services:
     type: service
     source_dir: /server
     github:
-      repo: your-github-username/ez-tracking-board
+      repo: eni9889/ez-tracking-board
       branch: main
       deploy_on_push: true
     dockerfile_path: server/Dockerfile
