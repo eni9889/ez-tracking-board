@@ -105,7 +105,7 @@ services:
     value: ${ez-tracking-redis.DATABASE_URL}
   - key: CORS_ORIGIN
     scope: RUN_AND_BUILD_TIME
-    value: ${frontend.PUBLIC_URL}
+    value: https://app.dccderm.com
   - key: DEBUG_AXIOS
     scope: RUN_AND_BUILD_TIME
     value: "false"
@@ -169,7 +169,7 @@ static_sites:
   envs:
   - key: REACT_APP_API_URL
     scope: BUILD_TIME
-    value: ${backend.PUBLIC_URL}
+    value: https://app.dccderm.com
   - key: REACT_APP_USE_MOCK_DATA
     scope: BUILD_TIME
     value: "false"

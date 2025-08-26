@@ -44,7 +44,10 @@ const limiter = rateLimit({
 });
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: appConfig.corsOrigin,
+  credentials: true,
+}));
 app.use(express.json());
 app.use('/api/', limiter);
 
