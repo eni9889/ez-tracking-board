@@ -27,6 +27,9 @@ config();
 const app = express();
 const PORT = parseInt(process.env.BULL_BOARD_PORT || '3001', 10);
 
+// Set base path for production (DigitalOcean routes it under /bull-board)
+const basePath = process.env.NODE_ENV === 'production' ? '/bull-board' : '/';
+
 // Authentication configuration
 const BULL_BOARD_USERNAME = process.env.BULL_BOARD_USERNAME || 'admin';
 const BULL_BOARD_PASSWORD = process.env.BULL_BOARD_PASSWORD || 'admin123';
@@ -49,7 +52,8 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
   if ((req as any).session.authenticated) {
     return next();
   }
-  res.redirect('/login');
+  const loginPath = basePath === '/' ? '/login' : '/bull-board/login';
+  res.redirect(loginPath);
 }
 
 // Authentication routes
@@ -79,7 +83,7 @@ app.get('/login', (req: express.Request, res: express.Response) => {
       <div class="container">
         <h1>🐂 Bull Board Access</h1>
         ${error ? `<div class="error">${error}</div>` : ''}
-        <form method="post" action="/login">
+        <form method="post" action="${basePath === '/' ? '/login' : '/bull-board/login'}">
           <div class="form-group">
             <label for="username">Username</label>
             <input type="text" id="username" name="username" required>
@@ -107,11 +111,11 @@ app.post('/login', (req: express.Request, res: express.Response) => {
     (req as any).session.authenticated = true;
     (req as any).session.username = username;
     console.log(`🔐 Bull Board: User ${username} logged in successfully`);
-    res.redirect('/');
+    res.redirect(basePath);
   } else {
     (req as any).session.error = 'Invalid username or password';
     console.log(`🚫 Bull Board: Failed login attempt for username: ${username}`);
-    res.redirect('/login');
+    res.redirect(basePath === '/' ? '/login' : '/bull-board/login');
   }
 });
 
@@ -119,7 +123,7 @@ app.post('/logout', (req: express.Request, res: express.Response) => {
   const username = (req as any).session.username;
   (req as any).session.destroy(() => {
     console.log(`🚪 Bull Board: User ${username} logged out`);
-    res.redirect('/login');
+    res.redirect(basePath === '/' ? '/login' : '/bull-board/login');
   });
 });
 
@@ -157,7 +161,7 @@ const aiNoteCheckQueue = new Queue('ai-note-check', {
 
 // Create Express adapter for Bull Board
 const serverAdapter = new ExpressAdapter();
-serverAdapter.setBasePath('/');
+serverAdapter.setBasePath(basePath);
 
 // Create Bull Board with queue adapters
 createBullBoard({
@@ -170,6 +174,7 @@ createBullBoard({
 });
 
 // Mount the Bull Board UI with authentication
+// Mount Bull Board UI (base path is handled by serverAdapter)
 app.use('/', requireAuth, serverAdapter.getRouter());
 
 // Health check endpoint
@@ -208,7 +213,7 @@ async function startBullBoardServer() {
     
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Bull Board is running on port ${PORT}`);
-      console.log(`📊 Dashboard: http://0.0.0.0:${PORT}`);
+      console.log(`📊 Dashboard: http://0.0.0.0:${PORT}${basePath}`);
       console.log(`🏥 Health check: http://0.0.0.0:${PORT}/health`);
       console.log(`📋 Monitoring queues:`);
       console.log(`   - Vital Signs Processing: vital-signs-processing`);
