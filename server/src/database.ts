@@ -64,7 +64,8 @@ class VitalSignsDatabase {
       const { runner } = require('node-pg-migrate');
       
       // Construct database URL for node-pg-migrate with SSL handling
-      const databaseUrl = `postgresql://${appConfig.database.user}:${appConfig.database.password}@${appConfig.database.host}:${appConfig.database.port}/${appConfig.database.database}`;
+      const sslParam = process.env.NODE_ENV === 'production' ? '?sslmode=require' : '';
+      const databaseUrl = `postgresql://${appConfig.database.user}:${appConfig.database.password}@${appConfig.database.host}:${appConfig.database.port}/${appConfig.database.database}${sslParam}`;
       
       await runner({
         databaseUrl,
