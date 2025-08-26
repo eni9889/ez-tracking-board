@@ -12,6 +12,8 @@ A real-time patient tracking dashboard for dermatology clinics using the EZDerm 
 - **Auto-refresh**: Dashboard updates every 30 seconds
 - **Filtering**: Filter patients by status
 - **Multi-clinic Support**: Switch between different clinic locations
+- **Background Job Processing**: Automated vital signs processing and AI note checking
+- **Job Monitoring Dashboard**: Real-time monitoring of background tasks with Bull Board
 
 ## Patient Status Flow
 
@@ -53,6 +55,7 @@ docker-compose up
 3. Access the application:
 - Frontend: [http://localhost:3000](http://localhost:3000)
 - Backend API: [http://localhost:5001](http://localhost:5001)
+- Job Queue Dashboard: [http://localhost:3001](http://localhost:3001) (Bull Board)
 - pgAdmin: [http://localhost:5050](http://localhost:5050) (optional)
 
 For detailed Docker instructions, see [DOCKER_DEVELOPMENT.md](./DOCKER_DEVELOPMENT.md).

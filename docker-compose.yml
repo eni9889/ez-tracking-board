@@ -89,6 +89,28 @@ services:
         condition: service_healthy
     command: npm run worker:dev
 
+  # Bull Board for Job Monitoring
+  bull-board:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    container_name: ez-tracking-bull-board
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      BULL_BOARD_PORT: 3001
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+      - /app/dist
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: npm run bull-board:dev
+
   # Frontend React App
   frontend:
     build:

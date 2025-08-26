@@ -185,9 +185,69 @@ CREATE TABLE user_sessions (
 - **PostgreSQL Integration**: Robust relational database with connection pooling
 - **Session Management**: Secure server-side session handling
 - **Vital Signs Processing**: Automated processing and tracking
+- **AI Note Checking**: Automated medical note analysis using Claude AI
+- **Job Queue System**: BullMQ-powered background job processing
+- **Job Monitoring**: Bull Board dashboard for queue monitoring
 - **Rate Limiting**: API rate limiting for security
 - **Error Handling**: Comprehensive error handling and logging
 - **TypeScript**: Full TypeScript support with type safety
+
+## Job Monitoring with Bull Board
+
+The application includes a web-based dashboard for monitoring background jobs powered by Bull Board.
+
+### Accessing the Dashboard
+
+- **Development (Docker)**: http://localhost:3001
+- **Development (Local)**: Run `npm run bull-board:dev` and visit http://localhost:3001
+
+### Monitored Queues
+
+1. **Vital Signs Processing** (`vital-signs-processing`)
+   - Processes vital signs carryforward for patient encounters
+   - Runs every 10 seconds automatically
+
+2. **AI Note Scan** (`ai-note-scan`)
+   - Scans for incomplete notes that need AI checking
+   - Runs every 30 minutes automatically
+
+3. **AI Note Check** (`ai-note-check`)
+   - Individual AI analysis jobs for medical notes
+   - Triggered by scans or manual requests
+
+### Dashboard Features
+
+- **Real-time Job Status**: View waiting, active, completed, and failed jobs
+- **Job Details**: Inspect job data, progress, and error messages
+- **Queue Statistics**: Monitor throughput and performance metrics
+- **Job Management**: Retry failed jobs or clean up completed ones
+- **Job Logs**: View detailed logs for debugging
+
+### Running Bull Board
+
+```bash
+# Development mode with auto-restart
+npm run bull-board:dev
+
+# Production mode
+npm run build
+npm run bull-board
+```
+
+### Docker Compose
+
+Bull Board is included as a service in the Docker Compose setup:
+
+```bash
+# Start all services including Bull Board
+docker-compose up
+
+# Start only Bull Board
+docker-compose up bull-board
+
+# View Bull Board logs
+docker-compose logs -f bull-board
+```
 
 ## Troubleshooting
 

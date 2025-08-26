@@ -8,11 +8,16 @@
     "dev": "nodemon src/tracking-server.ts",
     "worker": "node dist/jobProcessor.js",
     "worker:dev": "nodemon src/jobProcessor.ts",
+    "bull-board": "node dist/bullBoardServer.js",
+    "bull-board:dev": "nodemon src/bullBoardServer.ts",
     "build": "tsc",
     "build:watch": "tsc --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@bull-board/api": "^5.21.4",
+    "@bull-board/express": "^5.21.4",
+    "@bull-board/ui": "^5.21.4",
     "@types/pg": "^8.15.5",
     "axios": "^1.6.2",
     "bullmq": "^5.56.9",
