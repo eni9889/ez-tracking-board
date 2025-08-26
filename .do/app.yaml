@@ -36,7 +36,6 @@ ingress:
   rules:
   - component:
       name: backend
-      preserve_path_prefix: true
     match:
       path:
         prefix: /api
@@ -116,7 +115,7 @@ services:
     repo: eni9889/ez-tracking-board
   health_check:
     failure_threshold: 3
-    http_path: /api/health
+    http_path: /health
     initial_delay_seconds: 60
     period_seconds: 10
     success_threshold: 1
