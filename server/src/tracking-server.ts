@@ -105,7 +105,7 @@ async function validateSession(req: Request, res: Response, next: any): Promise<
 
 // EZDerm API endpoints
 const EZDERM_LOGIN_URL = 'https://login.ezinfra.net/api/login';
-const EZDERM_REFRESH_URL = 'https://login.ezinfra.net/api/refresh';
+const EZDERM_REFRESH_URL = 'https://login.ezinfra.net/api/refreshToken/getAccessToken';
 const EZDERM_API_BASE = 'https://srvprod.ezinfra.net';
 
 // Constants
@@ -1308,26 +1308,27 @@ async function refreshEZDermToken(refreshToken: string): Promise<{ accessToken: 
   try {
     console.log('🔄 Attempting to refresh EZDerm token...');
     
-    const response: AxiosResponse<EZDermLoginResponse> = await axios.post(EZDERM_REFRESH_URL, {
-      refreshToken,
-      application: 'EZDERM',
-      clientVersion: '4.28.0'
-    }, {
+    const response: AxiosResponse<{ accessToken: string }> = await axios.get(EZDERM_REFRESH_URL, {
       headers: {
         'Host': 'login.ezinfra.net',
         'accept': 'application/json',
+        'accept-language': 'en-US,en;q=0.9',
+        'authorization': `Bearer ${refreshToken}`,
         'content-type': 'application/json',
-        'user-agent': 'ezDerm/4.28.0 (com.ezderm.ezderm; build:132.19; macOS(Catalyst) 15.5.0) Alamofire/5.10.2',
-        'accept-language': 'en-US;q=1.0'
+        'origin': 'https://pms.ezderm.com',
+        'referer': 'https://pms.ezderm.com/',
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
       }
     });
 
-    const { accessToken, refreshToken: newRefreshToken } = response.data;
+    const { accessToken } = response.data;
     console.log('✅ Token refresh successful');
     
+    // Note: EZDerm refresh token API only returns new accessToken, not a new refreshToken
+    // The refresh token remains the same and can be reused
     return {
       accessToken,
-      refreshToken: newRefreshToken
+      refreshToken: refreshToken // Keep the same refresh token
     };
   } catch (error: any) {
     console.error('❌ Token refresh failed:', error.response?.data || error.message);
