@@ -775,7 +775,7 @@ export async function startAINoteCheckingJob(): Promise<void> {
       batchSize: 200
     }, {
       repeat: {
-        every: 5 * 60 * 1000, // 30 minutes
+        every: 5 * 60 * 1000, // 5 minutes
         immediately: true
       },
       jobId: 'recurring-ai-note-scan'
