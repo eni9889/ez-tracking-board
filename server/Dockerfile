@@ -43,6 +43,8 @@ RUN npm ci --only=production && \
 # Copy built application and certificates from builder
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/certs ./certs
+# Copy markdown files needed at runtime
+COPY --from=builder --chown=nodejs:nodejs /app/src/ai-prompt.md ./dist/
 
 # Set environment to production
 ENV NODE_ENV=production
