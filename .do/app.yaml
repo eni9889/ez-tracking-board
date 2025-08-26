@@ -15,7 +15,7 @@ databases:
   production: true
   version: "8"
 domains:
-- domain: dash.dccderm.com
+- domain: app.dccderm.com
   type: PRIMARY
 envs:
 - key: CLAUDE_API_KEY
