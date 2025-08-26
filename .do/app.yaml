@@ -1,13 +1,13 @@
-name: ez-tracking-board
+name: sea-turtle-app
 region: nyc
 
 # DigitalOcean App Platform specification for EZ Tracking Board
 # This mirrors the docker-compose.yml setup but uses DO managed services for production
 
-services:
+# Static Sites
+static_sites:
   # Frontend React Application
   - name: frontend
-    type: static
     source_dir: /
     github:
       repo: eni9889/ez-tracking-board
@@ -15,8 +15,8 @@ services:
       deploy_on_push: true
     build_command: npm ci && npm run build
     output_dir: build
-    routes:
-      - path: /
+    index_document: index.html
+    catchall_document: index.html
     envs:
       - key: REACT_APP_API_URL
         value: ${backend.PUBLIC_URL}
@@ -25,9 +25,10 @@ services:
       - key: NODE_ENV
         value: production
 
+# Services
+services:
   # Backend API Service
   - name: backend
-    type: service
     source_dir: /server
     github:
       repo: eni9889/ez-tracking-board
@@ -35,8 +36,8 @@ services:
       deploy_on_push: true
     dockerfile_path: server/Dockerfile
     http_port: 5001
-    instance_count: 2
-    instance_size_slug: basic-xxs
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb
     health_check:
       http_path: /api/health
       initial_delay_seconds: 60
@@ -76,12 +77,60 @@ services:
       - key: CLAUDE_API_KEY
         scope: RUN_AND_BUILD_TIME
         type: SECRET
-    routes:
-      - path: /api
+    alerts:
+      - rule: CPU_UTILIZATION
+        operator: GREATER_THAN
+        value: 80
+        window: FIVE_MINUTES
+        disabled: false
+      - rule: MEM_UTILIZATION
+        operator: GREATER_THAN
+        value: 80
+        window: FIVE_MINUTES
+        disabled: false
+      - rule: RESTART_COUNT
+        operator: GREATER_THAN
+        value: 10
+        window: FIVE_MINUTES
+        disabled: false
 
+  # Bull Board Job Monitoring
+  - name: bull-board
+    source_dir: /server
+    github:
+      repo: eni9889/ez-tracking-board
+      branch: main
+      deploy_on_push: true
+    dockerfile_path: server/Dockerfile
+    http_port: 3001
+    run_command: node src/bullBoardServer.js
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    health_check:
+      http_path: /
+      initial_delay_seconds: 30
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: BULL_BOARD_PORT
+        value: "3001"
+      - key: REDIS_HOST
+        value: ${redis.HOSTNAME}
+      - key: REDIS_PORT
+        value: ${redis.PORT}
+      - key: REDIS_PASSWORD
+        value: ${redis.PASSWORD}
+      - key: REDIS_URL
+        value: ${redis.DATABASE_URL}
+
+# Workers
+workers:
   # Background Worker Service
   - name: worker
-    type: worker
     source_dir: /server
     github:
       repo: eni9889/ez-tracking-board
@@ -90,7 +139,7 @@ services:
     dockerfile_path: server/Dockerfile
     run_command: node dist/jobProcessor.js
     instance_count: 1
-    instance_size_slug: basic-xxs
+    instance_size_slug: apps-s-1vcpu-0.5gb
     envs:
       - key: NODE_ENV
         value: production
@@ -119,88 +168,70 @@ services:
       - key: CLAUDE_API_KEY
         scope: RUN_AND_BUILD_TIME
         type: SECRET
-
-  # Bull Board Job Monitoring (Optional - can be disabled in production)
-  - name: bull-board
-    type: service
-    source_dir: /server
-    github:
-      repo: eni9889/ez-tracking-board
-      branch: main
-      deploy_on_push: true
-    dockerfile_path: server/Dockerfile
-    http_port: 3001
-    run_command: node src/bullBoardServer.js
-    instance_count: 1
-    instance_size_slug: basic-xxs
-    health_check:
-      http_path: /
-      initial_delay_seconds: 30
-      period_seconds: 10
-      timeout_seconds: 5
-      success_threshold: 1
-      failure_threshold: 3
-    envs:
-      - key: NODE_ENV
-        value: production
-      - key: BULL_BOARD_PORT
-        value: "3001"
-      - key: REDIS_HOST
-        value: ${redis.HOSTNAME}
-      - key: REDIS_PORT
-        value: ${redis.PORT}
-      - key: REDIS_PASSWORD
-        value: ${redis.PASSWORD}
-      - key: REDIS_URL
-        value: ${redis.DATABASE_URL}
-    routes:
-      - path: /bull-board
+    alerts:
+      - rule: CPU_UTILIZATION
+        operator: GREATER_THAN
+        value: 80
+        window: FIVE_MINUTES
+        disabled: false
+      - rule: MEM_UTILIZATION
+        operator: GREATER_THAN
+        value: 80
+        window: FIVE_MINUTES
+        disabled: false
+      - rule: RESTART_COUNT
+        operator: GREATER_THAN
+        value: 10
+        window: FIVE_MINUTES
+        disabled: false
 
 # Managed Database Services
 databases:
   # PostgreSQL Database
-  - name: db
+  - cluster_name: ez-tracking-postgres
+    db_name: defaultdb
+    db_user: doadmin
     engine: PG
-    version: "14"
-    size: db-s-1vcpu-1gb
-    num_nodes: 1
+    name: ez-tracking-postgres
     production: true
+    version: "17"
 
   # Redis Cache
-  - name: redis
-    engine: REDIS
-    version: "7"
-    size: db-s-1vcpu-1gb
-    num_nodes: 1
+  - cluster_name: ez-tracking-redis
+    engine: VALKEY
+    name: ez-tracking-redis
     production: true
+    version: "8"
 
-# Domain and Alerts (Optional)
-domains:
-  - domain: your-domain.com
-    type: PRIMARY
-    wildcard: false
-    zone: your-domain.com
-
+# App-Level Alerts (only deployment and domain alerts supported at app scope)
 alerts:
-  - rule: CPU_UTILIZATION
+  - rule: DEPLOYMENT_FAILED
     disabled: false
-    value: 80
-  - rule: MEM_UTILIZATION
+  - rule: DOMAIN_FAILED
     disabled: false
-    value: 80
-  - rule: RESTART_COUNT
-    disabled: false
-    value: 10
 
 # Features
 features:
-  - buildpack-stack=ubuntu-18
+  - buildpack-stack=ubuntu-22
 
-# Ingress (Load Balancer Configuration)
+# Ingress Rules for Service Routing
 ingress:
-  load_balancer:
-    algorithm: round_robin
-    sticky_sessions:
-      type: cookies
-      cookie_name: _do_lb
-      cookie_ttl_seconds: 300
+  rules:
+    # API routes go to backend
+    - component:
+        name: backend
+      match:
+        path:
+          prefix: /api
+    # Bull Board monitoring routes
+    - component:
+        name: bull-board
+      match:
+        path:
+          prefix: /bull-board
+    # Frontend routes (all unmatched routes go to frontend static site)
+    - component:
+        name: frontend
+      match:
+        path:
+          prefix: /
