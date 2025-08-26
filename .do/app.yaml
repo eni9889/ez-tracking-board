@@ -4,6 +4,12 @@ region: nyc
 # DigitalOcean App Platform specification for EZ Tracking Board
 # This mirrors the docker-compose.yml setup but uses DO managed services for production
 
+envs:
+- key: CLAUDE_API_KEY
+  scope: RUN_AND_BUILD_TIME
+  type: SECRET
+  value: EV[1:Z9+4seZ2/IjpBzy3JW3ldVKTRQw98kdP:bjVVOA6AuxgWO0NNUVVrnZFvSuiE9z+04drVzY5brEHtpfW8V3D4Dl23s/cWRZbdI33MbBEnXzRWBHutFrPTkNPmNDZO8DoMJrOwcm0W7E9R9pci5U/3aARNEpngp5mGIOTcukzO5amHlU5MBvlmk9Nvs69hlvA9Qxvnmg==]
+
 # Static Sites
 static_sites:
   # Frontend React Application
