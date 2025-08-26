@@ -34,7 +34,7 @@ const SESSION_SECRET = process.env.BULL_BOARD_SESSION_SECRET || crypto.randomByt
 
 // Middleware setup
 app.use(express.urlencoded({ extended: false }));
-app.use(session({
+app.use(session.default({
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
