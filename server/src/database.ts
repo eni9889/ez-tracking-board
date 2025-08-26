@@ -83,23 +83,16 @@ class VitalSignsDatabase {
       
       // Import node-pg-migrate with proper typing for production builds
       const { runner } = require('node-pg-migrate');
-      const { Client } = require('pg');
+      const path = require('path');
       
-      // Create a database client with proper SSL configuration
-      const dbClient = new Client({
-        host: appConfig.database.host,
-        port: appConfig.database.port,
-        database: appConfig.database.database,
-        user: appConfig.database.user,
-        password: appConfig.database.password,
-        ssl: getSSLConfig(),
-        connectionTimeoutMillis: 10000, // 10 second timeout
-      });
-      
+      // Build database URL with SSL parameters for production
+      const sslParams = process.env.NODE_ENV === 'production' ? '?sslmode=require' : '';
+      const databaseUrl = `postgresql://${appConfig.database.user}:${appConfig.database.password}@${appConfig.database.host}:${appConfig.database.port}/${appConfig.database.database}${sslParams}`;
+
       // Add timeout to migration process
       const migrationPromise = runner({
-        dbClient,
-        dir: 'migrations',
+        databaseUrl,
+        dir: path.join(__dirname, '../migrations'),
         direction: 'up',
         migrationsTable: 'pgmigrations',
         schema: 'public',
@@ -108,6 +101,7 @@ class VitalSignsDatabase {
         singleTransaction: true,
         lock: true,
         verbose: true,
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
       });
       
       // Set a timeout for migrations (30 seconds)
