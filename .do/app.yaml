@@ -38,12 +38,12 @@ ingress:
       name: backend
     match:
       path:
-        prefix: /api
+        prefix: /api/
   - component:
       name: bull-board
     match:
       path:
-        prefix: /bull-board
+        prefix: /bull-board/
   - component:
       name: frontend
     match:
