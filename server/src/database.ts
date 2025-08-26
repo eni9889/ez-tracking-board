@@ -63,8 +63,8 @@ class VitalSignsDatabase {
       // Import node-pg-migrate with proper typing for production builds
       const { runner } = require('node-pg-migrate');
       
-      // Construct database URL for node-pg-migrate
-      const databaseUrl = `postgresql://${appConfig.database.user}:${appConfig.database.password}@${appConfig.database.host}:${appConfig.database.port}/${appConfig.database.database}${process.env.NODE_ENV === 'production' ? '?sslmode=require' : ''}`;
+      // Construct database URL for node-pg-migrate with SSL handling
+      const databaseUrl = `postgresql://${appConfig.database.user}:${appConfig.database.password}@${appConfig.database.host}:${appConfig.database.port}/${appConfig.database.database}`;
       
       await runner({
         databaseUrl,
@@ -77,6 +77,8 @@ class VitalSignsDatabase {
         singleTransaction: true,
         lock: true,
         verbose: true,
+        // SSL configuration for DigitalOcean managed PostgreSQL
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
       });
       console.log('✅ Database migrations completed successfully');
       
