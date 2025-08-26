@@ -45,11 +45,11 @@ cd ez-tracking-board
 
 2. Start all services with Docker Compose:
 ```bash
-# Quick setup
-make setup
-
-# Or manually
+# Start all services (migrations run automatically first)
 docker-compose up
+
+# Or start in background
+docker-compose up -d
 ```
 
 3. Access the application:

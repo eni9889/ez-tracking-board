@@ -30,13 +30,18 @@ class VitalSignsDatabase {
       
       console.log('Connected to PostgreSQL database for vital signs tracking');
       
-      // Run migrations in production, create tables directly in development
+      // In production, run migrations automatically
+      // In development with Docker Compose, migrations are handled by dedicated service
+      // For local development without Docker, create tables directly
       if (process.env.NODE_ENV === 'production') {
         console.log('Running database migrations...');
         await this.runMigrations();
+      } else if (process.env.RUN_MIGRATIONS === 'true') {
+        console.log('Running database migrations (RUN_MIGRATIONS=true)...');
+        await this.runMigrations();
       } else {
-        console.log('Development mode: Creating tables directly...');
-        // Create tables if they don't exist (for backward compatibility in development)
+        console.log('Development mode: Creating tables directly (migrations handled by dedicated service)...');
+        // Create tables if they don't exist (for backward compatibility in local development)
         await this.createTables();
       }
     } catch (error) {

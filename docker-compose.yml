@@ -27,6 +27,28 @@ services:
       timeout: 5s
       retries: 5
 
+  # Database Migration Service
+  migrate:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    container_name: ez-tracking-migrate
+    environment:
+      NODE_ENV: development
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: vital_signs_tracking
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "npm run migrate && echo 'Migrations completed successfully'"
+    restart: "no"
+
   # Backend API Service
   backend:
     build:
@@ -57,6 +79,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     command: npm run dev
 
   # Worker Service (for background jobs)
@@ -85,6 +109,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     command: npm run worker:dev
 
   # Bull Board for Job Monitoring
@@ -107,6 +133,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     command: npm run bull-board:dev
 
   # Frontend React App
