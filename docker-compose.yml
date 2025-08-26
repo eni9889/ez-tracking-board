@@ -68,7 +68,7 @@ services:
       DB_PASSWORD: postgres
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      CORS_ORIGIN: http://localhost:3000
+      CORS_ORIGIN: http://0.0.0.0:3000
       DEBUG_AXIOS: "false"  # Set to "true" to enable verbose axios logging
       CLAUDE_API_KEY: ${CLAUDE_API_KEY}
       EZDERM_USER: ${EZDERM_USER}
@@ -151,7 +151,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      REACT_APP_API_URL: http://localhost:5001
+      REACT_APP_API_URL: http://0.0.0.0:5001
       CHOKIDAR_USEPOLLING: true
     volumes:
       - ./frontend/src:/app/src

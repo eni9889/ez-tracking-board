@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { LoginResponse } from '../types/api.types';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://0.0.0.0:5001';
 
 // Development flag - matches the one in patientTracking.service.ts
 const USE_MOCK_DATA = process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_MOCK_DATA === 'true';
@@ -256,7 +256,7 @@ class AuthService {
           refreshToken: mockRefreshToken,
           username,
           expiresAt: mockExpiresAt,
-          serverUrl: process.env.REACT_APP_API_URL || 'http://localhost:5001'
+          serverUrl: process.env.REACT_APP_API_URL || 'http://0.0.0.0:5001'
         });
         
         // Simulate API delay
@@ -264,7 +264,7 @@ class AuthService {
         return {
           success: true,
           username,
-          serverUrl: process.env.REACT_APP_API_URL || 'http://localhost:5001',
+          serverUrl: process.env.REACT_APP_API_URL || 'http://0.0.0.0:5001',
           sessionToken: mockSessionToken,
           refreshToken: mockRefreshToken,
           expiresAt: mockExpiresAt

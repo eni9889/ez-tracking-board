@@ -1461,9 +1461,9 @@ async function startServer() {
       console.log(`🏥 EZDerm API Base: ${EZDERM_LOGIN_URL}`);
       console.log(`🩺 Vital signs carryforward enabled (server-side jobs)`);
       console.log(`🤖 AI Note Checker enabled (Claude AI integration)`);
-      console.log(`🌐 Health check: http://0.0.0.0:${PORT}/api/health`);
-      console.log(`🔐 Login endpoint: http://0.0.0.0:${PORT}/api/login`);
-      console.log(`📝 AI Note Checker endpoints: /api/notes/*`);
+      console.log(`🌐 Health check: http://0.0.0.0:${PORT}/health`);
+      console.log(`🔐 Login endpoint: http://0.0.0.0:${PORT}/login`);
+      console.log(`📝 AI Note Checker endpoints: /notes/*`);
       console.log(`✅ Server startup complete!`);
     });
   } catch (error) {
