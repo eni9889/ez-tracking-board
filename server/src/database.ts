@@ -61,10 +61,9 @@ class VitalSignsDatabase {
       console.log('🔄 Running database migrations...');
       
       // Import node-pg-migrate with proper typing for production builds
-      const nodePgMigrate = require('node-pg-migrate');
-      const Runner = nodePgMigrate.Runner || nodePgMigrate.default?.Runner || nodePgMigrate;
+      const { runner } = require('node-pg-migrate');
       
-      const runner = new Runner({
+      await runner({
         database: {
           host: appConfig.database.host,
           port: appConfig.database.port,
@@ -83,8 +82,6 @@ class VitalSignsDatabase {
         lock: true,
         verbose: true,
       });
-
-      await runner.up();
       console.log('✅ Database migrations completed successfully');
       
     } catch (error) {
