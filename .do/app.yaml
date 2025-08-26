@@ -103,7 +103,7 @@ services:
       deploy_on_push: true
     dockerfile_path: server/Dockerfile
     http_port: 3001
-    run_command: node src/bullBoardServer.js
+    run_command: npm run bull-board
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-0.5gb
     health_check:
