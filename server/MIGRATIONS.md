@@ -1,67 +1,55 @@
 # Database Migrations Guide
 
-This document explains how to manage database schema changes using our migration system.
+This document explains how to manage database schema changes using `node-pg-migrate`.
 
 ## Overview
 
-The migration system provides a structured way to:
+We use [node-pg-migrate](https://github.com/theoephraim/node-pg-migrate) for database migrations, which provides:
 - Track database schema changes over time
 - Apply changes consistently across environments
 - Rollback changes when needed
 - Ensure all team members have the same database structure
+- Battle-tested PostgreSQL-specific migration framework
 
 ## Migration Files
 
-Migration files are stored in `src/migrations/scripts/` and follow this naming convention:
+Migration files are stored in `migrations/` and follow this naming convention:
 ```
-YYYYMMDDHHMMSS_migration_name.ts
+TIMESTAMP_migration_name.ts
 ```
 
-Example: `20250108120000_add_user_email_column.ts`
+Example: `1704672000000_add_user_email_column.ts`
 
 ## Creating Migrations
 
 ### 1. Create a New Migration
 
 ```bash
-# Development
-npm run migrate:create "add user email column"
+# Create a TypeScript migration
+npm run migrate:create "add user email column" -- --migration-file-language ts
 
-# This creates a file like: 20250108120000_add_user_email_column.ts
+# This creates a file like: 1704672000000_add_user_email_column.ts
 ```
 
 ### 2. Edit the Migration File
 
 ```typescript
-import { Pool } from 'pg';
+import { MigrationBuilder, ColumnDefinitions } from 'node-pg-migrate';
 
-export default {
-  id: '20250108120000_add_user_email_column',
-  name: 'Add email column to users table',
+export const shorthands: ColumnDefinitions | undefined = undefined;
+
+export async function up(pgm: MigrationBuilder): Promise<void> {
+  pgm.addColumns('user_credentials', {
+    email: { type: 'varchar(255)', unique: true }
+  });
   
-  async up(pool: Pool): Promise<void> {
-    await pool.query(`
-      ALTER TABLE user_credentials 
-      ADD COLUMN email VARCHAR(255) UNIQUE
-    `);
-    
-    await pool.query(`
-      CREATE INDEX idx_user_credentials_email 
-      ON user_credentials(email)
-    `);
-  },
-  
-  async down(pool: Pool): Promise<void> {
-    await pool.query(`
-      DROP INDEX IF EXISTS idx_user_credentials_email
-    `);
-    
-    await pool.query(`
-      ALTER TABLE user_credentials 
-      DROP COLUMN email
-    `);
-  }
-};
+  pgm.createIndex('user_credentials', 'email');
+}
+
+export async function down(pgm: MigrationBuilder): Promise<void> {
+  pgm.dropIndex('user_credentials', 'email');
+  pgm.dropColumns('user_credentials', ['email']);
+}
 ```
 
 ## Running Migrations
@@ -72,11 +60,14 @@ export default {
 # Run all pending migrations
 npm run migrate
 
-# Check migration status
-npm run migrate:status
-
 # Rollback last migration
-npm run migrate:rollback
+npm run migrate:down
+
+# Redo last migration (down then up)
+npm run migrate:redo
+
+# Show what would be run (without executing)
+npm run migrate:dry-run
 ```
 
 ### Production
@@ -85,7 +76,7 @@ Migrations run automatically when the application starts in production mode (`NO
 
 You can also run them manually:
 ```bash
-npm run migrate:prod
+npm run migrate
 ```
 
 ## Migration Commands
@@ -93,10 +84,11 @@ npm run migrate:prod
 | Command | Description |
 |---------|-------------|
 | `npm run migrate` | Run pending migrations |
-| `npm run migrate:status` | Show migration status |
-| `npm run migrate:rollback` | Rollback last migration |
+| `npm run migrate:up` | Run pending migrations (same as migrate) |
+| `npm run migrate:down` | Rollback last migration |
+| `npm run migrate:redo` | Redo last migration (down then up) |
 | `npm run migrate:create "name"` | Create new migration file |
-| `npm run migrate:prod` | Run migrations in production |
+| `npm run migrate:dry-run` | Show what would be executed without running |
 
 ## Migration Best Practices
 
@@ -249,60 +241,62 @@ npm run migrate
 ### Adding a New Table
 
 ```typescript
-async up(pool: Pool): Promise<void> {
-  await pool.query(`
-    CREATE TABLE user_profiles (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES user_credentials(id) ON DELETE CASCADE,
-      first_name VARCHAR(100),
-      last_name VARCHAR(100),
-      phone VARCHAR(20),
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
+export async function up(pgm: MigrationBuilder): Promise<void> {
+  pgm.createTable('user_profiles', {
+    id: 'id',
+    user_id: { 
+      type: 'integer', 
+      notNull: true,
+      references: 'user_credentials(id)',
+      onDelete: 'CASCADE'
+    },
+    first_name: { type: 'varchar(100)' },
+    last_name: { type: 'varchar(100)' },
+    phone: { type: 'varchar(20)' },
+    created_at: { type: 'timestamp', default: pgm.func('CURRENT_TIMESTAMP') },
+    updated_at: { type: 'timestamp', default: pgm.func('CURRENT_TIMESTAMP') }
+  });
   
-  await pool.query(`
-    CREATE INDEX idx_user_profiles_user_id ON user_profiles(user_id)
-  `);
+  pgm.createIndex('user_profiles', 'user_id');
 }
 
-async down(pool: Pool): Promise<void> {
-  await pool.query('DROP TABLE IF EXISTS user_profiles CASCADE');
+export async function down(pgm: MigrationBuilder): Promise<void> {
+  pgm.dropTable('user_profiles', { cascade: true });
 }
 ```
 
 ### Adding an Index
 
 ```typescript
-async up(pool: Pool): Promise<void> {
-  await pool.query(`
-    CREATE INDEX CONCURRENTLY idx_note_checks_date_created 
-    ON note_checks(date_of_service, created_at)
-  `);
+export async function up(pgm: MigrationBuilder): Promise<void> {
+  pgm.createIndex('note_checks', ['date_of_service', 'created_at'], {
+    name: 'idx_note_checks_date_created',
+    concurrently: true
+  });
 }
 
-async down(pool: Pool): Promise<void> {
-  await pool.query('DROP INDEX IF EXISTS idx_note_checks_date_created');
+export async function down(pgm: MigrationBuilder): Promise<void> {
+  pgm.dropIndex('note_checks', ['date_of_service', 'created_at'], {
+    name: 'idx_note_checks_date_created'
+  });
 }
 ```
 
 ### Modifying Column Type
 
 ```typescript
-async up(pool: Pool): Promise<void> {
-  // Safely change column type
-  await pool.query('ALTER TABLE users ALTER COLUMN phone TYPE VARCHAR(50)');
+export async function up(pgm: MigrationBuilder): Promise<void> {
+  pgm.alterColumn('users', 'phone', { type: 'varchar(50)' });
 }
 
-async down(pool: Pool): Promise<void> {
-  // Make sure this is safe for your data
-  await pool.query('ALTER TABLE users ALTER COLUMN phone TYPE VARCHAR(20)');
+export async function down(pgm: MigrationBuilder): Promise<void> {
+  pgm.alterColumn('users', 'phone', { type: 'varchar(20)' });
 }
 ```
 
 ## See Also
 
+- [node-pg-migrate Documentation](https://github.com/theoephraim/node-pg-migrate) - Complete API reference
 - [Database Schema](../src/database.ts) - Current table definitions
-- [Migration Runner](../src/migrations/MigrationRunner.ts) - Migration system implementation
+- [Migration Configuration](../.pgmigrate.json) - Migration settings
 - [DigitalOcean Deployment](../../.do/app.yaml) - Production deployment configuration

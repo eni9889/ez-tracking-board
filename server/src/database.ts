@@ -1,6 +1,6 @@
 import { Pool, PoolClient, QueryResult } from 'pg';
 import { appConfig } from './config';
-import { MigrationRunner } from './migrations/MigrationRunner';
+import { Runner } from 'node-pg-migrate';
 
 class VitalSignsDatabase {
   private pool: Pool | null = null;
@@ -46,15 +46,43 @@ class VitalSignsDatabase {
   }
 
   /**
-   * Run database migrations
+   * Run database migrations using node-pg-migrate
    */
   async runMigrations(): Promise<void> {
     if (!this.pool) {
       throw new Error('Database not initialized');
     }
 
-    const migrationRunner = new MigrationRunner(this.pool);
-    await migrationRunner.migrate();
+    try {
+      console.log('🔄 Running database migrations...');
+      
+      const runner = new Runner({
+        database: {
+          host: appConfig.database.host,
+          port: appConfig.database.port,
+          database: appConfig.database.database,
+          user: appConfig.database.user,
+          password: appConfig.database.password,
+          ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+        },
+        dir: 'migrations',
+        direction: 'up',
+        migrationsTable: 'pgmigrations',
+        schema: 'public',
+        createSchema: true,
+        checkOrder: true,
+        singleTransaction: true,
+        lock: true,
+        verbose: true,
+      });
+
+      await runner.up();
+      console.log('✅ Database migrations completed successfully');
+      
+    } catch (error) {
+      console.error('❌ Database migration failed:', error);
+      throw error;
+    }
   }
 
   private async createTables(): Promise<void> {

@@ -80,9 +80,6 @@ services:
         value: ${frontend.PUBLIC_URL}
       - key: DEBUG_AXIOS
         value: "false"
-      - key: CLAUDE_API_KEY
-        scope: RUN_AND_BUILD_TIME
-        type: SECRET
     alerts:
       - rule: CPU_UTILIZATION
         operator: GREATER_THAN
@@ -171,9 +168,6 @@ workers:
         value: ${ez-tracking-redis.DATABASE_URL}
       - key: DEBUG_AXIOS
         value: "false"
-      - key: CLAUDE_API_KEY
-        scope: RUN_AND_BUILD_TIME
-        type: SECRET
     alerts:
       - rule: CPU_UTILIZATION
         operator: GREATER_THAN
