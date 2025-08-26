@@ -120,7 +120,7 @@ export class MigrationRunner {
     
     await this.initializeMigrationsTable();
     
-    const appliedMigrations = await getAppliedMigrations();
+    const appliedMigrations = await this.getAppliedMigrations();
     const availableMigrations = await this.loadMigrations();
     
     const pendingMigrations = availableMigrations.filter(
@@ -220,7 +220,7 @@ export class MigrationRunner {
   async status(): Promise<void> {
     await this.initializeMigrationsTable();
     
-    const appliedMigrations = await getAppliedMigrations();
+    const appliedMigrations = await this.getAppliedMigrations();
     const availableMigrations = await this.loadMigrations();
     
     console.log('\n📋 Migration Status:');
