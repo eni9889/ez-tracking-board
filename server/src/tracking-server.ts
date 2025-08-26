@@ -1378,14 +1378,14 @@ async function startServer() {
     // Clean up sessions on startup
     await vitalSignsDb.cleanupExpiredSessions();
 
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server is running on port ${PORT}`);
       console.log(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🏥 EZDerm API Base: ${EZDERM_LOGIN_URL}`);
       console.log(`🩺 Vital signs carryforward enabled (server-side jobs)`);
       console.log(`🤖 AI Note Checker enabled (Claude AI integration)`);
-      console.log(`🌐 Health check: http://localhost:${PORT}/api/health`);
-      console.log(`🔐 Login endpoint: http://localhost:${PORT}/api/login`);
+      console.log(`🌐 Health check: http://0.0.0.0:${PORT}/api/health`);
+      console.log(`🔐 Login endpoint: http://0.0.0.0:${PORT}/api/login`);
       console.log(`📝 AI Note Checker endpoints: /api/notes/*`);
       console.log(`✅ Server startup complete!`);
     });
