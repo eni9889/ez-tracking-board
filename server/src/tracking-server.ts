@@ -12,6 +12,7 @@ import {
   getAINoteJobStats 
 } from './jobProcessor';
 import { aiNoteChecker } from './aiNoteChecker';
+import { appConfig } from './config';
 import {
   LoginRequest,
   LoginResponse,
