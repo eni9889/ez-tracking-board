@@ -1,6 +1,0 @@
-name: ez-tracking-board
-runtime:
-  name: nodejs
-  options:
-    typescript: true
-description: Infrastructure for EZ Tracking Board application on AWS 
