@@ -78,35 +78,69 @@ class VitalSignsDatabase {
       throw new Error('Database not initialized');
     }
 
+    let dbClient: any = null;
+    const startTime = Date.now();
+
     try {
-      console.log('🔄 Running database migrations...');
+      console.log('🔄 [DEBUG] Starting database migrations...');
+      console.log(`🔍 [DEBUG] Migration start time: ${new Date().toISOString()}`);
       
       // Import node-pg-migrate with proper typing for production builds
+      console.log('📦 [DEBUG] Importing node-pg-migrate...');
       const { runner } = require('node-pg-migrate');
       const path = require('path');
+      console.log('✅ [DEBUG] node-pg-migrate imported successfully');
       
       // For node-pg-migrate, we need to use dbClient approach to properly handle SSL with CA cert
       const { Client } = require('pg');
       
+      const migrationDir = path.join(__dirname, '../migrations');
+      console.log(`📁 [DEBUG] Migration directory: ${migrationDir}`);
+      
       // Create a database client with proper SSL configuration (including CA cert)
-      const dbClient = new Client({
+      console.log('🔗 [DEBUG] Creating database client...');
+      const sslConfig = getSSLConfig();
+      console.log(`🔒 [DEBUG] SSL config:`, sslConfig ? 'SSL enabled' : 'SSL disabled');
+      
+      dbClient = new Client({
         host: appConfig.database.host,
         port: appConfig.database.port,
         database: appConfig.database.database,
         user: appConfig.database.user,
         password: appConfig.database.password,
-        ssl: getSSLConfig(),
+        ssl: sslConfig,
         connectionTimeoutMillis: 10000, // 10 second timeout
       });
+      console.log(`🔗 [DEBUG] Client created for ${appConfig.database.user}@${appConfig.database.host}:${appConfig.database.port}/${appConfig.database.database}`);
 
       // Connect the client before passing to runner
+      console.log('🔌 [DEBUG] Connecting to database...');
+      const connectStart = Date.now();
       await dbClient.connect();
+      const connectTime = Date.now() - connectStart;
+      console.log(`✅ [DEBUG] Database connected successfully in ${connectTime}ms`);
 
       try {
+        // Check if migrations table exists
+        console.log('🔍 [DEBUG] Checking for existing migrations...');
+        const tableCheck = await dbClient.query(`
+          SELECT table_name FROM information_schema.tables 
+          WHERE table_schema = 'public' AND table_name = 'pgmigrations'
+        `);
+        console.log(`📋 [DEBUG] Migrations table exists: ${tableCheck.rows.length > 0}`);
+        
+        // List migration files
+        const fs = require('fs');
+        const migrationFiles = fs.readdirSync(migrationDir);
+        console.log(`📄 [DEBUG] Found ${migrationFiles.length} migration files:`, migrationFiles);
+        
         // Add timeout to migration process
+        console.log('🚀 [DEBUG] Starting migration runner...');
+        const runnerStart = Date.now();
+        
         const migrationPromise = runner({
           dbClient,
-          dir: path.join(__dirname, '../migrations'),
+          dir: migrationDir,
           direction: 'up',
           migrationsTable: 'pgmigrations',
           schema: 'public',
@@ -117,21 +151,47 @@ class VitalSignsDatabase {
           verbose: true,
         });
         
-        // Set a timeout for migrations (30 seconds)
+        // Set a timeout for migrations (60 seconds for debugging)
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Migration timeout after 30 seconds')), 30000);
+          setTimeout(() => {
+            const elapsed = Date.now() - runnerStart;
+            reject(new Error(`Migration timeout after 60 seconds (elapsed: ${elapsed}ms)`));
+          }, 60000);
         });
         
+        console.log('⏱️ [DEBUG] Racing migration vs timeout...');
         await Promise.race([migrationPromise, timeoutPromise]);
+        
+        const runnerTime = Date.now() - runnerStart;
+        console.log(`✅ [DEBUG] Migration runner completed in ${runnerTime}ms`);
+        
       } finally {
         // Always close the client
-        await dbClient.end();
+        if (dbClient) {
+          console.log('🔌 [DEBUG] Closing database client...');
+          await dbClient.end();
+          console.log('✅ [DEBUG] Database client closed');
+        }
       }
       
-      console.log('✅ Database migrations completed successfully');
+      const totalTime = Date.now() - startTime;
+      console.log(`✅ [DEBUG] Database migrations completed successfully in ${totalTime}ms`);
+      console.log(`🔍 [DEBUG] Migration end time: ${new Date().toISOString()}`);
       
     } catch (error) {
-      console.error('❌ Database migration failed:', error);
+      const totalTime = Date.now() - startTime;
+      console.error(`❌ [DEBUG] Database migration failed after ${totalTime}ms:`, error);
+      
+      // Try to close client if it exists
+      if (dbClient) {
+        try {
+          console.log('🔌 [DEBUG] Attempting to close client after error...');
+          await dbClient.end();
+        } catch (closeError) {
+          console.error('❌ [DEBUG] Failed to close client:', closeError);
+        }
+      }
+      
       throw error;
     }
   }
