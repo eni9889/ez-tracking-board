@@ -70,13 +70,11 @@ cd ez-tracking-board
 
 2. Install dependencies:
 ```bash
-# Install all dependencies (root, frontend, and backend)
-npm run install:all
+# Install frontend dependencies
+cd frontend && npm install
 
-# Or install individually:
-npm install                    # Root dependencies
-cd frontend && npm install     # Frontend dependencies
-cd ../server && npm install    # Backend dependencies
+# Install backend dependencies
+cd ../server && npm install
 cd ..
 ```
 
@@ -93,14 +91,7 @@ createdb vital_signs_tracking
 
 4. Start the services:
 ```bash
-# Start both frontend and backend together
-npm start
-
-# Or start individually:
-npm run start:backend    # Backend only
-npm run start:frontend   # Frontend only
-
-# Or in separate terminals:
+# Start both frontend and backend in separate terminals:
 # Terminal 1: Backend
 cd server && npm run dev
 
@@ -139,8 +130,7 @@ ez-tracking-board/
 │   ├── package.json      # Backend dependencies
 │   └── Dockerfile        # Backend Docker config
 ├── .do/              # DigitalOcean App Platform config
-├── docker-compose.yml # Local development setup
-└── package.json      # Root monorepo configuration
+└── docker-compose.yml # Orchestrates all services for development
 ```
 
 ### Key Technologies
