@@ -131,7 +131,7 @@ services:
     scope: RUN_AND_BUILD_TIME
     value: ""
   github:
-    branch: main
+    branch: production
     deploy_on_push: true
     repo: eni9889/ez-tracking-board
   health_check:
@@ -168,7 +168,7 @@ services:
     scope: RUN_AND_BUILD_TIME
     value: ${ez-tracking-redis.DATABASE_URL}
   github:
-    branch: main
+    branch: production
     deploy_on_push: true
     repo: eni9889/ez-tracking-board
   health_check:
@@ -198,7 +198,7 @@ static_sites:
     scope: BUILD_TIME
     value: production
   github:
-    branch: main
+    branch: production
     deploy_on_push: true
     repo: eni9889/ez-tracking-board
   index_document: index.html
@@ -258,7 +258,7 @@ workers:
     scope: RUN_AND_BUILD_TIME
     value: "false"
   github:
-    branch: main
+    branch: production
     deploy_on_push: true
     repo: eni9889/ez-tracking-board
   instance_count: 1
