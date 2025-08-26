@@ -146,6 +146,18 @@ services:
   - key: REDIS_URL
     scope: RUN_AND_BUILD_TIME
     value: ${ez-tracking-redis.DATABASE_URL}
+  - key: BULL_BOARD_USERNAME
+    scope: RUN_AND_BUILD_TIME
+    type: SECRET
+    value: EV[1:bull_board_username_secret_key:base64_encoded_username]
+  - key: BULL_BOARD_PASSWORD
+    scope: RUN_AND_BUILD_TIME
+    type: SECRET
+    value: EV[1:bull_board_password_secret_key:base64_encoded_secure_password]
+  - key: BULL_BOARD_SESSION_SECRET
+    scope: RUN_AND_BUILD_TIME
+    type: SECRET
+    value: EV[1:bull_board_session_secret_key:base64_encoded_session_secret]
   github:
     branch: production
     deploy_on_push: true
