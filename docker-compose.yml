@@ -71,6 +71,8 @@ services:
       CORS_ORIGIN: http://localhost:3000
       DEBUG_AXIOS: "false"  # Set to "true" to enable verbose axios logging
       CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      EZDERM_USER: ${EZDERM_USER}
+      EZDERM_PASS: ${EZDERM_PASS}
     volumes:
       - ./server:/app
       - /app/node_modules
@@ -101,6 +103,8 @@ services:
       REDIS_PORT: 6379
       DEBUG_AXIOS: "false"  # Set to "true" to enable verbose axios logging
       CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      EZDERM_USER: ${EZDERM_USER}
+      EZDERM_PASS: ${EZDERM_PASS}
     volumes:
       - ./server:/app
       - /app/node_modules

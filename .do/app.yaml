@@ -9,6 +9,14 @@ envs:
   scope: RUN_AND_BUILD_TIME
   type: SECRET
   value: EV[1:Z9+4seZ2/IjpBzy3JW3ldVKTRQw98kdP:bjVVOA6AuxgWO0NNUVVrnZFvSuiE9z+04drVzY5brEHtpfW8V3D4Dl23s/cWRZbdI33MbBEnXzRWBHutFrPTkNPmNDZO8DoMJrOwcm0W7E9R9pci5U/3aARNEpngp5mGIOTcukzO5amHlU5MBvlmk9Nvs69hlvA9Qxvnmg==]
+- key: EZDERM_USER
+  scope: RUN_TIME
+  type: SECRET
+  value: # You'll need to set this in DigitalOcean dashboard
+- key: EZDERM_PASS
+  scope: RUN_TIME
+  type: SECRET
+  value: # You'll need to set this in DigitalOcean dashboard
 
 # Static Sites
 static_sites:

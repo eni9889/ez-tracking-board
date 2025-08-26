@@ -20,12 +20,18 @@ interface RedisConfig {
   tls?: boolean;
 }
 
+interface EZDermConfig {
+  serviceUser: string;
+  servicePassword: string;
+}
+
 interface AppConfig {
   port: number;
   nodeEnv: string;
   corsOrigin: string;
   database: DatabaseConfig;
   redis: RedisConfig;
+  ezderm: EZDermConfig;
 }
 
 // Parse secrets from AWS Secrets Manager
@@ -91,6 +97,10 @@ export const appConfig: AppConfig = {
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   database: parseDbSecret(process.env.DB_SECRET),
   redis: parseRedisSecret(process.env.REDIS_SECRET),
+  ezderm: {
+    serviceUser: process.env.EZDERM_USER || '',
+    servicePassword: process.env.EZDERM_PASS || '',
+  },
 };
 
 // Log configuration (without sensitive data)
@@ -108,5 +118,9 @@ console.log('App Configuration:', {
     host: appConfig.redis.host,
     port: appConfig.redis.port,
     tls: appConfig.redis.tls,
+  },
+  ezderm: {
+    serviceUser: appConfig.ezderm.serviceUser ? '***configured***' : 'not set',
+    servicePasswordConfigured: !!appConfig.ezderm.servicePassword,
   },
 }); 

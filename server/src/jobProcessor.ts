@@ -5,6 +5,7 @@ import { AxiosResponse } from 'axios';
 import { vitalSignsDb } from './database';
 import { vitalSignsService } from './vitalSignsService';
 import { aiNoteChecker } from './aiNoteChecker';
+import { appConfig } from './config';
 import {
   EZDermLoginRequest,
   EZDermLoginResponse,
@@ -198,30 +199,42 @@ async function refreshEZDermTokenInJob(refreshToken: string): Promise<{ accessTo
   }
 }
 
-// Enhanced function to get valid tokens in job context
-async function getValidTokensForJob(username: string): Promise<{ accessToken: string; refreshToken: string; serverUrl: string } | null> {
+// Enhanced function to get valid tokens using service user credentials
+async function getValidTokensForJob(): Promise<{ accessToken: string; refreshToken: string; serverUrl: string } | null> {
   try {
-    // First, try to get stored tokens
-    let tokens = await vitalSignsDb.getStoredTokens(username);
+    const serviceUser = appConfig.ezderm.serviceUser;
+    const servicePassword = appConfig.ezderm.servicePassword;
+    
+    if (!serviceUser || !servicePassword) {
+      console.error('❌ Job: EZDerm service user credentials not configured. Set EZDERM_USER and EZDERM_PASS environment variables.');
+      return null;
+    }
+    
+    console.log(`🔑 Job: Using service user: ${serviceUser}`);
+    
+    // First, try to get stored tokens for the service user
+    let tokens = await vitalSignsDb.getStoredTokens(serviceUser);
     
     if (tokens) {
       // Tokens are valid and not expired
+      console.log(`✅ Job: Using cached tokens for service user: ${serviceUser}`);
       return tokens;
     }
     
     // Tokens are expired or don't exist, try to refresh
-    console.log(`🔄 Job: Tokens expired for user ${username}, attempting refresh...`);
+    console.log(`🔄 Job: Tokens expired for service user ${serviceUser}, attempting refresh...`);
     
     // Get the refresh token even if access token is expired
-    const expiredTokenData = await vitalSignsDb.getStoredTokensIgnoreExpiry(username);
+    const expiredTokenData = await vitalSignsDb.getStoredTokensIgnoreExpiry(serviceUser);
     
     if (expiredTokenData?.refreshToken) {
       const refreshedTokens = await refreshEZDermTokenInJob(expiredTokenData.refreshToken);
       
       if (refreshedTokens) {
         // Store the new tokens
-        await vitalSignsDb.storeTokens(username, refreshedTokens.accessToken, refreshedTokens.refreshToken, expiredTokenData.serverUrl);
+        await vitalSignsDb.storeTokens(serviceUser, refreshedTokens.accessToken, refreshedTokens.refreshToken, expiredTokenData.serverUrl);
         
+        console.log(`✅ Job: Token refresh successful for service user: ${serviceUser}`);
         return {
           accessToken: refreshedTokens.accessToken,
           refreshToken: refreshedTokens.refreshToken,
@@ -230,23 +243,20 @@ async function getValidTokensForJob(username: string): Promise<{ accessToken: st
       }
     }
     
-    // Refresh failed, try re-login with stored credentials
-    console.log(`🔑 Job: Token refresh failed for user ${username}, attempting re-login...`);
-    const credentials = await vitalSignsDb.getUserCredentials(username);
+    // Refresh failed, try fresh login with service credentials
+    console.log(`🔑 Job: Token refresh failed for service user ${serviceUser}, attempting fresh login...`);
+    const authData = await loginToEZDerm(serviceUser, servicePassword);
     
-    if (credentials) {
-      const authData = await loginToEZDerm(credentials.username, credentials.password);
-      if (authData) {
-        console.log(`✅ Job: Re-login successful for user ${username}`);
-        return authData;
-      }
+    if (authData) {
+      console.log(`✅ Job: Fresh login successful for service user: ${serviceUser}`);
+      return authData;
     }
     
-    console.log(`❌ Job: No valid credentials found for user ${username}`);
+    console.log(`❌ Job: Failed to authenticate service user: ${serviceUser}`);
     return null;
     
   } catch (error: any) {
-    console.error(`💥 Job: Error getting valid tokens for user ${username}:`, error.message);
+    console.error(`💥 Job: Error getting valid tokens for service user:`, error.message);
     return null;
   }
 }
@@ -293,13 +303,8 @@ async function processVitalSignsCarryforward(job: Job): Promise<{ processed: num
   
   try {
     // Get stored credentials
-    const credentials = await vitalSignsDb.getActiveUserCredentials();
-    if (!credentials) {
-      throw new Error('No active user credentials found. Please login through the frontend first.');
-    }
-
-    // Get valid tokens (with automatic refresh if needed)
-    let authData = await getValidTokensForJob(credentials.username);
+    // Get valid tokens using service user credentials
+    let authData = await getValidTokensForJob();
     
     if (!authData) {
       throw new Error('Failed to obtain valid EZDerm tokens');
@@ -365,9 +370,9 @@ async function processVitalSignsCarryforward(job: Job): Promise<{ processed: num
 }
 
 // Token management helper for AI note checking jobs (reuse existing pattern)
-const getValidTokensForAI = async (username: string): Promise<{ accessToken: string; refreshToken: string; serverUrl: string } | null> => {
-  // Use the existing token management function from vital signs jobs
-  return await getValidTokensForJob(username);
+const getValidTokensForAI = async (): Promise<{ accessToken: string; refreshToken: string; serverUrl: string } | null> => {
+  // Use the service user token management function
+  return await getValidTokensForJob();
 };
 
 // AI Note Scan Job Processor
@@ -377,19 +382,13 @@ const processAINoteScan = async (job: Job<AINoteScanJobData>) => {
   console.log(`🔍 Starting AI note scan, scanId: ${scanId}`);
   
   try {
-    // Get stored credentials (same pattern as vital signs job)
-    const credentials = await vitalSignsDb.getActiveUserCredentials();
-    if (!credentials) {
-      throw new Error('No active user credentials found. Please login through the frontend first.');
-    }
-
-    // Get valid tokens for the active user
-    const tokens = await getValidTokensForAI(credentials.username);
+    // Get valid tokens using service user credentials
+    const tokens = await getValidTokensForAI();
     if (!tokens) {
-      throw new Error(`Failed to get valid tokens for user: ${credentials.username}`);
+      throw new Error('Failed to get valid tokens for service user');
     }
 
-    console.log(`🔑 Using credentials for user: ${credentials.username}`);
+    console.log('🔑 Using service user credentials for AI note scanning');
 
     // Fetch incomplete notes
     const incompleteNotes = await aiNoteChecker.fetchIncompleteNotes(tokens.accessToken, {
@@ -475,18 +474,13 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
   
   try {
     // Get stored credentials (SAME PATTERN AS VITAL SIGNS)
-    const credentials = await vitalSignsDb.getActiveUserCredentials();
-    if (!credentials) {
-      throw new Error('No active user credentials found. Please login through the frontend first.');
-    }
-
     // Use the same robust token management as vital signs
-    console.log(`🔑 AI Job: Getting valid tokens for user: ${credentials.username}`);
-    const tokens = await getValidTokensForJob(credentials.username);
+    console.log('🔑 AI Job: Getting valid tokens using service user credentials');
+    const tokens = await getValidTokensForJob();
     if (!tokens) {
-      throw new Error(`Failed to get valid tokens for user: ${credentials.username}`);
+      throw new Error('Failed to get valid tokens for service user');
     }
-    console.log(`✅ AI Job: Got valid tokens for ${credentials.username}`);
+    console.log('✅ AI Job: Got valid tokens using service user credentials');
 
     // Perform the AI check with force flag
     const checkId = await aiNoteChecker.checkSingleNote(
@@ -496,7 +490,7 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
       patientName,         // 4th: patientName
       chiefComplaint,      // 5th: chiefComplaint
       dateOfService,       // 6th: dateOfService
-      credentials.username,// 7th: checkedBy
+      appConfig.ezderm.serviceUser, // 7th: checkedBy
       Boolean(force)       // 8th: force flag
     );
 
