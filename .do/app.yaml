@@ -19,7 +19,7 @@ static_sites:
       repo: eni9889/ez-tracking-board
       branch: main
       deploy_on_push: true
-    build_command: npm ci && npm run build
+    build_command: npm install && npm run build
     output_dir: build
     index_document: index.html
     catchall_document: index.html
@@ -41,7 +41,7 @@ services:
       branch: main
       deploy_on_push: true
     environment_slug: node-js
-    build_command: npm ci && npm run build
+    build_command: npm install && npm run build
     run_command: npm start
     http_port: 5001
     instance_count: 1
@@ -107,7 +107,7 @@ services:
       branch: main
       deploy_on_push: true
     environment_slug: node-js
-    build_command: npm ci && npm run build
+    build_command: npm install && npm run build
     run_command: npm run bull-board
     http_port: 3001
     instance_count: 1
@@ -143,7 +143,7 @@ workers:
       branch: main
       deploy_on_push: true
     environment_slug: node-js
-    build_command: npm ci && npm run build
+    build_command: npm install && npm run build
     run_command: node dist/jobProcessor.js
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-0.5gb
