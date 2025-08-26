@@ -1,5 +1,26 @@
 import { Pool, PoolClient, QueryResult } from 'pg';
 import { appConfig } from './config';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+// Helper function to get SSL configuration
+function getSSLConfig() {
+  if (process.env.NODE_ENV !== 'production') {
+    return false;
+  }
+  
+  try {
+    const caCertPath = join(__dirname, '..', 'certs', 'ca-certificate.crt');
+    const ca = readFileSync(caCertPath, 'utf8');
+    return {
+      rejectUnauthorized: true,
+      ca: ca,
+    };
+  } catch (error) {
+    console.warn('⚠️ Could not load CA certificate, falling back to rejectUnauthorized: false');
+    return { rejectUnauthorized: false };
+  }
+}
 
 class VitalSignsDatabase {
   private pool: Pool | null = null;
@@ -17,7 +38,7 @@ class VitalSignsDatabase {
         database: appConfig.database.database,
         user: appConfig.database.user,
         password: appConfig.database.password,
-        ssl: appConfig.nodeEnv === 'production' ? { rejectUnauthorized: false } : false,
+        ssl: getSSLConfig(),
         max: 20, // Maximum number of clients in the pool
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 2000,
@@ -71,7 +92,7 @@ class VitalSignsDatabase {
         database: appConfig.database.database,
         user: appConfig.database.user,
         password: appConfig.database.password,
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+        ssl: getSSLConfig(),
       });
       
       await runner({

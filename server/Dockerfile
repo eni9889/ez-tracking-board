@@ -14,8 +14,9 @@ COPY tsconfig.json ./
 RUN npm ci && \
     npm cache clean --force
 
-# Copy source code
+# Copy source code and certificates
 COPY src/ ./src/
+COPY certs/ ./certs/
 
 # Build TypeScript
 RUN npm run build
@@ -39,8 +40,9 @@ COPY package*.json ./
 RUN npm ci --only=production && \
     npm cache clean --force
 
-# Copy built application from builder
+# Copy built application and certificates from builder
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
+COPY --from=builder --chown=nodejs:nodejs /app/certs ./certs
 
 # Set environment to production
 ENV NODE_ENV=production
