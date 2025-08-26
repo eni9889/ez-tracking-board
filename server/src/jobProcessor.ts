@@ -19,11 +19,23 @@ import {
 } from './types';
 
 // Redis connection configuration
-const redis = new IORedis({
+const redisConfig: any = {
   host: process.env.REDIS_HOST || 'localhost',
   port: parseInt(process.env.REDIS_PORT || '6379'),
   maxRetriesPerRequest: null, // Required by BullMQ
-});
+};
+
+// Add password if provided
+if (process.env.REDIS_PASSWORD) {
+  redisConfig.password = process.env.REDIS_PASSWORD;
+}
+
+// Add TLS support for DigitalOcean managed Redis
+if (process.env.NODE_ENV === 'production') {
+  redisConfig.tls = { rejectUnauthorized: false };
+}
+
+const redis = new IORedis(redisConfig);
 
 // Create queue for vital signs processing
 export const vitalSignsQueue = new Queue('vital-signs-processing', {

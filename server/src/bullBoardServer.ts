@@ -37,6 +37,11 @@ if (process.env.REDIS_PASSWORD) {
   redisConfig.password = process.env.REDIS_PASSWORD;
 }
 
+// Add TLS support for DigitalOcean managed Redis
+if (process.env.NODE_ENV === 'production') {
+  redisConfig.tls = { rejectUnauthorized: false };
+}
+
 const redis = new IORedis.default(redisConfig);
 
 // Create queue instances for monitoring (read-only)

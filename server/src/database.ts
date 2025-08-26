@@ -93,9 +93,11 @@ class VitalSignsDatabase {
         user: appConfig.database.user,
         password: appConfig.database.password,
         ssl: getSSLConfig(),
+        connectionTimeoutMillis: 10000, // 10 second timeout
       });
       
-      await runner({
+      // Add timeout to migration process
+      const migrationPromise = runner({
         dbClient,
         dir: 'migrations',
         direction: 'up',
@@ -107,6 +109,13 @@ class VitalSignsDatabase {
         lock: true,
         verbose: true,
       });
+      
+      // Set a timeout for migrations (30 seconds)
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Migration timeout after 30 seconds')), 30000);
+      });
+      
+      await Promise.race([migrationPromise, timeoutPromise]);
       console.log('✅ Database migrations completed successfully');
       
     } catch (error) {
