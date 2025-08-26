@@ -131,6 +131,9 @@ services:
       BULL_BOARD_PORT: 3001
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      BULL_BOARD_USERNAME: ${BULL_BOARD_USERNAME:-admin}
+      BULL_BOARD_PASSWORD: ${BULL_BOARD_PASSWORD:-admin123}
+      BULL_BOARD_SESSION_SECRET: ${BULL_BOARD_SESSION_SECRET:-super-secret-session-key}
     volumes:
       - ./server:/app
       - /app/node_modules

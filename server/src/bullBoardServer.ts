@@ -18,12 +18,110 @@ import { ExpressAdapter } from '@bull-board/express';
 import IORedis = require('ioredis');
 import { Queue } from 'bullmq';
 import { config } from 'dotenv';
+import * as session from 'express-session';
+import * as crypto from 'crypto';
 
 // Load environment variables
 config();
 
 const app = express();
 const PORT = parseInt(process.env.BULL_BOARD_PORT || '3001', 10);
+
+// Authentication configuration
+const BULL_BOARD_USERNAME = process.env.BULL_BOARD_USERNAME || 'admin';
+const BULL_BOARD_PASSWORD = process.env.BULL_BOARD_PASSWORD || 'admin123';
+const SESSION_SECRET = process.env.BULL_BOARD_SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+
+// Middleware setup
+app.use(express.urlencoded({ extended: false }));
+app.use(session({
+  secret: SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { 
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Authentication middleware
+function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if ((req as any).session.authenticated) {
+    return next();
+  }
+  res.redirect('/login');
+}
+
+// Authentication routes
+app.get('/login', (req: express.Request, res: express.Response) => {
+  const error = (req as any).session.error;
+  delete (req as any).session.error;
+  
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Bull Board Login</title>
+      <style>
+        body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0; }
+        .container { max-width: 400px; margin: 100px auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; margin-bottom: 30px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; color: #555; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; background: #007bff; color: white; padding: 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #0056b3; }
+        .error { color: red; margin-bottom: 15px; text-align: center; }
+        .info { color: #666; font-size: 12px; text-align: center; margin-top: 20px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>🐂 Bull Board Access</h1>
+        ${error ? `<div class="error">${error}</div>` : ''}
+        <form method="post" action="/login">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" required>
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required>
+          </div>
+          <button type="submit">Login</button>
+        </form>
+        <div class="info">
+          Job Queue Monitoring Dashboard<br>
+          Authorized personnel only
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
+app.post('/login', (req: express.Request, res: express.Response) => {
+  const { username, password } = req.body;
+  
+  if (username === BULL_BOARD_USERNAME && password === BULL_BOARD_PASSWORD) {
+    (req as any).session.authenticated = true;
+    (req as any).session.username = username;
+    console.log(`🔐 Bull Board: User ${username} logged in successfully`);
+    res.redirect('/');
+  } else {
+    (req as any).session.error = 'Invalid username or password';
+    console.log(`🚫 Bull Board: Failed login attempt for username: ${username}`);
+    res.redirect('/login');
+  }
+});
+
+app.post('/logout', (req: express.Request, res: express.Response) => {
+  const username = (req as any).session.username;
+  (req as any).session.destroy(() => {
+    console.log(`🚪 Bull Board: User ${username} logged out`);
+    res.redirect('/login');
+  });
+});
 
 // Redis connection configuration (same as jobProcessor)
 const redisConfig: any = {
@@ -71,8 +169,8 @@ createBullBoard({
   serverAdapter: serverAdapter,
 });
 
-// Mount the Bull Board UI
-app.use('/', serverAdapter.getRouter());
+// Mount the Bull Board UI with authentication
+app.use('/', requireAuth, serverAdapter.getRouter());
 
 // Health check endpoint
 app.get('/health', (req: express.Request, res: express.Response) => {

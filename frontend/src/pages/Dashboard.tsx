@@ -135,7 +135,7 @@ const Dashboard: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [encounters]);
+  }, []);
 
   // Sort encounters by room number, including those being deleted for animation
   const getAllEncounters = () => {
