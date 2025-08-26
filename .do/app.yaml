@@ -30,6 +30,18 @@ envs:
   scope: RUN_AND_BUILD_TIME
   type: SECRET
   value: EV[1:VQilQ9myOMpwmNYDZpueQPn/laETF9i5:khnjcx6ClPZ6vtFoe+oRS/w9SFo89B4=]
+- key: TAILSCALE_ENABLED
+  scope: RUN_AND_BUILD_TIME
+  type: SECRET
+  value: EV[1:placeholder:tailscale_enabled]
+- key: TAILSCALE_TAILNET
+  scope: RUN_AND_BUILD_TIME
+  type: SECRET
+  value: EV[1:placeholder:your_tailnet_name]
+- key: TAILSCALE_API_KEY
+  scope: RUN_AND_BUILD_TIME
+  type: SECRET
+  value: EV[1:placeholder:your_tailscale_api_key]
 features:
 - buildpack-stack=ubuntu-22
 ingress:
@@ -109,6 +121,15 @@ services:
   - key: DEBUG_AXIOS
     scope: RUN_AND_BUILD_TIME
     value: "false"
+  - key: TAILSCALE_ENABLED
+    scope: RUN_AND_BUILD_TIME
+    value: "false"
+  - key: TAILSCALE_TAILNET
+    scope: RUN_AND_BUILD_TIME
+    value: ""
+  - key: TAILSCALE_API_KEY
+    scope: RUN_AND_BUILD_TIME
+    value: ""
   github:
     branch: main
     deploy_on_push: true

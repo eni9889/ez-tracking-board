@@ -25,6 +25,13 @@ interface EZDermConfig {
   servicePassword: string;
 }
 
+interface TailscaleConfig {
+  enabled: boolean;
+  tailnet: string;
+  apiKey: string;
+  bypassInDevelopment: boolean;
+}
+
 interface AppConfig {
   port: number;
   nodeEnv: string;
@@ -32,6 +39,7 @@ interface AppConfig {
   database: DatabaseConfig;
   redis: RedisConfig;
   ezderm: EZDermConfig;
+  tailscale: TailscaleConfig;
 }
 
 // Parse secrets from AWS Secrets Manager
@@ -100,6 +108,12 @@ export const appConfig: AppConfig = {
   ezderm: {
     serviceUser: process.env.EZDERM_USER || '',
     servicePassword: process.env.EZDERM_PASS || '',
+  },
+  tailscale: {
+    enabled: process.env.TAILSCALE_ENABLED === 'true',
+    tailnet: process.env.TAILSCALE_TAILNET || '',
+    apiKey: process.env.TAILSCALE_API_KEY || '',
+    bypassInDevelopment: process.env.TAILSCALE_BYPASS_DEV !== 'false',
   },
 };
 

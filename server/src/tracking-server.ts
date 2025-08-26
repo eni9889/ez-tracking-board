@@ -13,6 +13,7 @@ import {
 } from './jobProcessor';
 import { aiNoteChecker } from './aiNoteChecker';
 import { appConfig } from './config';
+import { TailscaleAuthService } from './tailscaleAuth';
 import {
   LoginRequest,
   LoginResponse,
@@ -44,12 +45,29 @@ const limiter = rateLimit({
   message: { error: 'Too many requests from this IP, please try again later.' }
 });
 
+// Initialize Tailscale auth service
+let tailscaleAuth: TailscaleAuthService | null = null;
+if (appConfig.tailscale.enabled) {
+  tailscaleAuth = new TailscaleAuthService({
+    tailnet: appConfig.tailscale.tailnet,
+    apiKey: appConfig.tailscale.apiKey,
+    bypassInDevelopment: appConfig.tailscale.bypassInDevelopment,
+  });
+  console.log(`🔒 Tailscale authentication enabled for tailnet: ${appConfig.tailscale.tailnet}`);
+}
+
 // Middleware
 app.use(cors({
   origin: appConfig.corsOrigin,
   credentials: true,
 }));
 app.use(express.json());
+
+// Apply Tailscale auth middleware to all routes if enabled
+if (tailscaleAuth) {
+  app.use(tailscaleAuth.middleware());
+}
+
 app.use('/api/', limiter);
 
 // Store tokens in memory (in production, use Redis or a database)
@@ -426,14 +444,33 @@ app.post('/api/logout', async (req: Request<{}, { success: boolean }, LogoutRequ
 });
 
 // Health check endpoint
-app.get('/api/health', (req: Request, res: Response<HealthResponse>) => {
+app.get('/api/health', async (req: Request, res: Response<HealthResponse>) => {
   console.log('🏥 Health check requested');
-  res.json({ 
-    status: 'healthy', 
-    timestamp: new Date().toISOString(),
-    database: 'connected',
-    environment: process.env.NODE_ENV || 'development'
-  });
+  
+  try {
+    let tailscaleStatus = null;
+    
+    if (tailscaleAuth) {
+      tailscaleStatus = await tailscaleAuth.healthCheck();
+    }
+
+    res.json({ 
+      status: 'healthy', 
+      timestamp: new Date().toISOString(),
+      database: 'connected',
+      environment: process.env.NODE_ENV || 'development',
+      tailscale: tailscaleStatus,
+    });
+  } catch (error) {
+    console.error('Health check error:', error);
+    res.status(500).json({ 
+      status: 'error', 
+      timestamp: new Date().toISOString(),
+      database: 'connected',
+      environment: process.env.NODE_ENV || 'development',
+      tailscale: { status: 'error' },
+    });
+  }
 });
 
 // Vital signs management endpoints
