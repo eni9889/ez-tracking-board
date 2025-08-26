@@ -60,8 +60,8 @@ class VitalSignsDatabase {
     try {
       console.log('🔄 Running database migrations...');
       
-      // Dynamic import to avoid TypeScript compilation issues
-      const { Runner } = await import('node-pg-migrate');
+      // Use require to avoid TypeScript compilation issues with dynamic import
+      const { Runner } = require('node-pg-migrate');
       
       const runner = new Runner({
         database: {
