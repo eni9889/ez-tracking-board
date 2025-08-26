@@ -588,7 +588,7 @@ app.post('/vital-signs/process/:encounterId', validateSession, async (req: Reque
 });
 
 // Process vital signs carryforward for all eligible encounters
-app.post('/<vital-signs/process-all', validateSession, async (req: Request, res: Response) => {
+app.post('/vital-signs/process-all', validateSession, async (req: Request, res: Response) => {
   try {
     const username = (req as any).user.username; // From session validation middleware
     
@@ -645,7 +645,7 @@ app.post('/<vital-signs/process-all', validateSession, async (req: Request, res:
 });
 
 // Get vital signs processing statistics
-app.get('/<vital-signs/stats', async (req: Request, res: Response) => {
+app.get('/vital-signs/stats', async (req: Request, res: Response) => {
   try {
     const stats = await vitalSignsService.getProcessingStats();
     res.json(stats);
@@ -658,21 +658,21 @@ app.get('/<vital-signs/stats', async (req: Request, res: Response) => {
 // AI Note Checking Job System Endpoints
 
 // Start AI note checking job system
-app.post('/<ai-notes/jobs/start', validateSession, async (req: Request, res: Response) => {
+app.post('/ai-notes/jobs/start', validateSession, async (req: Request, res: Response) => {
   res.status(501).json({ 
     error: 'Job control is managed by the dedicated worker service. Use docker-compose restart worker to restart job processing.' 
   });
 });
 
 // Stop AI note checking job system
-app.post('/<ai-notes/jobs/stop', validateSession, async (req: Request, res: Response) => {
+app.post('/ai-notes/jobs/stop', validateSession, async (req: Request, res: Response) => {
   res.status(501).json({ 
     error: 'Job control is managed by the dedicated worker service. Use docker-compose stop worker to stop job processing.' 
   });
 });
 
 // Trigger manual AI note scan
-app.post('/<ai-notes/jobs/scan', validateSession, async (req: Request, res: Response) => {
+app.post('/ai-notes/jobs/scan', validateSession, async (req: Request, res: Response) => {
   try {
     const scanId = await triggerAINoteScan();
     
@@ -691,7 +691,7 @@ app.post('/<ai-notes/jobs/scan', validateSession, async (req: Request, res: Resp
 });
 
 // Get AI note checking job statistics
-app.get('/<ai-notes/jobs/stats', validateSession, async (req: Request, res: Response) => {
+app.get('/ai-notes/jobs/stats', validateSession, async (req: Request, res: Response) => {
   try {
     const stats = await getAINoteJobStats();
     res.json({ 
@@ -710,7 +710,7 @@ app.get('/<ai-notes/jobs/stats', validateSession, async (req: Request, res: Resp
 // AI Note Checker Endpoints
 
 // Get incomplete notes from EZDerm
-app.post('/<notes/incomplete', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.post('/notes/incomplete', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const username = (req as any).user.username;
     const { fetchFrom, size, group } = req.body;
@@ -777,7 +777,7 @@ app.post('/<notes/incomplete', validateSession, async (req: Request, res: Respon
 });
 
 // Get all eligible encounters for AI checking
-app.get('/<notes/eligible', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.get('/notes/eligible', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const username = (req as any).user.username;
     
@@ -810,7 +810,7 @@ app.get('/<notes/eligible', validateSession, async (req: Request, res: Response)
 });
 
 // Get progress note for specific encounter
-app.get('/<notes/progress/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.get('/notes/progress/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const username = (req as any).user.username;
     const { encounterId } = req.params;
@@ -908,7 +908,7 @@ app.get('/<notes/progress/:encounterId', validateSession, async (req: Request, r
 });
 
 // Create ToDo for note deficiencies
-app.post('/<notes/:encounterId/create-todo', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.post('/notes/:encounterId/create-todo', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const { encounterId } = req.params;
     const username = (req as any).user.username;
@@ -1027,7 +1027,7 @@ app.post('/<notes/:encounterId/create-todo', validateSession, async (req: Reques
 });
 
 // Get created ToDos for a specific encounter
-app.get('/<notes/:encounterId/todos', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.get('/notes/:encounterId/todos', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const { encounterId } = req.params;
     
@@ -1049,7 +1049,7 @@ app.get('/<notes/:encounterId/todos', validateSession, async (req: Request, res:
 });
 
 // Check specific encounter note with AI
-app.post('/<notes/check/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.post('/notes/check/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const username = (req as any).user.username;
     const { encounterId } = req.params;
@@ -1095,7 +1095,7 @@ app.post('/<notes/check/:encounterId', validateSession, async (req: Request, res
 });
 
 // Process all eligible encounters
-app.post('/<notes/check-all', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.post('/notes/check-all', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const username = (req as any).user.username;
     
@@ -1120,7 +1120,7 @@ app.post('/<notes/check-all', validateSession, async (req: Request, res: Respons
 });
 
 // Get note check results
-app.get('/<notes/results', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.get('/notes/results', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const { limit = 50, offset = 0 } = req.query;
     
@@ -1137,7 +1137,7 @@ app.get('/<notes/results', validateSession, async (req: Request, res: Response):
 });
 
 // Get specific note check result
-app.get('/<notes/result/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.get('/notes/result/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const { encounterId } = req.params;
     
@@ -1161,7 +1161,7 @@ app.get('/<notes/result/:encounterId', validateSession, async (req: Request, res
 });
 
 // Mark an issue as invalid
-app.post('/<notes/:encounterId/issues/:checkId/:issueIndex/mark-invalid', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.post('/notes/:encounterId/issues/:checkId/:issueIndex/mark-invalid', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const { encounterId, checkId, issueIndex } = req.params;
     const { reason, issueType, assessment, issueHash } = req.body;
@@ -1194,7 +1194,7 @@ app.post('/<notes/:encounterId/issues/:checkId/:issueIndex/mark-invalid', valida
 });
 
 // Remove invalid marking from an issue
-app.delete('/<notes/:encounterId/issues/:checkId/:issueIndex/mark-invalid', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.delete('/notes/:encounterId/issues/:checkId/:issueIndex/mark-invalid', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const { encounterId, checkId, issueIndex } = req.params;
     
@@ -1220,7 +1220,7 @@ app.delete('/<notes/:encounterId/issues/:checkId/:issueIndex/mark-invalid', vali
 });
 
 // Get invalid issues for an encounter
-app.get('/<notes/:encounterId/invalid-issues', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.get('/notes/:encounterId/invalid-issues', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const { encounterId } = req.params;
     
@@ -1242,7 +1242,7 @@ app.get('/<notes/:encounterId/invalid-issues', validateSession, async (req: Requ
 });
 
 // Bulk force re-check: Enqueue multiple notes for force re-check
-app.post('/<notes/bulk-force-recheck', validateSession, async (req: Request, res: Response): Promise<void> => {
+app.post('/notes/bulk-force-recheck', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const { jobs } = req.body;
     
