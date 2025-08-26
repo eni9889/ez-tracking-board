@@ -181,7 +181,7 @@ static_sites:
   envs:
   - key: REACT_APP_API_URL
     scope: BUILD_TIME
-    value: https://app.dccderm.com
+    value: https://app.dccderm.com/api
   - key: REACT_APP_USE_MOCK_DATA
     scope: BUILD_TIME
     value: "false"
