@@ -1,9 +1,22 @@
-name: sea-turtle-app
-region: nyc
-
-# DigitalOcean App Platform specification for EZ Tracking Board
-# This mirrors the docker-compose.yml setup but uses DO managed services for production
-
+alerts:
+- rule: DEPLOYMENT_FAILED
+- rule: DOMAIN_FAILED
+databases:
+- cluster_name: ez-tracking-postgres
+  db_name: defaultdb
+  db_user: doadmin
+  engine: PG
+  name: ez-tracking-postgres
+  production: true
+  version: "17"
+- cluster_name: ez-tracking-redis
+  engine: VALKEY
+  name: ez-tracking-redis
+  production: true
+  version: "8"
+domains:
+- domain: dash.dccderm.com
+  type: PRIMARY
 envs:
 - key: CLAUDE_API_KEY
   scope: RUN_AND_BUILD_TIME
@@ -17,230 +30,218 @@ envs:
   scope: RUN_AND_BUILD_TIME
   type: SECRET
   value: EV[1:VQilQ9myOMpwmNYDZpueQPn/laETF9i5:khnjcx6ClPZ6vtFoe+oRS/w9SFo89B4=]
-
-# Static Sites
-static_sites:
-  # Frontend React Application
-  - name: frontend
-    source_dir: /frontend
-    github:
-      repo: eni9889/ez-tracking-board
-      branch: main
-      deploy_on_push: true
-    build_command: npm ci --no-audit --no-fund && npm run build
-    output_dir: build
-    index_document: index.html
-    catchall_document: index.html
-    envs:
-      - key: REACT_APP_API_URL
-        value: ${backend.PUBLIC_URL}
-      - key: REACT_APP_USE_MOCK_DATA
-        value: "false"
-      - key: NODE_ENV
-        value: production
-
-# Services
-services:
-  # Backend API Service
-  - name: backend
-    source_dir: /server
-    github:
-      repo: eni9889/ez-tracking-board
-      branch: main
-      deploy_on_push: true
-    dockerfile_path: server/Dockerfile
-    run_command: npm start
-    http_port: 5001
-    instance_count: 1
-    instance_size_slug: apps-s-1vcpu-0.5gb
-    health_check:
-      http_path: /api/health
-      initial_delay_seconds: 60
-      period_seconds: 10
-      timeout_seconds: 5
-      success_threshold: 1
-      failure_threshold: 3
-    envs:
-      - key: NODE_ENV
-        value: production
-      - key: PORT
-        value: "5001"
-      - key: DB_HOST
-        value: ${ez-tracking-postgres.HOSTNAME}
-      - key: DB_PORT
-        value: ${ez-tracking-postgres.PORT}
-      - key: DB_NAME
-        value: ${ez-tracking-postgres.DATABASE}
-      - key: DB_USER
-        value: ${ez-tracking-postgres.USERNAME}
-      - key: DB_PASSWORD
-        value: ${ez-tracking-postgres.PASSWORD}
-      - key: DATABASE_URL
-        value: ${ez-tracking-postgres.DATABASE_URL}
-      - key: REDIS_HOST
-        value: ${ez-tracking-redis.HOSTNAME}
-      - key: REDIS_PORT
-        value: ${ez-tracking-redis.PORT}
-      - key: REDIS_PASSWORD
-        value: ${ez-tracking-redis.PASSWORD}
-      - key: REDIS_URL
-        value: ${ez-tracking-redis.DATABASE_URL}
-      - key: CORS_ORIGIN
-        value: ${frontend.PUBLIC_URL}
-      - key: DEBUG_AXIOS
-        value: "false"
-    alerts:
-      - rule: CPU_UTILIZATION
-        operator: GREATER_THAN
-        value: 80
-        window: FIVE_MINUTES
-        disabled: false
-      - rule: MEM_UTILIZATION
-        operator: GREATER_THAN
-        value: 80
-        window: FIVE_MINUTES
-        disabled: false
-      - rule: RESTART_COUNT
-        operator: GREATER_THAN
-        value: 10
-        window: FIVE_MINUTES
-        disabled: false
-
-  # Bull Board Job Monitoring
-  - name: bull-board
-    source_dir: /server
-    github:
-      repo: eni9889/ez-tracking-board
-      branch: main
-      deploy_on_push: true
-    dockerfile_path: server/Dockerfile
-    run_command: npm run bull-board
-    http_port: 3001
-    instance_count: 1
-    instance_size_slug: apps-s-1vcpu-0.5gb
-    health_check:
-      http_path: /health
-      initial_delay_seconds: 60
-      period_seconds: 10
-      timeout_seconds: 10
-      success_threshold: 1
-      failure_threshold: 3
-    envs:
-      - key: NODE_ENV
-        value: production
-      - key: BULL_BOARD_PORT
-        value: "3001"
-      - key: REDIS_HOST
-        value: ${ez-tracking-redis.HOSTNAME}
-      - key: REDIS_PORT
-        value: ${ez-tracking-redis.PORT}
-      - key: REDIS_PASSWORD
-        value: ${ez-tracking-redis.PASSWORD}
-      - key: REDIS_URL
-        value: ${ez-tracking-redis.DATABASE_URL}
-
-# Workers
-workers:
-  # Background Worker Service
-  - name: worker
-    source_dir: /server
-    github:
-      repo: eni9889/ez-tracking-board
-      branch: main
-      deploy_on_push: true
-    dockerfile_path: server/Dockerfile
-    run_command: node dist/jobProcessor.js
-    instance_count: 1
-    instance_size_slug: apps-s-1vcpu-0.5gb
-    envs:
-      - key: NODE_ENV
-        value: production
-      - key: DB_HOST
-        value: ${ez-tracking-postgres.HOSTNAME}
-      - key: DB_PORT
-        value: ${ez-tracking-postgres.PORT}
-      - key: DB_NAME
-        value: ${ez-tracking-postgres.DATABASE}
-      - key: DB_USER
-        value: ${ez-tracking-postgres.USERNAME}
-      - key: DB_PASSWORD
-        value: ${ez-tracking-postgres.PASSWORD}
-      - key: DATABASE_URL
-        value: ${ez-tracking-postgres.DATABASE_URL}
-      - key: REDIS_HOST
-        value: ${ez-tracking-redis.HOSTNAME}
-      - key: REDIS_PORT
-        value: ${ez-tracking-redis.PORT}
-      - key: REDIS_PASSWORD
-        value: ${ez-tracking-redis.PASSWORD}
-      - key: REDIS_URL
-        value: ${ez-tracking-redis.DATABASE_URL}
-      - key: DEBUG_AXIOS
-        value: "false"
-    alerts:
-      - rule: CPU_UTILIZATION
-        operator: GREATER_THAN
-        value: 80
-        window: FIVE_MINUTES
-        disabled: false
-      - rule: MEM_UTILIZATION
-        operator: GREATER_THAN
-        value: 80
-        window: FIVE_MINUTES
-        disabled: false
-      - rule: RESTART_COUNT
-        operator: GREATER_THAN
-        value: 10
-        window: FIVE_MINUTES
-        disabled: false
-
-# Managed Database Services
-databases:
-  # PostgreSQL Database
-  - cluster_name: ez-tracking-postgres
-    db_name: defaultdb
-    db_user: doadmin
-    engine: PG
-    name: ez-tracking-postgres
-    production: true
-    version: "17"
-
-  # Redis Cache
-  - cluster_name: ez-tracking-redis
-    engine: VALKEY
-    name: ez-tracking-redis
-    production: true
-    version: "8"
-
-# App-Level Alerts (only deployment and domain alerts supported at app scope)
-alerts:
-  - rule: DEPLOYMENT_FAILED
-    disabled: false
-  - rule: DOMAIN_FAILED
-    disabled: false
-
-# Features
 features:
-  - buildpack-stack=ubuntu-22
-
-# Ingress Rules for Service Routing
+- buildpack-stack=ubuntu-22
 ingress:
   rules:
-    # API routes go to backend
-    - component:
-        name: backend
-      match:
-        path:
-          prefix: /api
-    # Bull Board monitoring routes
-    - component:
-        name: bull-board
-      match:
-        path:
-          prefix: /bull-board
-    # Frontend routes (all unmatched routes go to frontend static site)
-    - component:
-        name: frontend
-      match:
-        path:
-          prefix: /
+  - component:
+      name: backend
+    match:
+      path:
+        prefix: /api
+  - component:
+      name: bull-board
+    match:
+      path:
+        prefix: /bull-board
+  - component:
+      name: frontend
+    match:
+      path:
+        prefix: /
+name: sea-turtle-app
+region: nyc
+services:
+- alerts:
+  - operator: GREATER_THAN
+    rule: CPU_UTILIZATION
+    value: 80
+    window: FIVE_MINUTES
+  - operator: GREATER_THAN
+    rule: MEM_UTILIZATION
+    value: 80
+    window: FIVE_MINUTES
+  - operator: GREATER_THAN
+    rule: RESTART_COUNT
+    value: 10
+    window: FIVE_MINUTES
+  dockerfile_path: server/Dockerfile
+  envs:
+  - key: NODE_ENV
+    scope: RUN_AND_BUILD_TIME
+    value: production
+  - key: PORT
+    scope: RUN_AND_BUILD_TIME
+    value: "5001"
+  - key: DB_HOST
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-postgres.HOSTNAME}
+  - key: DB_PORT
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-postgres.PORT}
+  - key: DB_NAME
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-postgres.DATABASE}
+  - key: DB_USER
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-postgres.USERNAME}
+  - key: DB_PASSWORD
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-postgres.PASSWORD}
+  - key: DATABASE_URL
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-postgres.DATABASE_URL}
+  - key: REDIS_HOST
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-redis.HOSTNAME}
+  - key: REDIS_PORT
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-redis.PORT}
+  - key: REDIS_PASSWORD
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-redis.PASSWORD}
+  - key: REDIS_URL
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-redis.DATABASE_URL}
+  - key: CORS_ORIGIN
+    scope: RUN_AND_BUILD_TIME
+    value: ${frontend.PUBLIC_URL}
+  - key: DEBUG_AXIOS
+    scope: RUN_AND_BUILD_TIME
+    value: "false"
+  github:
+    branch: main
+    deploy_on_push: true
+    repo: eni9889/ez-tracking-board
+  health_check:
+    failure_threshold: 3
+    http_path: /api/health
+    initial_delay_seconds: 60
+    period_seconds: 10
+    success_threshold: 1
+    timeout_seconds: 5
+  http_port: 5001
+  instance_count: 1
+  instance_size_slug: apps-s-1vcpu-0.5gb
+  name: backend
+  run_command: npm start
+  source_dir: /server
+- dockerfile_path: server/Dockerfile
+  envs:
+  - key: NODE_ENV
+    scope: RUN_AND_BUILD_TIME
+    value: production
+  - key: BULL_BOARD_PORT
+    scope: RUN_AND_BUILD_TIME
+    value: "3001"
+  - key: REDIS_HOST
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-redis.HOSTNAME}
+  - key: REDIS_PORT
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-redis.PORT}
+  - key: REDIS_PASSWORD
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-redis.PASSWORD}
+  - key: REDIS_URL
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-redis.DATABASE_URL}
+  github:
+    branch: main
+    deploy_on_push: true
+    repo: eni9889/ez-tracking-board
+  health_check:
+    failure_threshold: 3
+    http_path: /health
+    initial_delay_seconds: 60
+    period_seconds: 10
+    success_threshold: 1
+    timeout_seconds: 10
+  http_port: 3001
+  instance_count: 1
+  instance_size_slug: apps-s-1vcpu-0.5gb
+  name: bull-board
+  run_command: npm run bull-board
+  source_dir: /server
+static_sites:
+- build_command: npm ci --no-audit --no-fund && npm run build
+  catchall_document: index.html
+  envs:
+  - key: REACT_APP_API_URL
+    scope: BUILD_TIME
+    value: ${backend.PUBLIC_URL}
+  - key: REACT_APP_USE_MOCK_DATA
+    scope: BUILD_TIME
+    value: "false"
+  - key: NODE_ENV
+    scope: BUILD_TIME
+    value: production
+  github:
+    branch: main
+    deploy_on_push: true
+    repo: eni9889/ez-tracking-board
+  index_document: index.html
+  name: frontend
+  output_dir: build
+  source_dir: /frontend
+workers:
+- alerts:
+  - operator: GREATER_THAN
+    rule: CPU_UTILIZATION
+    value: 80
+    window: FIVE_MINUTES
+  - operator: GREATER_THAN
+    rule: MEM_UTILIZATION
+    value: 80
+    window: FIVE_MINUTES
+  - operator: GREATER_THAN
+    rule: RESTART_COUNT
+    value: 10
+    window: FIVE_MINUTES
+  dockerfile_path: server/Dockerfile
+  envs:
+  - key: NODE_ENV
+    scope: RUN_AND_BUILD_TIME
+    value: production
+  - key: DB_HOST
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-postgres.HOSTNAME}
+  - key: DB_PORT
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-postgres.PORT}
+  - key: DB_NAME
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-postgres.DATABASE}
+  - key: DB_USER
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-postgres.USERNAME}
+  - key: DB_PASSWORD
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-postgres.PASSWORD}
+  - key: DATABASE_URL
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-postgres.DATABASE_URL}
+  - key: REDIS_HOST
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-redis.HOSTNAME}
+  - key: REDIS_PORT
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-redis.PORT}
+  - key: REDIS_PASSWORD
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-redis.PASSWORD}
+  - key: REDIS_URL
+    scope: RUN_AND_BUILD_TIME
+    value: ${ez-tracking-redis.DATABASE_URL}
+  - key: DEBUG_AXIOS
+    scope: RUN_AND_BUILD_TIME
+    value: "false"
+  github:
+    branch: main
+    deploy_on_push: true
+    repo: eni9889/ez-tracking-board
+  instance_count: 1
+  instance_size_slug: apps-s-1vcpu-0.5gb
+  name: worker
+  run_command: node dist/jobProcessor.js
+  source_dir: /server
