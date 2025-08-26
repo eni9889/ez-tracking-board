@@ -78,7 +78,6 @@ class VitalSignsDatabase {
       throw new Error('Database not initialized');
     }
 
-    let dbClient: any = null;
     const startTime = Date.now();
 
     try {
@@ -91,34 +90,13 @@ class VitalSignsDatabase {
       const path = require('path');
       console.log('✅ [DEBUG] node-pg-migrate imported successfully');
       
-      // For node-pg-migrate, we need to use dbClient approach to properly handle SSL with CA cert
-      const { Client } = require('pg');
-      
       const migrationDir = path.join(__dirname, '../migrations');
       console.log(`📁 [DEBUG] Migration directory: ${migrationDir}`);
       
-      // Create a database client with proper SSL configuration (including CA cert)
-      console.log('🔗 [DEBUG] Creating database client...');
-      const sslConfig = getSSLConfig();
-      console.log(`🔒 [DEBUG] SSL config:`, sslConfig ? 'SSL enabled' : 'SSL disabled');
-      
-      dbClient = new Client({
-        host: appConfig.database.host,
-        port: appConfig.database.port,
-        database: appConfig.database.database,
-        user: appConfig.database.user,
-        password: appConfig.database.password,
-        ssl: sslConfig,
-        connectionTimeoutMillis: 10000, // 10 second timeout
-      });
-      console.log(`🔗 [DEBUG] Client created for ${appConfig.database.user}@${appConfig.database.host}:${appConfig.database.port}/${appConfig.database.database}`);
-
-      // Connect the client before passing to runner
-      console.log('🔌 [DEBUG] Connecting to database...');
-      const connectStart = Date.now();
-      await dbClient.connect();
-      const connectTime = Date.now() - connectStart;
-      console.log(`✅ [DEBUG] Database connected successfully in ${connectTime}ms`);
+      // Use existing pool to get a client instead of creating a new one
+      console.log('🔗 [DEBUG] Getting client from existing pool...');
+      const dbClient = await this.pool.connect();
+      console.log('✅ [DEBUG] Client obtained from pool successfully');
 
       try {
         // Check if migrations table exists
@@ -166,12 +144,10 @@ class VitalSignsDatabase {
         console.log(`✅ [DEBUG] Migration runner completed in ${runnerTime}ms`);
         
       } finally {
-        // Always close the client
-        if (dbClient) {
-          console.log('🔌 [DEBUG] Closing database client...');
-          await dbClient.end();
-          console.log('✅ [DEBUG] Database client closed');
-        }
+        // Release the client back to the pool
+        console.log('🔌 [DEBUG] Releasing client back to pool...');
+        dbClient.release();
+        console.log('✅ [DEBUG] Client released back to pool');
       }
       
       const totalTime = Date.now() - startTime;
@@ -181,17 +157,6 @@ class VitalSignsDatabase {
     } catch (error) {
       const totalTime = Date.now() - startTime;
       console.error(`❌ [DEBUG] Database migration failed after ${totalTime}ms:`, error);
-      
-      // Try to close client if it exists
-      if (dbClient) {
-        try {
-          console.log('🔌 [DEBUG] Attempting to close client after error...');
-          await dbClient.end();
-        } catch (closeError) {
-          console.error('❌ [DEBUG] Failed to close client:', closeError);
-        }
-      }
-      
       throw error;
     }
   }
