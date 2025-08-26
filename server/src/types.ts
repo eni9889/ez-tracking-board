@@ -47,6 +47,12 @@ export interface HealthResponse {
   timestamp: string;
   database?: string;
   environment?: string;
+  tailscale?: {
+    status: string;
+    tailnet?: string;
+    deviceCount?: number;
+    userCount?: number;
+  } | null;
 }
 
 // EZDerm API types

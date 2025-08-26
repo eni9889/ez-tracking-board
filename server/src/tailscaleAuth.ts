@@ -92,14 +92,15 @@ class TailscaleAuthService {
    * Get client IP from request, considering proxies
    */
   private getClientIP(req: Request): string {
-    return (
-      req.headers['x-forwarded-for'] as string ||
-      req.headers['x-real-ip'] as string ||
-      req.connection.remoteAddress ||
-      req.socket.remoteAddress ||
+    const ip = (
+      (req.headers['x-forwarded-for'] as string) ||
+      (req.headers['x-real-ip'] as string) ||
+      req.connection?.remoteAddress ||
+      (req.socket as any)?.remoteAddress ||
       req.ip ||
       'unknown'
-    ).split(',')[0].trim();
+    );
+    return ip.split(',')[0].trim();
   }
 
   /**
