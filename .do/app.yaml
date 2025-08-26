@@ -35,12 +35,6 @@ features:
 ingress:
   rules:
   - component:
-      name: backend
-      preserve_path_prefix: true
-    match:
-      path:
-        prefix: /api
-  - component:
       name: bull-board
     match:
       path:
@@ -50,6 +44,11 @@ ingress:
     match:
       path:
         prefix: /
+  - component:
+      name: backend
+    match:
+      path:
+        prefix: /api
 name: sea-turtle-app
 region: nyc
 services:
@@ -165,7 +164,7 @@ services:
     repo: eni9889/ez-tracking-board
   health_check:
     failure_threshold: 3
-    http_path: /bull-board/health
+    http_path: /health
     initial_delay_seconds: 60
     period_seconds: 10
     success_threshold: 1
