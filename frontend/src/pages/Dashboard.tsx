@@ -19,17 +19,11 @@ import {
   LocalHospital,
   ExitToApp,
   Refresh,
+  Psychology,
   Person,
-  Schedule,
-  Login,
-  MeetingRoom,
-  MedicalServices,
-  Group,
-  PendingActions,
-  HowToReg,
-  Verified,
-  AssignmentTurnedIn,
-  Psychology
+  PersonOutline,
+  Badge,
+  MedicalServices
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -69,61 +63,68 @@ const Dashboard: React.FC = () => {
       const data = await patientTrackingService.getEncounters();
       
       // Compare with previous data to identify changes
-      if (isRefresh && encounters.length > 0) {
-        const newChangedRows = new Set<string>();
-        const newNewRows = new Set<string>();
-        const toDeleteRows = new Set<string>();
-        
-        // Find new and changed patients
-        data.forEach(newEncounter => {
-          const oldEncounter = encounters.find(old => old.id === newEncounter.id);
-          if (!oldEncounter) {
-            // New patient
-            newNewRows.add(newEncounter.id);
-          } else {
-            // Check for changes in key fields
-            if (
-              oldEncounter.status !== newEncounter.status ||
-              oldEncounter.room !== newEncounter.room ||
-              oldEncounter.arrivalTime !== newEncounter.arrivalTime ||
-              JSON.stringify(oldEncounter.providers) !== JSON.stringify(newEncounter.providers)
-            ) {
-              newChangedRows.add(newEncounter.id);
+      if (isRefresh) {
+        setEncounters(currentEncounters => {
+          if (currentEncounters.length > 0) {
+            const newChangedRows = new Set<string>();
+            const newNewRows = new Set<string>();
+            const toDeleteRows = new Set<string>();
+            
+            // Find new and changed patients
+            data.forEach(newEncounter => {
+              const oldEncounter = currentEncounters.find(old => old.id === newEncounter.id);
+              if (!oldEncounter) {
+                // New patient
+                newNewRows.add(newEncounter.id);
+              } else {
+                // Check for changes in key fields
+                if (
+                  oldEncounter.status !== newEncounter.status ||
+                  oldEncounter.room !== newEncounter.room ||
+                  oldEncounter.arrivalTime !== newEncounter.arrivalTime ||
+                  JSON.stringify(oldEncounter.providers) !== JSON.stringify(newEncounter.providers)
+                ) {
+                  newChangedRows.add(newEncounter.id);
+                }
+              }
+            });
+            
+            // Find patients that were removed
+            currentEncounters.forEach(oldEncounter => {
+              if (!data.find(newEnc => newEnc.id === oldEncounter.id)) {
+                toDeleteRows.add(oldEncounter.id);
+              }
+            });
+            
+            // Handle deletions with animation
+            if (toDeleteRows.size > 0) {
+              setDeletingRows(toDeleteRows);
+              // Wait for deletion animation, then update data
+              setTimeout(() => {
+                setEncounters(data);
+                setDeletingRows(new Set());
+                setNewRows(newNewRows);
+                setChangedRows(newChangedRows);
+                setPreviousEncounters(data);
+              }, 500);
+              return currentEncounters; // Keep current data during animation
+            } else {
+              // No deletions, update immediately
+              setNewRows(newNewRows);
+              setChangedRows(newChangedRows);
+              setPreviousEncounters(currentEncounters);
+              
+              // Clear animations after their duration
+              setTimeout(() => {
+                setNewRows(new Set());
+                setChangedRows(new Set());
+              }, 2000);
+              
+              return data;
             }
           }
+          return data;
         });
-        
-        // Find patients that were removed
-        encounters.forEach(oldEncounter => {
-          if (!data.find(newEnc => newEnc.id === oldEncounter.id)) {
-            toDeleteRows.add(oldEncounter.id);
-          }
-        });
-        
-        // Handle deletions with animation
-        if (toDeleteRows.size > 0) {
-          setDeletingRows(toDeleteRows);
-          // Wait for deletion animation, then update data
-          setTimeout(() => {
-            setEncounters(data);
-            setDeletingRows(new Set());
-            setNewRows(newNewRows);
-            setChangedRows(newChangedRows);
-            setPreviousEncounters(data);
-          }, 500);
-        } else {
-          // No deletions, update immediately
-          setNewRows(newNewRows);
-          setChangedRows(newChangedRows);
-          setPreviousEncounters(encounters);
-          setEncounters(data);
-        }
-        
-        // Clear animations after their duration
-        setTimeout(() => {
-          setNewRows(new Set());
-          setChangedRows(new Set());
-        }, 2000);
       } else {
         setEncounters(data);
       }
@@ -213,46 +214,60 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const getStatusChip = (status: string) => {
+  const getStatusText = (status: string) => {
     const statusConfig = {
-      'SCHEDULED': { color: '#2196F3', background: '#E3F2FD', icon: Schedule, tooltip: 'Scheduled' },
-      'CONFIRMED': { color: '#4CAF50', background: '#E8F5E8', icon: Verified, tooltip: 'Confirmed' },
-      'CHECKED_IN': { color: '#FF9800', background: '#FFF3E0', icon: HowToReg, tooltip: 'Checked In' },
-      'IN_ROOM': { color: '#9C27B0', background: '#F3E5F5', icon: MeetingRoom, tooltip: 'In Room' },
-      'WITH_PROVIDER': { color: '#F44336', background: '#FFEBEE', icon: MedicalServices, tooltip: 'With Provider' },
-      'WITH_STAFF': { color: '#607D8B', background: '#ECEFF1', icon: Group, tooltip: 'With Staff' },
-      'READY_FOR_STAFF': { color: '#00C853', background: '#E8F5E8', icon: AssignmentTurnedIn, tooltip: 'Ready for Staff' },
-      'PENDING_COSIGN': { color: '#795548', background: '#EFEBE9', icon: PendingActions, tooltip: 'Pending Cosign' },
-      'ARRIVED': { color: '#FF9800', background: '#FFF3E0', icon: Login, tooltip: 'Arrived' }
+      'SCHEDULED': { color: '#2196F3', background: '#E3F2FD', text: 'Scheduled' },
+      'CONFIRMED': { color: '#4CAF50', background: '#E8F5E8', text: 'Confirmed' },
+      'CHECKED_IN': { color: '#FF9800', background: '#FFF3E0', text: 'Checked In' },
+      'IN_ROOM': { color: '#9C27B0', background: '#F3E5F5', text: 'In Room' },
+      'WITH_PROVIDER': { color: '#F44336', background: '#FFEBEE', text: 'With Provider' },
+      'WITH_STAFF': { color: '#607D8B', background: '#ECEFF1', text: 'With Staff' },
+      'READY_FOR_STAFF': { color: '#00C853', background: '#E8F5E8', text: 'Ready for Staff' },
+      'PENDING_COSIGN': { color: '#795548', background: '#EFEBE9', text: 'Pending Cosign' },
+      'ARRIVED': { color: '#FF9800', background: '#FFF3E0', text: 'Arrived' }
     } as const;
 
     const config = statusConfig[status as keyof typeof statusConfig] || 
-                  { color: '#757575', background: '#F5F5F5', icon: Person, tooltip: status };
-
-    const IconComponent = config.icon;
+                  { color: '#757575', background: '#F5F5F5', text: status };
 
     return (
-      <Tooltip title={config.tooltip} arrow>
-        <Chip
-          icon={<IconComponent sx={{ fontSize: '1.2rem !important', color: config.color }} />}
-          size="medium"
-          sx={{
-            backgroundColor: config.background,
-            fontWeight: 'bold',
-            minWidth: '60px',
-            display: 'flex',
-            justifyContent: 'center',
-            '& .MuiChip-icon': {
-              margin: '0 auto',
-              color: config.color
-            },
-            '& .MuiChip-label': {
-              display: 'none'
-            }
-          }}
-        />
-      </Tooltip>
+      <Chip
+        label={config.text}
+        size="medium"
+        sx={{
+          backgroundColor: config.background,
+          color: config.color,
+          border: `1px solid ${config.color}`,
+          fontWeight: 'bold',
+          minWidth: '120px',
+          height: '36px',
+          fontSize: '1rem'
+        }}
+      />
     );
+  };
+
+  const getPatientInitials = (firstName: string, lastName: string) => {
+    const firstInitial = firstName?.charAt(0)?.toUpperCase() || '';
+    const lastInitial = lastName?.charAt(0)?.toUpperCase() || '';
+    return `${firstInitial}.${lastInitial}.`;
+  };
+
+  const getProviderIcon = (role: string) => {
+    const iconProps = { sx: { fontSize: '1.2rem', mr: 0.5, minWidth: '20px', display: 'flex', alignItems: 'center' } };
+    
+    switch (role) {
+      case 'PROVIDER':
+        return <MedicalServices {...iconProps} />;
+      case 'SECONDARY_PROVIDER':
+        return <Person {...iconProps} />;
+      case 'COSIGNING_PROVIDER':
+        return <Badge {...iconProps} />;
+      case 'STAFF':
+        return <PersonOutline {...iconProps} />;
+      default:
+        return <Person {...iconProps} />;
+    }
   };
 
   // Get row styling based on wait time, status, and changes
@@ -366,7 +381,7 @@ const Dashboard: React.FC = () => {
           <LocalHospital sx={{ fontSize: '2rem' }} />
           <Box>
             <Typography variant="h5" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
-              EZ Patient Tracking Board
+              DCC - Flint
               {isUsingMockData && (
                 <Chip 
                   label="DEMO MODE" 
@@ -456,81 +471,46 @@ const Dashboard: React.FC = () => {
         </Alert>
       )}
 
-      {/* Status Legend */}
-      <Box sx={{ px: 3, py: 1 }}>
-        <Paper sx={{ p: 2, backgroundColor: '#f8f9fa' }}>
-          <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1, color: '#666' }}>
-            Status Legend:
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Schedule sx={{ fontSize: '1.2rem', color: '#2196F3' }} />
-              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>Scheduled</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Verified sx={{ fontSize: '1.2rem', color: '#4CAF50' }} />
-              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>Confirmed</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <HowToReg sx={{ fontSize: '1.2rem', color: '#FF9800' }} />
-              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>Checked In</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <MeetingRoom sx={{ fontSize: '1.2rem', color: '#9C27B0' }} />
-              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>In Room</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <MedicalServices sx={{ fontSize: '1.2rem', color: '#F44336' }} />
-              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>With Provider</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Group sx={{ fontSize: '1.2rem', color: '#607D8B' }} />
-              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>With Staff</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <PendingActions sx={{ fontSize: '1.2rem', color: '#795548' }} />
-              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>Pending</Typography>
-            </Box>
-          </Box>
-        </Paper>
-      </Box>
 
-      {/* Compact Table */}
+
+      {/* Two Column Layout */}
       <Box sx={{ flex: 1, overflow: 'hidden', px: 2, py: 1 }}>
-        <TableContainer 
-          component={Paper} 
-          sx={{ 
-            height: '100%',
-            boxShadow: 2,
-            '& .MuiTable-root': {
-              minWidth: 'unset'
-            }
-          }}
-        >
-                     <Table stickyHeader size="small" sx={{ tableLayout: 'fixed', minWidth: '1200px' }}>
-            <TableHead>
-              <TableRow sx={{ '& th': { backgroundColor: '#f8f9fa', fontWeight: 'bold', py: 1.5 } }}>
-                <TableCell sx={{ width: '80px', textAlign: 'center', fontSize: '1rem' }}>Room</TableCell>
-                <TableCell sx={{ width: '220px', fontSize: '1rem' }}>Patient</TableCell>
-                <TableCell sx={{ width: '140px', fontSize: '1rem' }}>Time</TableCell>
-                <TableCell sx={{ width: '80px', fontSize: '1rem', textAlign: 'center' }}>Status</TableCell>
-                <TableCell sx={{ width: '200px', fontSize: '1rem' }}>Provider</TableCell>
-                <TableCell sx={{ width: '120px', fontSize: '1rem' }}>Visit Length</TableCell>
-                <TableCell sx={{ width: '300px', fontSize: '1rem' }}>Chief Complaint</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {sortedEncounters.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
-                    <Typography variant="h6">No patients currently in clinic</Typography>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                sortedEncounters.map((encounter) => {
-                  const isWaitingTooLong = patientTrackingService.isWaitingTooLong(encounter.arrivalTime);
-                  const isDangerStatus = encounter.status === 'CHECKED_IN' || encounter.status === 'WITH_STAFF';
-                  const shouldHighlight = isWaitingTooLong && isDangerStatus;
+        <Box sx={{ display: 'flex', gap: 2, height: '100%' }}>
+          {/* Left Column */}
+          <Box sx={{ flex: 1 }}>
+            <TableContainer 
+              component={Paper} 
+              sx={{ 
+                height: '100%',
+                boxShadow: 2,
+                '& .MuiTable-root': {
+                  minWidth: 'unset'
+                }
+              }}
+            >
+              <Table stickyHeader size="small" sx={{ tableLayout: 'fixed' }}>
+                <TableHead>
+                  <TableRow sx={{ '& th': { backgroundColor: '#f8f9fa', fontWeight: 'bold', py: 1.5 } }}>
+                    <TableCell sx={{ width: '60px', textAlign: 'center', fontSize: '1.1rem' }}>Room</TableCell>
+                    <TableCell sx={{ width: '90px', fontSize: '1.1rem' }}>Patient</TableCell>
+                    <TableCell sx={{ width: '110px', fontSize: '1.1rem' }}>Time</TableCell>
+                    <TableCell sx={{ width: '110px', fontSize: '1.1rem', textAlign: 'center' }}>Status</TableCell>
+                    <TableCell sx={{ width: '150px', fontSize: '1.1rem' }}>Provider</TableCell>
+                    <TableCell sx={{ width: '90px', fontSize: '1.1rem' }}>Visit</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {sortedEncounters.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                        <Typography variant="h6">No patients currently in clinic</Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    sortedEncounters.slice(0, Math.ceil(sortedEncounters.length / 2)).map((encounter) => {
+                      const isWaitingTooLong = patientTrackingService.isWaitingTooLong(encounter.arrivalTime);
+                      const isDangerStatus = encounter.status === 'CHECKED_IN' || encounter.status === 'WITH_STAFF';
+                      const shouldHighlight = isWaitingTooLong && isDangerStatus;
 
                                      return (
                        <TableRow 
@@ -542,62 +522,97 @@ const Dashboard: React.FC = () => {
                         <Typography variant="h4" sx={{ 
                           fontWeight: 'bold', 
                           color: '#1976d2',
-                          lineHeight: 1
+                          lineHeight: 1,
+                          fontSize: '2.2rem'
                         }}>
                           {encounter.room !== 'N/A' && encounter.room !== 0 ? encounter.room : '-'}
                         </Typography>
                       </TableCell>
 
-                                                                   {/* Patient - Compact */}
+                      {/* Patient - Compact */}
                       <TableCell sx={{ py: 1.5 }}>
                         <Box>
-                          <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
-                            {encounter.patientInfo.firstName?.charAt(0)}. {encounter.patientInfo.lastName}
+                          <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2, fontSize: '1.4rem' }}>
+                            {getPatientInitials(encounter.patientInfo.firstName, encounter.patientInfo.lastName)}
                           </Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem' }}>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
                             {encounter.patientInfo.gender} • {encounter.appointmentType}
                           </Typography>
                         </Box>
                       </TableCell>
 
-                                             {/* Time - Compact */}
-                       <TableCell sx={{ py: 1.5 }}>
-                         <Box>
-                           <Typography 
-                             variant="h6" 
-                             sx={{ 
-                               fontWeight: 'bold',
-                               lineHeight: 1.2,
-                               fontSize: '1.1rem',
-                               color: 'black'
-                             }}
-                           >
-                             {patientTrackingService.formatAppointmentTime(encounter.appointmentTime)}
-                           </Typography>
-                           {encounter.arrivalTime && (
-                             <Typography 
-                               variant="body2" 
-                               sx={{ 
-                                 fontSize: '0.9rem',
-                                 color: 'black'
-                               }}
-                             >
-                               Arrived: {patientTrackingService.formatAppointmentTime(encounter.arrivalTime)}
-                             </Typography>
-                           )}
-                         </Box>
-                       </TableCell>
+                      {/* Time - Compact */}
+                      <TableCell sx={{ py: 1.5 }}>
+                        <Box>
+                          <Typography 
+                            variant="body1" 
+                            sx={{ 
+                              fontWeight: 'bold',
+                              lineHeight: 1.2,
+                              fontSize: '1.1rem',
+                              color: 'black'
+                            }}
+                          >
+                            {patientTrackingService.formatAppointmentTime(encounter.appointmentTime)}
+                          </Typography>
+                          {encounter.arrivalTime && (
+                            <Typography 
+                              variant="body2" 
+                              sx={{ 
+                                fontSize: '0.9rem',
+                                color: 'text.secondary'
+                              }}
+                            >
+                              Arrived: {patientTrackingService.formatAppointmentTime(encounter.arrivalTime)}
+                            </Typography>
+                          )}
+                        </Box>
+                      </TableCell>
 
-                                             {/* Status - Compact */}
-                       <TableCell sx={{ py: 1.5, textAlign: 'center' }}>
-                         {getStatusChip(encounter.status)}
-                       </TableCell>
+                      {/* Status - Compact */}
+                      <TableCell sx={{ py: 1.5, textAlign: 'center' }}>
+                        {getStatusText(encounter.status)}
+                      </TableCell>
 
                       {/* Provider - Compact */}
                       <TableCell sx={{ py: 1.5 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '0.95rem' }}>
-                          {patientTrackingService.getAllStaff(encounter.providers)}
-                        </Typography>
+                        <Box>
+                          {encounter.providers && encounter.providers.length > 0 ? (
+                            encounter.providers
+                              .sort((a: any, b: any) => {
+                                const roleOrder = ['PROVIDER', 'SECONDARY_PROVIDER', 'COSIGNING_PROVIDER', 'STAFF'];
+                                const aIndex = roleOrder.indexOf(a.role);
+                                const bIndex = roleOrder.indexOf(b.role);
+                                return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+                              })
+                              .map((provider: any, index: number) => (
+                                <Box 
+                                  key={index} 
+                                  sx={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center',
+                                    mb: index < encounter.providers.length - 1 ? 0.3 : 0
+                                  }}
+                                >
+                                  {getProviderIcon(provider.role)}
+                                  <Typography 
+                                    variant="body1" 
+                                    sx={{ 
+                                      fontWeight: 'bold', 
+                                      fontSize: '1rem',
+                                      lineHeight: 1.2
+                                    }}
+                                  >
+                                    {provider.name}{provider.title ? `, ${provider.title}` : ''}
+                                  </Typography>
+                                </Box>
+                              ))
+                          ) : (
+                            <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1rem' }}>
+                              No staff assigned
+                            </Typography>
+                          )}
+                        </Box>
                       </TableCell>
 
                       {/* Visit Length - Compact */}
@@ -606,25 +621,15 @@ const Dashboard: React.FC = () => {
                           variant="body1"
                           sx={{
                             fontWeight: shouldHighlight ? 'bold' : 'normal',
-                            fontSize: shouldHighlight ? '1rem' : '0.95rem',
+                            fontSize: shouldHighlight ? '1.1rem' : '1rem',
                             color: shouldHighlight ? 'error.main' : 'text.primary'
                           }}
                         >
-                                                     {patientTrackingService.calculateWaitTime(encounter.arrivalTime)}
+                          {patientTrackingService.calculateWaitTime(encounter.arrivalTime)}
                         </Typography>
                       </TableCell>
 
-                                             {/* Chief Complaint - Compact */}
-                       <TableCell sx={{ py: 1.5 }}>
-                         <Typography variant="body1" sx={{ 
-                           fontSize: '1rem',
-                           overflow: 'hidden',
-                           textOverflow: 'ellipsis',
-                           whiteSpace: 'nowrap'
-                         }}>
-                           {encounter.chiefComplaint}
-                         </Typography>
-                       </TableCell>
+
                     </TableRow>
                   );
                 })
@@ -632,6 +637,172 @@ const Dashboard: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
+      </Box>
+
+      {/* Right Column */}
+      <Box sx={{ flex: 1 }}>
+        <TableContainer 
+          component={Paper} 
+          sx={{ 
+            height: '100%',
+            boxShadow: 2,
+            '& .MuiTable-root': {
+              minWidth: 'unset'
+            }
+          }}
+        >
+          <Table stickyHeader size="small" sx={{ tableLayout: 'fixed' }}>
+            <TableHead>
+              <TableRow sx={{ '& th': { backgroundColor: '#f8f9fa', fontWeight: 'bold', py: 1.5 } }}>
+                <TableCell sx={{ width: '60px', textAlign: 'center', fontSize: '1.1rem' }}>Room</TableCell>
+                <TableCell sx={{ width: '90px', fontSize: '1.1rem' }}>Patient</TableCell>
+                <TableCell sx={{ width: '110px', fontSize: '1.1rem' }}>Time</TableCell>
+                <TableCell sx={{ width: '110px', fontSize: '1.1rem', textAlign: 'center' }}>Status</TableCell>
+                <TableCell sx={{ width: '150px', fontSize: '1.1rem' }}>Provider</TableCell>
+                <TableCell sx={{ width: '90px', fontSize: '1.1rem' }}>Visit</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {sortedEncounters.length <= 1 ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      {sortedEncounters.length === 0 ? 'No patients in clinic' : 'Additional patients will appear here'}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                sortedEncounters.slice(Math.ceil(sortedEncounters.length / 2)).map((encounter) => {
+                  const isWaitingTooLong = patientTrackingService.isWaitingTooLong(encounter.arrivalTime);
+                  const isDangerStatus = encounter.status === 'CHECKED_IN' || encounter.status === 'WITH_STAFF';
+                  const shouldHighlight = isWaitingTooLong && isDangerStatus;
+
+                  return (
+                    <TableRow 
+                      key={encounter.id}
+                      sx={getRowStyling(encounter)}
+                    >
+                     {/* Room - Compact */}
+                     <TableCell sx={{ textAlign: 'center', py: 1.5 }}>
+                       <Typography variant="h4" sx={{ 
+                         fontWeight: 'bold', 
+                         color: '#1976d2',
+                         lineHeight: 1,
+                         fontSize: '2.2rem'
+                       }}>
+                         {encounter.room !== 'N/A' && encounter.room !== 0 ? encounter.room : '-'}
+                       </Typography>
+                     </TableCell>
+
+                     {/* Patient - Compact */}
+                     <TableCell sx={{ py: 1.5 }}>
+                       <Box>
+                         <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2, fontSize: '1.4rem' }}>
+                           {getPatientInitials(encounter.patientInfo.firstName, encounter.patientInfo.lastName)}
+                         </Typography>
+                         <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
+                           {encounter.patientInfo.gender} • {encounter.appointmentType}
+                         </Typography>
+                       </Box>
+                     </TableCell>
+
+                     {/* Time - Compact */}
+                     <TableCell sx={{ py: 1.5 }}>
+                       <Box>
+                         <Typography 
+                           variant="body1" 
+                           sx={{ 
+                             fontWeight: 'bold',
+                             lineHeight: 1.2,
+                             fontSize: '1.1rem',
+                             color: 'black'
+                           }}
+                         >
+                           {patientTrackingService.formatAppointmentTime(encounter.appointmentTime)}
+                         </Typography>
+                         {encounter.arrivalTime && (
+                           <Typography 
+                             variant="body2" 
+                             sx={{ 
+                               fontSize: '0.9rem',
+                               color: 'text.secondary'
+                             }}
+                           >
+                             Arrived: {patientTrackingService.formatAppointmentTime(encounter.arrivalTime)}
+                           </Typography>
+                         )}
+                       </Box>
+                     </TableCell>
+
+                     {/* Status - Compact */}
+                     <TableCell sx={{ py: 1.5, textAlign: 'center' }}>
+                       {getStatusText(encounter.status)}
+                     </TableCell>
+
+                    {/* Provider - Compact */}
+                    <TableCell sx={{ py: 1.5 }}>
+                      <Box>
+                        {encounter.providers && encounter.providers.length > 0 ? (
+                          encounter.providers
+                            .sort((a: any, b: any) => {
+                              const roleOrder = ['PROVIDER', 'SECONDARY_PROVIDER', 'COSIGNING_PROVIDER', 'STAFF'];
+                              const aIndex = roleOrder.indexOf(a.role);
+                              const bIndex = roleOrder.indexOf(b.role);
+                              return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+                            })
+                            .map((provider: any, index: number) => (
+                              <Box 
+                                key={index} 
+                                sx={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center',
+                                  mb: index < encounter.providers.length - 1 ? 0.3 : 0
+                                }}
+                              >
+                                {getProviderIcon(provider.role)}
+                                <Typography 
+                                  variant="body1" 
+                                  sx={{ 
+                                    fontWeight: 'bold', 
+                                    fontSize: '1rem',
+                                    lineHeight: 1.2
+                                  }}
+                                >
+                                  {provider.name}{provider.title ? `, ${provider.title}` : ''}
+                                </Typography>
+                              </Box>
+                            ))
+                        ) : (
+                          <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1rem' }}>
+                            No staff assigned
+                          </Typography>
+                        )}
+                      </Box>
+                    </TableCell>
+
+                    {/* Visit Length - Compact */}
+                    <TableCell sx={{ py: 1.5 }}>
+                      <Typography 
+                        variant="body1"
+                        sx={{
+                          fontWeight: shouldHighlight ? 'bold' : 'normal',
+                          fontSize: shouldHighlight ? '1.1rem' : '1rem',
+                          color: shouldHighlight ? 'error.main' : 'text.primary'
+                        }}
+                      >
+                        {patientTrackingService.calculateWaitTime(encounter.arrivalTime)}
+                      </Typography>
+                    </TableCell>
+
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Box>
+        </Box>
       </Box>
     </Box>
   );
