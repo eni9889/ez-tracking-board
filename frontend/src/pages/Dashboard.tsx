@@ -254,7 +254,7 @@ const Dashboard: React.FC = () => {
   };
 
   const getProviderIcon = (role: string) => {
-    const iconProps = { sx: { fontSize: '1rem', ml: 0.5 } };
+    const iconProps = { sx: { fontSize: '1rem', mr: 0.5, minWidth: '16px', display: 'flex', alignItems: 'center' } };
     
     switch (role) {
       case 'PROVIDER':
@@ -594,6 +594,7 @@ const Dashboard: React.FC = () => {
                                     mb: index < encounter.providers.length - 1 ? 0.3 : 0
                                   }}
                                 >
+                                  {getProviderIcon(provider.role)}
                                   <Typography 
                                     variant="body1" 
                                     sx={{ 
@@ -604,7 +605,6 @@ const Dashboard: React.FC = () => {
                                   >
                                     {provider.name}{provider.title ? `, ${provider.title}` : ''}
                                   </Typography>
-                                  {getProviderIcon(provider.role)}
                                 </Box>
                               ))
                           ) : (
@@ -759,6 +759,7 @@ const Dashboard: React.FC = () => {
                                   mb: index < encounter.providers.length - 1 ? 0.3 : 0
                                 }}
                               >
+                                {getProviderIcon(provider.role)}
                                 <Typography 
                                   variant="body1" 
                                   sx={{ 
@@ -769,7 +770,6 @@ const Dashboard: React.FC = () => {
                                 >
                                   {provider.name}{provider.title ? `, ${provider.title}` : ''}
                                 </Typography>
-                                {getProviderIcon(provider.role)}
                               </Box>
                             ))
                         ) : (
