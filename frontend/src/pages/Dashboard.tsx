@@ -450,44 +450,7 @@ const Dashboard: React.FC = () => {
         </Alert>
       )}
 
-      {/* Status Legend */}
-      <Box sx={{ px: 3, py: 1 }}>
-        <Paper sx={{ p: 2, backgroundColor: '#f8f9fa' }}>
-          <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1, color: '#666' }}>
-            Status Legend:
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Box sx={{ width: 12, height: 12, backgroundColor: '#2196F3', borderRadius: 1 }} />
-              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>Scheduled</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Box sx={{ width: 12, height: 12, backgroundColor: '#4CAF50', borderRadius: 1 }} />
-              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>Confirmed</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Box sx={{ width: 12, height: 12, backgroundColor: '#FF9800', borderRadius: 1 }} />
-              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>Checked In</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Box sx={{ width: 12, height: 12, backgroundColor: '#9C27B0', borderRadius: 1 }} />
-              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>In Room</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Box sx={{ width: 12, height: 12, backgroundColor: '#F44336', borderRadius: 1 }} />
-              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>With Provider</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Box sx={{ width: 12, height: 12, backgroundColor: '#607D8B', borderRadius: 1 }} />
-              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>With Staff</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Box sx={{ width: 12, height: 12, backgroundColor: '#795548', borderRadius: 1 }} />
-              <Typography variant="caption" sx={{ fontSize: '0.85rem' }}>Pending</Typography>
-            </Box>
-          </Box>
-        </Paper>
-      </Box>
+
 
       {/* Compact Table */}
       <Box sx={{ flex: 1, overflow: 'hidden', px: 2, py: 1 }}>
