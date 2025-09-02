@@ -19,7 +19,11 @@ import {
   LocalHospital,
   ExitToApp,
   Refresh,
-  Psychology
+  Psychology,
+  Person,
+  PersonOutline,
+  Badge,
+  MedicalServices
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -247,6 +251,23 @@ const Dashboard: React.FC = () => {
     const firstInitial = firstName?.charAt(0)?.toUpperCase() || '';
     const lastInitial = lastName?.charAt(0)?.toUpperCase() || '';
     return `${firstInitial}.${lastInitial}.`;
+  };
+
+  const getProviderIcon = (role: string) => {
+    const iconProps = { sx: { fontSize: '1rem', ml: 0.5 } };
+    
+    switch (role) {
+      case 'PROVIDER':
+        return <MedicalServices {...iconProps} />;
+      case 'SECONDARY_PROVIDER':
+        return <Person {...iconProps} />;
+      case 'COSIGNING_PROVIDER':
+        return <Badge {...iconProps} />;
+      case 'STAFF':
+        return <PersonOutline {...iconProps} />;
+      default:
+        return <Person {...iconProps} />;
+    }
   };
 
   // Get row styling based on wait time, status, and changes
@@ -565,18 +586,26 @@ const Dashboard: React.FC = () => {
                                 return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
                               })
                               .map((provider: any, index: number) => (
-                                <Typography 
+                                <Box 
                                   key={index} 
-                                  variant="body1" 
                                   sx={{ 
-                                    fontWeight: 'bold', 
-                                    fontSize: '0.85rem',
-                                    lineHeight: 1.2,
+                                    display: 'flex', 
+                                    alignItems: 'center',
                                     mb: index < encounter.providers.length - 1 ? 0.3 : 0
                                   }}
                                 >
-                                  {provider.name}{provider.title ? `, ${provider.title}` : ''} ({patientTrackingService.formatRole(provider.role)})
-                                </Typography>
+                                  <Typography 
+                                    variant="body1" 
+                                    sx={{ 
+                                      fontWeight: 'bold', 
+                                      fontSize: '0.85rem',
+                                      lineHeight: 1.2
+                                    }}
+                                  >
+                                    {provider.name}{provider.title ? `, ${provider.title}` : ''}
+                                  </Typography>
+                                  {getProviderIcon(provider.role)}
+                                </Box>
                               ))
                           ) : (
                             <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
@@ -722,18 +751,26 @@ const Dashboard: React.FC = () => {
                               return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
                             })
                             .map((provider: any, index: number) => (
-                              <Typography 
+                              <Box 
                                 key={index} 
-                                variant="body1" 
                                 sx={{ 
-                                  fontWeight: 'bold', 
-                                  fontSize: '0.85rem',
-                                  lineHeight: 1.2,
+                                  display: 'flex', 
+                                  alignItems: 'center',
                                   mb: index < encounter.providers.length - 1 ? 0.3 : 0
                                 }}
                               >
-                                {provider.name}{provider.title ? `, ${provider.title}` : ''} ({patientTrackingService.formatRole(provider.role)})
-                              </Typography>
+                                <Typography 
+                                  variant="body1" 
+                                  sx={{ 
+                                    fontWeight: 'bold', 
+                                    fontSize: '0.85rem',
+                                    lineHeight: 1.2
+                                  }}
+                                >
+                                  {provider.name}{provider.title ? `, ${provider.title}` : ''}
+                                </Typography>
+                                {getProviderIcon(provider.role)}
+                              </Box>
                             ))
                         ) : (
                           <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
