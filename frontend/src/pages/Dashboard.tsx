@@ -233,15 +233,15 @@ const Dashboard: React.FC = () => {
     return (
       <Chip
         label={config.text}
-        size="small"
+        size="medium"
         sx={{
           backgroundColor: config.background,
           color: config.color,
           border: `1px solid ${config.color}`,
           fontWeight: 'bold',
-          minWidth: '100px',
-          height: '32px',
-          fontSize: '0.85rem'
+          minWidth: '120px',
+          height: '36px',
+          fontSize: '1rem'
         }}
       />
     );
@@ -254,7 +254,7 @@ const Dashboard: React.FC = () => {
   };
 
   const getProviderIcon = (role: string) => {
-    const iconProps = { sx: { fontSize: '1rem', mr: 0.5, minWidth: '16px', display: 'flex', alignItems: 'center' } };
+    const iconProps = { sx: { fontSize: '1.2rem', mr: 0.5, minWidth: '20px', display: 'flex', alignItems: 'center' } };
     
     switch (role) {
       case 'PROVIDER':
@@ -491,12 +491,12 @@ const Dashboard: React.FC = () => {
               <Table stickyHeader size="small" sx={{ tableLayout: 'fixed' }}>
                 <TableHead>
                   <TableRow sx={{ '& th': { backgroundColor: '#f8f9fa', fontWeight: 'bold', py: 1.5 } }}>
-                    <TableCell sx={{ width: '60px', textAlign: 'center', fontSize: '0.9rem' }}>Room</TableCell>
-                    <TableCell sx={{ width: '90px', fontSize: '0.9rem' }}>Patient</TableCell>
-                    <TableCell sx={{ width: '110px', fontSize: '0.9rem' }}>Time</TableCell>
-                    <TableCell sx={{ width: '110px', fontSize: '0.9rem', textAlign: 'center' }}>Status</TableCell>
-                    <TableCell sx={{ width: '150px', fontSize: '0.9rem' }}>Provider</TableCell>
-                    <TableCell sx={{ width: '90px', fontSize: '0.9rem' }}>Visit</TableCell>
+                    <TableCell sx={{ width: '60px', textAlign: 'center', fontSize: '1.1rem' }}>Room</TableCell>
+                    <TableCell sx={{ width: '90px', fontSize: '1.1rem' }}>Patient</TableCell>
+                    <TableCell sx={{ width: '110px', fontSize: '1.1rem' }}>Time</TableCell>
+                    <TableCell sx={{ width: '110px', fontSize: '1.1rem', textAlign: 'center' }}>Status</TableCell>
+                    <TableCell sx={{ width: '150px', fontSize: '1.1rem' }}>Provider</TableCell>
+                    <TableCell sx={{ width: '90px', fontSize: '1.1rem' }}>Visit</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -523,7 +523,7 @@ const Dashboard: React.FC = () => {
                           fontWeight: 'bold', 
                           color: '#1976d2',
                           lineHeight: 1,
-                          fontSize: '1.8rem'
+                          fontSize: '2.2rem'
                         }}>
                           {encounter.room !== 'N/A' && encounter.room !== 0 ? encounter.room : '-'}
                         </Typography>
@@ -532,10 +532,10 @@ const Dashboard: React.FC = () => {
                       {/* Patient - Compact */}
                       <TableCell sx={{ py: 1.5 }}>
                         <Box>
-                          <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2, fontSize: '1.1rem' }}>
+                          <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2, fontSize: '1.4rem' }}>
                             {getPatientInitials(encounter.patientInfo.firstName, encounter.patientInfo.lastName)}
                           </Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
                             {encounter.patientInfo.gender} • {encounter.appointmentType}
                           </Typography>
                         </Box>
@@ -549,7 +549,7 @@ const Dashboard: React.FC = () => {
                             sx={{ 
                               fontWeight: 'bold',
                               lineHeight: 1.2,
-                              fontSize: '0.9rem',
+                              fontSize: '1.1rem',
                               color: 'black'
                             }}
                           >
@@ -559,7 +559,7 @@ const Dashboard: React.FC = () => {
                             <Typography 
                               variant="body2" 
                               sx={{ 
-                                fontSize: '0.75rem',
+                                fontSize: '0.9rem',
                                 color: 'text.secondary'
                               }}
                             >
@@ -599,7 +599,7 @@ const Dashboard: React.FC = () => {
                                     variant="body1" 
                                     sx={{ 
                                       fontWeight: 'bold', 
-                                      fontSize: '0.85rem',
+                                      fontSize: '1rem',
                                       lineHeight: 1.2
                                     }}
                                   >
@@ -608,7 +608,7 @@ const Dashboard: React.FC = () => {
                                 </Box>
                               ))
                           ) : (
-                            <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
+                            <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1rem' }}>
                               No staff assigned
                             </Typography>
                           )}
@@ -621,7 +621,7 @@ const Dashboard: React.FC = () => {
                           variant="body1"
                           sx={{
                             fontWeight: shouldHighlight ? 'bold' : 'normal',
-                            fontSize: shouldHighlight ? '0.9rem' : '0.85rem',
+                            fontSize: shouldHighlight ? '1.1rem' : '1rem',
                             color: shouldHighlight ? 'error.main' : 'text.primary'
                           }}
                         >
@@ -654,12 +654,12 @@ const Dashboard: React.FC = () => {
           <Table stickyHeader size="small" sx={{ tableLayout: 'fixed' }}>
             <TableHead>
               <TableRow sx={{ '& th': { backgroundColor: '#f8f9fa', fontWeight: 'bold', py: 1.5 } }}>
-                <TableCell sx={{ width: '60px', textAlign: 'center', fontSize: '0.9rem' }}>Room</TableCell>
-                <TableCell sx={{ width: '90px', fontSize: '0.9rem' }}>Patient</TableCell>
-                <TableCell sx={{ width: '110px', fontSize: '0.9rem' }}>Time</TableCell>
-                <TableCell sx={{ width: '110px', fontSize: '0.9rem', textAlign: 'center' }}>Status</TableCell>
-                <TableCell sx={{ width: '150px', fontSize: '0.9rem' }}>Provider</TableCell>
-                <TableCell sx={{ width: '90px', fontSize: '0.9rem' }}>Visit</TableCell>
+                <TableCell sx={{ width: '60px', textAlign: 'center', fontSize: '1.1rem' }}>Room</TableCell>
+                <TableCell sx={{ width: '90px', fontSize: '1.1rem' }}>Patient</TableCell>
+                <TableCell sx={{ width: '110px', fontSize: '1.1rem' }}>Time</TableCell>
+                <TableCell sx={{ width: '110px', fontSize: '1.1rem', textAlign: 'center' }}>Status</TableCell>
+                <TableCell sx={{ width: '150px', fontSize: '1.1rem' }}>Provider</TableCell>
+                <TableCell sx={{ width: '90px', fontSize: '1.1rem' }}>Visit</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -688,7 +688,7 @@ const Dashboard: React.FC = () => {
                          fontWeight: 'bold', 
                          color: '#1976d2',
                          lineHeight: 1,
-                         fontSize: '1.8rem'
+                         fontSize: '2.2rem'
                        }}>
                          {encounter.room !== 'N/A' && encounter.room !== 0 ? encounter.room : '-'}
                        </Typography>
@@ -697,10 +697,10 @@ const Dashboard: React.FC = () => {
                      {/* Patient - Compact */}
                      <TableCell sx={{ py: 1.5 }}>
                        <Box>
-                         <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2, fontSize: '1.1rem' }}>
+                         <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2, fontSize: '1.4rem' }}>
                            {getPatientInitials(encounter.patientInfo.firstName, encounter.patientInfo.lastName)}
                          </Typography>
-                         <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                         <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
                            {encounter.patientInfo.gender} • {encounter.appointmentType}
                          </Typography>
                        </Box>
@@ -714,7 +714,7 @@ const Dashboard: React.FC = () => {
                            sx={{ 
                              fontWeight: 'bold',
                              lineHeight: 1.2,
-                             fontSize: '0.9rem',
+                             fontSize: '1.1rem',
                              color: 'black'
                            }}
                          >
@@ -724,7 +724,7 @@ const Dashboard: React.FC = () => {
                            <Typography 
                              variant="body2" 
                              sx={{ 
-                               fontSize: '0.75rem',
+                               fontSize: '0.9rem',
                                color: 'text.secondary'
                              }}
                            >
@@ -764,7 +764,7 @@ const Dashboard: React.FC = () => {
                                   variant="body1" 
                                   sx={{ 
                                     fontWeight: 'bold', 
-                                    fontSize: '0.85rem',
+                                    fontSize: '1rem',
                                     lineHeight: 1.2
                                   }}
                                 >
@@ -773,7 +773,7 @@ const Dashboard: React.FC = () => {
                               </Box>
                             ))
                         ) : (
-                          <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
+                          <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1rem' }}>
                             No staff assigned
                           </Typography>
                         )}
@@ -786,7 +786,7 @@ const Dashboard: React.FC = () => {
                         variant="body1"
                         sx={{
                           fontWeight: shouldHighlight ? 'bold' : 'normal',
-                          fontSize: shouldHighlight ? '0.9rem' : '0.85rem',
+                          fontSize: shouldHighlight ? '1.1rem' : '1rem',
                           color: shouldHighlight ? 'error.main' : 'text.primary'
                         }}
                       >
