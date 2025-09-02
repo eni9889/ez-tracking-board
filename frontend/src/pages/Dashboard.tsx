@@ -452,41 +452,44 @@ const Dashboard: React.FC = () => {
 
 
 
-      {/* Compact Table */}
+      {/* Two Column Layout */}
       <Box sx={{ flex: 1, overflow: 'hidden', px: 2, py: 1 }}>
-        <TableContainer 
-          component={Paper} 
-          sx={{ 
-            height: '100%',
-            boxShadow: 2,
-            '& .MuiTable-root': {
-              minWidth: 'unset'
-            }
-          }}
-        >
-                     <Table stickyHeader size="small" sx={{ tableLayout: 'fixed', minWidth: '1200px' }}>
-            <TableHead>
-              <TableRow sx={{ '& th': { backgroundColor: '#f8f9fa', fontWeight: 'bold', py: 1.5 } }}>
-                <TableCell sx={{ width: '80px', textAlign: 'center', fontSize: '1rem' }}>Room</TableCell>
-                <TableCell sx={{ width: '120px', fontSize: '1rem' }}>Patient</TableCell>
-                <TableCell sx={{ width: '140px', fontSize: '1rem' }}>Time</TableCell>
-                <TableCell sx={{ width: '140px', fontSize: '1rem', textAlign: 'center' }}>Status</TableCell>
-                <TableCell sx={{ width: '200px', fontSize: '1rem' }}>Provider</TableCell>
-                <TableCell sx={{ width: '120px', fontSize: '1rem' }}>Visit Length</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {sortedEncounters.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
-                    <Typography variant="h6">No patients currently in clinic</Typography>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                sortedEncounters.map((encounter) => {
-                  const isWaitingTooLong = patientTrackingService.isWaitingTooLong(encounter.arrivalTime);
-                  const isDangerStatus = encounter.status === 'CHECKED_IN' || encounter.status === 'WITH_STAFF';
-                  const shouldHighlight = isWaitingTooLong && isDangerStatus;
+        <Box sx={{ display: 'flex', gap: 2, height: '100%' }}>
+          {/* Left Column */}
+          <Box sx={{ flex: 1 }}>
+            <TableContainer 
+              component={Paper} 
+              sx={{ 
+                height: '100%',
+                boxShadow: 2,
+                '& .MuiTable-root': {
+                  minWidth: 'unset'
+                }
+              }}
+            >
+              <Table stickyHeader size="small" sx={{ tableLayout: 'fixed' }}>
+                <TableHead>
+                  <TableRow sx={{ '& th': { backgroundColor: '#f8f9fa', fontWeight: 'bold', py: 1.5 } }}>
+                    <TableCell sx={{ width: '60px', textAlign: 'center', fontSize: '0.9rem' }}>Room</TableCell>
+                    <TableCell sx={{ width: '90px', fontSize: '0.9rem' }}>Patient</TableCell>
+                    <TableCell sx={{ width: '110px', fontSize: '0.9rem' }}>Time</TableCell>
+                    <TableCell sx={{ width: '110px', fontSize: '0.9rem', textAlign: 'center' }}>Status</TableCell>
+                    <TableCell sx={{ width: '150px', fontSize: '0.9rem' }}>Provider</TableCell>
+                    <TableCell sx={{ width: '90px', fontSize: '0.9rem' }}>Visit</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {sortedEncounters.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                        <Typography variant="h6">No patients currently in clinic</Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    sortedEncounters.slice(0, Math.ceil(sortedEncounters.length / 2)).map((encounter) => {
+                      const isWaitingTooLong = patientTrackingService.isWaitingTooLong(encounter.arrivalTime);
+                      const isDangerStatus = encounter.status === 'CHECKED_IN' || encounter.status === 'WITH_STAFF';
+                      const shouldHighlight = isWaitingTooLong && isDangerStatus;
 
                                      return (
                        <TableRow 
@@ -498,60 +501,61 @@ const Dashboard: React.FC = () => {
                         <Typography variant="h4" sx={{ 
                           fontWeight: 'bold', 
                           color: '#1976d2',
-                          lineHeight: 1
+                          lineHeight: 1,
+                          fontSize: '1.8rem'
                         }}>
                           {encounter.room !== 'N/A' && encounter.room !== 0 ? encounter.room : '-'}
                         </Typography>
                       </TableCell>
 
-                                                                   {/* Patient - Compact */}
+                      {/* Patient - Compact */}
                       <TableCell sx={{ py: 1.5 }}>
                         <Box>
-                          <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2, fontSize: '1.2rem' }}>
+                          <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2, fontSize: '1.1rem' }}>
                             {getPatientInitials(encounter.patientInfo.firstName, encounter.patientInfo.lastName)}
                           </Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem' }}>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                             {encounter.patientInfo.gender} • {encounter.appointmentType}
                           </Typography>
                         </Box>
                       </TableCell>
 
-                                             {/* Time - Compact */}
-                       <TableCell sx={{ py: 1.5 }}>
-                         <Box>
-                           <Typography 
-                             variant="h6" 
-                             sx={{ 
-                               fontWeight: 'bold',
-                               lineHeight: 1.2,
-                               fontSize: '1.1rem',
-                               color: 'black'
-                             }}
-                           >
-                             {patientTrackingService.formatAppointmentTime(encounter.appointmentTime)}
-                           </Typography>
-                           {encounter.arrivalTime && (
-                             <Typography 
-                               variant="body2" 
-                               sx={{ 
-                                 fontSize: '0.9rem',
-                                 color: 'black'
-                               }}
-                             >
-                               Arrived: {patientTrackingService.formatAppointmentTime(encounter.arrivalTime)}
-                             </Typography>
-                           )}
-                         </Box>
-                       </TableCell>
+                      {/* Time - Compact */}
+                      <TableCell sx={{ py: 1.5 }}>
+                        <Box>
+                          <Typography 
+                            variant="body1" 
+                            sx={{ 
+                              fontWeight: 'bold',
+                              lineHeight: 1.2,
+                              fontSize: '0.9rem',
+                              color: 'black'
+                            }}
+                          >
+                            {patientTrackingService.formatAppointmentTime(encounter.appointmentTime)}
+                          </Typography>
+                          {encounter.arrivalTime && (
+                            <Typography 
+                              variant="body2" 
+                              sx={{ 
+                                fontSize: '0.75rem',
+                                color: 'text.secondary'
+                              }}
+                            >
+                              Arrived: {patientTrackingService.formatAppointmentTime(encounter.arrivalTime)}
+                            </Typography>
+                          )}
+                        </Box>
+                      </TableCell>
 
-                                             {/* Status - Compact */}
-                       <TableCell sx={{ py: 1.5, textAlign: 'center' }}>
-                         {getStatusText(encounter.status)}
-                       </TableCell>
+                      {/* Status - Compact */}
+                      <TableCell sx={{ py: 1.5, textAlign: 'center' }}>
+                        {getStatusText(encounter.status)}
+                      </TableCell>
 
                       {/* Provider - Compact */}
                       <TableCell sx={{ py: 1.5 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '0.95rem' }}>
+                        <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
                           {patientTrackingService.getAllStaff(encounter.providers)}
                         </Typography>
                       </TableCell>
@@ -562,11 +566,11 @@ const Dashboard: React.FC = () => {
                           variant="body1"
                           sx={{
                             fontWeight: shouldHighlight ? 'bold' : 'normal',
-                            fontSize: shouldHighlight ? '1rem' : '0.95rem',
+                            fontSize: shouldHighlight ? '0.9rem' : '0.85rem',
                             color: shouldHighlight ? 'error.main' : 'text.primary'
                           }}
                         >
-                                                     {patientTrackingService.calculateWaitTime(encounter.arrivalTime)}
+                          {patientTrackingService.calculateWaitTime(encounter.arrivalTime)}
                         </Typography>
                       </TableCell>
 
@@ -578,6 +582,138 @@ const Dashboard: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
+      </Box>
+
+      {/* Right Column */}
+      <Box sx={{ flex: 1 }}>
+        <TableContainer 
+          component={Paper} 
+          sx={{ 
+            height: '100%',
+            boxShadow: 2,
+            '& .MuiTable-root': {
+              minWidth: 'unset'
+            }
+          }}
+        >
+          <Table stickyHeader size="small" sx={{ tableLayout: 'fixed' }}>
+            <TableHead>
+              <TableRow sx={{ '& th': { backgroundColor: '#f8f9fa', fontWeight: 'bold', py: 1.5 } }}>
+                <TableCell sx={{ width: '60px', textAlign: 'center', fontSize: '0.9rem' }}>Room</TableCell>
+                <TableCell sx={{ width: '90px', fontSize: '0.9rem' }}>Patient</TableCell>
+                <TableCell sx={{ width: '110px', fontSize: '0.9rem' }}>Time</TableCell>
+                <TableCell sx={{ width: '110px', fontSize: '0.9rem', textAlign: 'center' }}>Status</TableCell>
+                <TableCell sx={{ width: '150px', fontSize: '0.9rem' }}>Provider</TableCell>
+                <TableCell sx={{ width: '90px', fontSize: '0.9rem' }}>Visit</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {sortedEncounters.length <= 1 ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      {sortedEncounters.length === 0 ? 'No patients in clinic' : 'Additional patients will appear here'}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                sortedEncounters.slice(Math.ceil(sortedEncounters.length / 2)).map((encounter) => {
+                  const isWaitingTooLong = patientTrackingService.isWaitingTooLong(encounter.arrivalTime);
+                  const isDangerStatus = encounter.status === 'CHECKED_IN' || encounter.status === 'WITH_STAFF';
+                  const shouldHighlight = isWaitingTooLong && isDangerStatus;
+
+                  return (
+                    <TableRow 
+                      key={encounter.id}
+                      sx={getRowStyling(encounter)}
+                    >
+                     {/* Room - Compact */}
+                     <TableCell sx={{ textAlign: 'center', py: 1.5 }}>
+                       <Typography variant="h4" sx={{ 
+                         fontWeight: 'bold', 
+                         color: '#1976d2',
+                         lineHeight: 1,
+                         fontSize: '1.8rem'
+                       }}>
+                         {encounter.room !== 'N/A' && encounter.room !== 0 ? encounter.room : '-'}
+                       </Typography>
+                     </TableCell>
+
+                     {/* Patient - Compact */}
+                     <TableCell sx={{ py: 1.5 }}>
+                       <Box>
+                         <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2, fontSize: '1.1rem' }}>
+                           {getPatientInitials(encounter.patientInfo.firstName, encounter.patientInfo.lastName)}
+                         </Typography>
+                         <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                           {encounter.patientInfo.gender} • {encounter.appointmentType}
+                         </Typography>
+                       </Box>
+                     </TableCell>
+
+                     {/* Time - Compact */}
+                     <TableCell sx={{ py: 1.5 }}>
+                       <Box>
+                         <Typography 
+                           variant="body1" 
+                           sx={{ 
+                             fontWeight: 'bold',
+                             lineHeight: 1.2,
+                             fontSize: '0.9rem',
+                             color: 'black'
+                           }}
+                         >
+                           {patientTrackingService.formatAppointmentTime(encounter.appointmentTime)}
+                         </Typography>
+                         {encounter.arrivalTime && (
+                           <Typography 
+                             variant="body2" 
+                             sx={{ 
+                               fontSize: '0.75rem',
+                               color: 'text.secondary'
+                             }}
+                           >
+                             Arrived: {patientTrackingService.formatAppointmentTime(encounter.arrivalTime)}
+                           </Typography>
+                         )}
+                       </Box>
+                     </TableCell>
+
+                     {/* Status - Compact */}
+                     <TableCell sx={{ py: 1.5, textAlign: 'center' }}>
+                       {getStatusText(encounter.status)}
+                     </TableCell>
+
+                    {/* Provider - Compact */}
+                    <TableCell sx={{ py: 1.5 }}>
+                      <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
+                        {patientTrackingService.getAllStaff(encounter.providers)}
+                      </Typography>
+                    </TableCell>
+
+                    {/* Visit Length - Compact */}
+                    <TableCell sx={{ py: 1.5 }}>
+                      <Typography 
+                        variant="body1"
+                        sx={{
+                          fontWeight: shouldHighlight ? 'bold' : 'normal',
+                          fontSize: shouldHighlight ? '0.9rem' : '0.85rem',
+                          color: shouldHighlight ? 'error.main' : 'text.primary'
+                        }}
+                      >
+                        {patientTrackingService.calculateWaitTime(encounter.arrivalTime)}
+                      </Typography>
+                    </TableCell>
+
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Box>
+        </Box>
       </Box>
     </Box>
   );
