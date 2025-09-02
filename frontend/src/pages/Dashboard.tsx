@@ -381,7 +381,7 @@ const Dashboard: React.FC = () => {
           <LocalHospital sx={{ fontSize: '2rem' }} />
           <Box>
             <Typography variant="h5" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
-              EZ Patient Tracking Board
+              DCC - Flint
               {isUsingMockData && (
                 <Chip 
                   label="DEMO MODE" 
