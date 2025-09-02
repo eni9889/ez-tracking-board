@@ -555,9 +555,35 @@ const Dashboard: React.FC = () => {
 
                       {/* Provider - Compact */}
                       <TableCell sx={{ py: 1.5 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
-                          {patientTrackingService.getAllStaff(encounter.providers)}
-                        </Typography>
+                        <Box>
+                          {encounter.providers && encounter.providers.length > 0 ? (
+                            encounter.providers
+                              .sort((a: any, b: any) => {
+                                const roleOrder = ['PROVIDER', 'SECONDARY_PROVIDER', 'COSIGNING_PROVIDER', 'STAFF'];
+                                const aIndex = roleOrder.indexOf(a.role);
+                                const bIndex = roleOrder.indexOf(b.role);
+                                return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+                              })
+                              .map((provider: any, index: number) => (
+                                <Typography 
+                                  key={index} 
+                                  variant="body1" 
+                                  sx={{ 
+                                    fontWeight: 'bold', 
+                                    fontSize: '0.85rem',
+                                    lineHeight: 1.2,
+                                    mb: index < encounter.providers.length - 1 ? 0.3 : 0
+                                  }}
+                                >
+                                  {provider.name}{provider.title ? `, ${provider.title}` : ''} ({patientTrackingService.formatRole(provider.role)})
+                                </Typography>
+                              ))
+                          ) : (
+                            <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
+                              No staff assigned
+                            </Typography>
+                          )}
+                        </Box>
                       </TableCell>
 
                       {/* Visit Length - Compact */}
@@ -686,9 +712,35 @@ const Dashboard: React.FC = () => {
 
                     {/* Provider - Compact */}
                     <TableCell sx={{ py: 1.5 }}>
-                      <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
-                        {patientTrackingService.getAllStaff(encounter.providers)}
-                      </Typography>
+                      <Box>
+                        {encounter.providers && encounter.providers.length > 0 ? (
+                          encounter.providers
+                            .sort((a: any, b: any) => {
+                              const roleOrder = ['PROVIDER', 'SECONDARY_PROVIDER', 'COSIGNING_PROVIDER', 'STAFF'];
+                              const aIndex = roleOrder.indexOf(a.role);
+                              const bIndex = roleOrder.indexOf(b.role);
+                              return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+                            })
+                            .map((provider: any, index: number) => (
+                              <Typography 
+                                key={index} 
+                                variant="body1" 
+                                sx={{ 
+                                  fontWeight: 'bold', 
+                                  fontSize: '0.85rem',
+                                  lineHeight: 1.2,
+                                  mb: index < encounter.providers.length - 1 ? 0.3 : 0
+                                }}
+                              >
+                                {provider.name}{provider.title ? `, ${provider.title}` : ''} ({patientTrackingService.formatRole(provider.role)})
+                              </Typography>
+                            ))
+                        ) : (
+                          <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
+                            No staff assigned
+                          </Typography>
+                        )}
+                      </Box>
                     </TableCell>
 
                     {/* Visit Length - Compact */}
