@@ -101,13 +101,13 @@ const Dashboard: React.FC = () => {
               setDeletingRows(toDeleteRows);
               // Wait for deletion animation, then update data
               setTimeout(() => {
-                setEncounters(data);
+                setEncounters(data.filter(enc => enc && enc.id)); // Safety filter
                 setDeletingRows(new Set());
                 setNewRows(newNewRows);
                 setChangedRows(newChangedRows);
                 setPreviousEncounters(data);
               }, 500);
-              return currentEncounters; // Keep current data during animation
+              return currentEncounters.filter(enc => enc && enc.id); // Safety filter
             } else {
               // No deletions, update immediately
               setNewRows(newNewRows);
@@ -120,13 +120,13 @@ const Dashboard: React.FC = () => {
                 setChangedRows(new Set());
               }, 2000);
               
-              return data;
+              return data.filter(enc => enc && enc.id); // Safety filter
             }
           }
-          return data;
+          return data.filter(enc => enc && enc.id); // Safety filter
         });
       } else {
-        setEncounters(data);
+        setEncounters(data.filter(enc => enc && enc.id)); // Safety filter
       }
       
       setLastRefresh(new Date());
@@ -144,11 +144,13 @@ const Dashboard: React.FC = () => {
     
     // Add encounters that are being deleted for animation purposes
     if (deletingRows.size > 0 && previousEncounters.length > 0) {
-      const deletingEncounters = previousEncounters.filter(enc => deletingRows.has(enc.id));
+      const deletingEncounters = previousEncounters.filter(enc => 
+        enc && enc.id && deletingRows.has(enc.id)
+      );
       currentEncounters.push(...deletingEncounters);
     }
     
-    return currentEncounters;
+    return currentEncounters.filter(enc => enc && enc.id); // Safety filter
   };
 
   const sortedEncounters = getAllEncounters().sort((a, b) => {
