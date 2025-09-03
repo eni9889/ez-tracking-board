@@ -607,7 +607,7 @@ const Dashboard: React.FC = () => {
                                     sx={{ 
                                       fontWeight: 'bold', 
                                       fontSize: '1.5rem',
-                                      lineHeight: 1
+                                      lineHeight: 1.25
                                     }}
                                   >
                                     {getProviderTitle(provider)}
@@ -628,7 +628,7 @@ const Dashboard: React.FC = () => {
                           variant="body1"
                           sx={{
                             fontWeight: 'bold',
-                            fontSize: '1.6rem',
+                            fontSize: '2rem',
                             color: shouldHighlight ? 'error.main' : 'text.primary'
                           }}
                         >
@@ -772,7 +772,7 @@ const Dashboard: React.FC = () => {
                                   sx={{ 
                                     fontWeight: 'bold', 
                                     fontSize: '1.5rem',
-                                    lineHeight: 1
+                                    lineHeight: 1.25
                                   }}
                                 >
                                   {getProviderTitle(provider)}
@@ -793,7 +793,7 @@ const Dashboard: React.FC = () => {
                         variant="body1"
                         sx={{
                           fontWeight: 'bold',
-                          fontSize: '1.6rem',
+                          fontSize: '2rem',
                           color: shouldHighlight ? 'error.main' : 'text.primary'
                         }}
                       >
