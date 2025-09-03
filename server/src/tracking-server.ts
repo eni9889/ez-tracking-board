@@ -35,7 +35,10 @@ import {
   RefreshTokenResponse,
   EMATokenRequest,
   EMATokenResponse,
-  EMRProvider
+  EMRProvider,
+  FHIRBundle,
+  PatientInfo,
+  Provider
 } from './types';
 
 // Load environment variables
@@ -280,6 +283,409 @@ async function authenticateEZDermUser(loginRequest: EZDermLoginRequestType): Pro
   }
 }
 
+// EMA Encounter Helper Functions
+async function fetchEMAEncounters(
+  firmName: string, 
+  accessToken: string, 
+  dateRangeStart?: string, 
+  dateRangeEnd?: string
+): Promise<Encounter[]> {
+  try {
+    console.log(`🔍 Fetching EMA encounters for firm: ${firmName}`);
+
+    // Build the FHIR encounters URL with date filtering
+    const baseUrl = `${EMA_BASE_URL}/firm/${firmName}${EMA_FHIR_PATH}/Encounter`;
+    const searchParams = new URLSearchParams();
+
+    // Add date filtering if provided
+    if (dateRangeStart || dateRangeEnd) {
+      // FHIR date parameter format: date=ge2025-01-01&date=le2025-12-31
+      if (dateRangeStart) {
+        const startDate = new Date(dateRangeStart).toISOString().split('T')[0]; // YYYY-MM-DD format
+        searchParams.append('date', `ge${startDate}`);
+        console.log(`📅 Adding start date filter: ge${startDate}`);
+      }
+      if (dateRangeEnd) {
+        const endDate = new Date(dateRangeEnd).toISOString().split('T')[0]; // YYYY-MM-DD format
+        searchParams.append('date', `le${endDate}`);
+        console.log(`📅 Adding end date filter: le${endDate}`);
+      }
+    } else {
+      // Default to today's encounters to reduce API load and avoid rate limits
+      const today = new Date().toISOString().split('T')[0];
+      searchParams.append('date', `ge${today}`);
+      console.log(`📅 Using default date filter (today): ge${today}`);
+    }
+
+    // Add additional FHIR search parameters for patient tracking
+    searchParams.append('_count', '100'); // Limit results to prevent rate limiting
+    searchParams.append('_sort', 'date'); // Sort by date for consistent ordering
+    
+    // Note: EMA FHIR server doesn't support multiple status values in one parameter
+    // We'll filter statuses after fetching the data instead
+
+    const encountersUrl = `${baseUrl}?${searchParams.toString()}`;
+    console.log(`🌐 Making FHIR request to: ${encountersUrl}`);
+
+    // Make request to EMA FHIR API
+    const response: AxiosResponse<FHIRBundle> = await axios.get(encountersUrl, {
+      headers: {
+        'accept': 'application/fhir+json',
+        'authorization': `Bearer ${accessToken}`,
+        'x-api-key': EMA_API_KEY
+      }
+    });
+
+    console.log(`✅ EMA FHIR response received: ${response.data.total} encounters`);
+
+    // Transform FHIR Bundle to our standard Encounter format
+    const encounters: Encounter[] = [];
+    
+    if (response.data.entry && response.data.entry.length > 0) {
+      for (const entry of response.data.entry) {
+        try {
+          const fhirEncounter = entry.resource;
+          const transformedEncounter = await transformFHIREncounter(fhirEncounter, firmName, accessToken);
+          if (transformedEncounter) {
+            encounters.push(transformedEncounter);
+          }
+        } catch (transformError) {
+          console.warn(`⚠️ Failed to transform FHIR encounter ${entry.resource.id}:`, transformError);
+          // Continue with other encounters
+        }
+      }
+    }
+
+    console.log(`📋 Transformed ${encounters.length} FHIR encounters to standard format`);
+    return encounters;
+
+  } catch (error: any) {
+    console.error('💥 EMA encounter fetch error:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+    throw error;
+  }
+}
+
+async function transformFHIREncounter(fhirEncounter: any, firmName: string, accessToken: string): Promise<Encounter | null> {
+  try {
+    // Extract basic encounter info
+    const encounterId = fhirEncounter.id;
+    const status = mapFHIRStatusToEncounterStatus(fhirEncounter.status);
+    
+    // Extract patient reference and fetch patient details
+    const patientReference = fhirEncounter.subject?.reference;
+    if (!patientReference) {
+      console.warn(`⚠️ No patient reference found for encounter ${encounterId}`);
+      return null;
+    }
+
+    // Extract patient ID from reference (e.g., "Patient/12345" -> "12345")
+    const patientId = patientReference.split('/').pop();
+    if (!patientId) {
+      console.warn(`⚠️ Invalid patient reference format: ${patientReference}`);
+      return null;
+    }
+
+    // Fetch patient details from FHIR API
+    const patientInfo = await fetchFHIRPatient(firmName, patientId, accessToken);
+    if (!patientInfo) {
+      console.warn(`⚠️ Could not fetch patient details for ${patientId}`);
+      return null;
+    }
+
+    // Extract providers/participants
+    const providers: Provider[] = [];
+    if (fhirEncounter.participant && fhirEncounter.participant.length > 0) {
+      for (const participant of fhirEncounter.participant) {
+        try {
+          const provider = await transformFHIRParticipant(participant, firmName, accessToken);
+          if (provider) {
+            providers.push(provider);
+          }
+        } catch (providerError) {
+          console.warn(`⚠️ Failed to transform participant:`, providerError);
+        }
+      }
+    }
+
+    // Extract appointment time and arrival time
+    const appointmentTime = fhirEncounter.period?.start || new Date().toISOString();
+    const arrivalTime = fhirEncounter.period?.start; // FHIR doesn't distinguish arrival from start time
+
+    // Extract location/room
+    let room = 'N/A';
+    if (fhirEncounter.location && fhirEncounter.location.length > 0) {
+      const locationRef = fhirEncounter.location[0].location?.reference;
+      if (locationRef) {
+        // Could fetch location details, but for now use the reference
+        room = locationRef.split('/').pop() || 'N/A';
+      }
+    }
+
+    // Extract encounter type for chief complaint
+    let chiefComplaint = 'Not specified';
+    if (fhirEncounter.type && fhirEncounter.type.length > 0) {
+      const firstType = fhirEncounter.type[0];
+      if (firstType.coding && firstType.coding.length > 0) {
+        chiefComplaint = firstType.coding[0].display || firstType.text || 'Not specified';
+      } else if (firstType.text) {
+        chiefComplaint = firstType.text;
+      }
+    }
+
+    // Create the standardized encounter
+    const encounter: Encounter = {
+      id: encounterId,
+      patientName: `${patientInfo.firstName} ${patientInfo.lastName}`,
+      patientInfo,
+      appointmentTime,
+      ...(arrivalTime && { arrivalTime }),
+      chiefComplaint,
+      status,
+      room,
+      providers,
+      clinicName: `${firmName} Clinic`, // Could be enhanced by fetching organization details
+      appointmentType: fhirEncounter.class?.display || 'Visit',
+      appointmentColor: '#2196F3', // Default color, could be mapped based on type
+      establishedPatient: true // FHIR doesn't provide this directly, could be determined by patient history
+    };
+
+    return encounter;
+
+  } catch (error: any) {
+    console.error(`💥 Error transforming FHIR encounter ${fhirEncounter.id}:`, error);
+    return null;
+  }
+}
+
+async function fetchFHIRPatient(firmName: string, patientId: string, accessToken: string): Promise<PatientInfo | null> {
+  try {
+    const patientUrl = `${EMA_BASE_URL}/firm/${firmName}${EMA_FHIR_PATH}/Patient/${patientId}`;
+    
+    const response = await axios.get(patientUrl, {
+      headers: {
+        'accept': 'application/fhir+json',
+        'authorization': `Bearer ${accessToken}`,
+        'x-api-key': EMA_API_KEY
+      }
+    });
+
+    const fhirPatient = response.data;
+    
+    // Extract patient information from FHIR Patient resource
+    const firstName = fhirPatient.name?.[0]?.given?.[0] || 'Unknown';
+    const lastName = fhirPatient.name?.[0]?.family || 'Patient';
+    const dateOfBirth = fhirPatient.birthDate || '';
+    const gender = fhirPatient.gender?.toUpperCase() || 'OTHER';
+    
+    // Extract identifiers for MRN
+    let medicalRecordNumber = patientId; // Fallback to patient ID
+    if (fhirPatient.identifier && fhirPatient.identifier.length > 0) {
+      // Look for MRN identifier
+      const mrnIdentifier = fhirPatient.identifier.find((id: any) => 
+        id.type?.coding?.some((coding: any) => coding.code === 'MR')
+      );
+      if (mrnIdentifier?.value) {
+        medicalRecordNumber = mrnIdentifier.value;
+      } else {
+        medicalRecordNumber = fhirPatient.identifier[0].value || patientId;
+      }
+    }
+
+    // Extract contact information
+    let phoneNumber: string | undefined;
+    let emailAddress: string | undefined;
+    
+    if (fhirPatient.telecom && fhirPatient.telecom.length > 0) {
+      for (const contact of fhirPatient.telecom) {
+        if (contact.system === 'phone' && !phoneNumber) {
+          phoneNumber = contact.value;
+        } else if (contact.system === 'email' && !emailAddress) {
+          emailAddress = contact.value;
+        }
+      }
+    }
+
+    const patientInfo: PatientInfo = {
+      id: patientId,
+      firstName,
+      lastName,
+      dateOfBirth,
+      gender: gender as 'MALE' | 'FEMALE' | 'OTHER',
+      medicalRecordNumber,
+      ...(phoneNumber && { phoneNumber }),
+      ...(emailAddress && { emailAddress })
+    };
+
+    return patientInfo;
+
+  } catch (error: any) {
+    console.error(`💥 Error fetching FHIR patient ${patientId}:`, error);
+    return null;
+  }
+}
+
+async function transformFHIRParticipant(participant: any, firmName: string, accessToken: string): Promise<Provider | null> {
+  try {
+    // Extract practitioner reference
+    const practitionerRef = participant.individual?.reference;
+    if (!practitionerRef) {
+      return null;
+    }
+
+    const practitionerId = practitionerRef.split('/').pop();
+    if (!practitionerId) {
+      return null;
+    }
+
+    // Fetch practitioner details
+    const practitionerUrl = `${EMA_BASE_URL}/firm/${firmName}${EMA_FHIR_PATH}/Practitioner/${practitionerId}`;
+    
+    const response = await axios.get(practitionerUrl, {
+      headers: {
+        'accept': 'application/fhir+json',
+        'authorization': `Bearer ${accessToken}`,
+        'x-api-key': EMA_API_KEY
+      }
+    });
+
+    const fhirPractitioner = response.data;
+    
+    // Extract practitioner name
+    const firstName = fhirPractitioner.name?.[0]?.given?.[0] || '';
+    const lastName = fhirPractitioner.name?.[0]?.family || 'Unknown';
+    const name = `${firstName} ${lastName}`.trim();
+
+    // Map FHIR participant type to our provider role
+    const role = mapFHIRParticipantTypeToProviderRole(participant.type);
+
+    // Extract title/qualification
+    let title = '';
+    if (fhirPractitioner.qualification && fhirPractitioner.qualification.length > 0) {
+      const qualification = fhirPractitioner.qualification[0];
+      title = qualification.code?.coding?.[0]?.display || '';
+    }
+
+    const provider: Provider = {
+      id: practitionerId,
+      name,
+      role,
+      ...(title && { title })
+    };
+
+    return provider;
+
+  } catch (error: any) {
+    console.error(`💥 Error transforming FHIR participant:`, error);
+    return null;
+  }
+}
+
+function mapFHIRStatusToEncounterStatus(fhirStatus: string): EncounterStatus {
+  const statusMap: { [key: string]: EncounterStatus } = {
+    'planned': 'SCHEDULED',
+    'arrived': 'ARRIVED',
+    'triaged': 'CHECKED_IN',
+    'in-progress': 'WITH_PROVIDER',
+    'onleave': 'WITH_STAFF',
+    'finished': 'CHECKED_OUT',
+    'cancelled': 'CANCELLED'
+  };
+
+  return statusMap[fhirStatus] || 'SCHEDULED';
+}
+
+function mapFHIRParticipantTypeToProviderRole(participantTypes: any[]): Provider['role'] {
+  if (!participantTypes || participantTypes.length === 0) {
+    return 'STAFF';
+  }
+
+  // Look for specific codes that indicate provider roles
+  for (const type of participantTypes) {
+    if (type.coding && type.coding.length > 0) {
+      for (const coding of type.coding) {
+        const code = coding.code?.toLowerCase();
+        const display = coding.display?.toLowerCase();
+        
+        if (code === 'pprf' || display?.includes('primary performer')) {
+          return 'PROVIDER';
+        } else if (code === 'sprf' || display?.includes('secondary')) {
+          return 'SECONDARY_PROVIDER';
+        } else if (display?.includes('cosign')) {
+          return 'COSIGNING_PROVIDER';
+        }
+      }
+    }
+  }
+
+  return 'STAFF'; // Default role
+}
+
+// Helper function to extract firm name from EMA server URL
+function extractFirmNameFromServerUrl(serverUrl: string): string | null {
+  try {
+    // Server URL format: https://stage.ema-api.com/ema-dev/firm/{firmName}/ema/fhir/v2
+    const match = serverUrl.match(/\/firm\/([^\/]+)\//);
+    return match && match[1] ? match[1] : null;
+  } catch (error) {
+    console.error('Error extracting firm name from server URL:', error);
+    return null;
+  }
+}
+
+// Helper function to fetch EZDerm encounters (extracted from original logic)
+async function fetchEZDermEncounters(
+  userTokens: { accessToken: string; serverUrl: string }, 
+  dateRangeStart?: string, 
+  dateRangeEnd?: string, 
+  clinicId?: string, 
+  providerIds?: string[]
+): Promise<Encounter[]> {
+  try {
+    // Get today's date for default range (start of day to end of day)
+    const today = new Date();
+
+    // Prepare request data exactly like the curl command
+    const encounterData: EZDermEncounterFilter = {
+      dateOfServiceRangeHigh: dateRangeEnd || formatDateEndOfDay(today),
+      clinicId: clinicId || DEFAULT_CLINIC_ID,
+      providerIds: providerIds || [],
+      practiceId: DEFAULT_PRACTICE_ID,
+      dateOfServiceRangeLow: dateRangeStart || formatDateStartOfDay(today),
+      lightBean: true,
+      dateSelection: 'SPECIFY_RANGE'
+    };
+
+    // Make request to EZDerm encounters API
+    const encountersResponse: AxiosResponse<EZDermEncounter[]> = await axios.post(
+      `${userTokens.serverUrl}ezderm-webservice/rest/encounter/getByFilter`,
+      encounterData,
+      {
+        headers: {
+          'Host': 'srvprod.ezinfra.net',
+          'accept': 'application/json',
+          'content-type': 'application/json',
+          'authorization': `Bearer ${userTokens.accessToken}`,
+          'user-agent': 'ezDerm/4.28.0 (build:132.19; macOS(Catalyst) 15.5.0)',
+          'accept-language': 'en-US;q=1.0'
+        }
+      }
+    );
+
+    // Process and format the encounters data
+    const allEncounters: Encounter[] = encountersResponse.data.map(transformEZDermEncounter);
+    
+    return allEncounters;
+
+  } catch (error: any) {
+    console.error('💥 EZDerm encounter fetch error:', error);
+    throw error;
+  }
+}
+
 // Login endpoint
 app.post('/login', async (req: Request<{}, LoginResponse | ErrorResponse, LoginRequest>, res: Response<LoginResponse | ErrorResponse>) => {
   try {
@@ -395,11 +801,21 @@ app.post('/login', async (req: Request<{}, LoginResponse | ErrorResponse, LoginR
   }
 });
 
-// Get encounters endpoint
+// Get encounters endpoint with EMR provider routing
 app.post('/encounters', validateSession, async (req: Request<{}, EncountersResponse | ErrorResponse, EncountersRequest>, res: Response<EncountersResponse | ErrorResponse>) => {
   try {
     const username = (req as any).user.username; // From session validation middleware
     const { dateRangeStart, dateRangeEnd, clinicId, providerIds } = req.body;
+
+    // Get user credentials to determine EMR provider
+    const userCredentials = await vitalSignsDb.getUserCredentials(username);
+    if (!userCredentials) {
+      res.status(401).json({ error: 'User credentials not found. Please login again.' });
+      return;
+    }
+
+    const emrProvider = userCredentials.emrProvider || 'EZDERM';
+    console.log(`📋 Fetching encounters for ${username} using ${emrProvider}`);
 
     // Get valid tokens (with automatic refresh if needed)
     const userTokens = await getValidTokens(username);
@@ -408,39 +824,24 @@ app.post('/encounters', validateSession, async (req: Request<{}, EncountersRespo
       return;
     }
 
-    // Get today's date for default range (start of day to end of day)
-    const today = new Date();
+    let allEncounters: Encounter[] = [];
 
-    // Prepare request data exactly like the curl command
-    const encounterData: EZDermEncounterFilter = {
-      dateOfServiceRangeHigh: dateRangeEnd || formatDateEndOfDay(today),
-      clinicId: clinicId || DEFAULT_CLINIC_ID,
-      providerIds: providerIds || [],
-      practiceId: DEFAULT_PRACTICE_ID,
-      dateOfServiceRangeLow: dateRangeStart || formatDateStartOfDay(today),
-      lightBean: true,
-      dateSelection: 'SPECIFY_RANGE'
-    };
-
-
-    // Make request to EZDerm encounters API
-    const encountersResponse: AxiosResponse<EZDermEncounter[]> = await axios.post(
-      `${userTokens.serverUrl}ezderm-webservice/rest/encounter/getByFilter`,
-      encounterData,
-      {
-        headers: {
-          'Host': 'srvprod.ezinfra.net',
-          'accept': 'application/json',
-          'content-type': 'application/json',
-          'authorization': `Bearer ${userTokens.accessToken}`,
-          'user-agent': 'ezDerm/4.28.0 (build:132.19; macOS(Catalyst) 15.5.0)',
-          'accept-language': 'en-US;q=1.0'
-        }
+    // Route to appropriate encounter service based on EMR provider
+    if (emrProvider === 'EMA') {
+      // Extract firm name from server URL for EMA
+      const firmName = extractFirmNameFromServerUrl(userTokens.serverUrl);
+      if (!firmName) {
+        res.status(500).json({ error: 'Unable to determine firm name for EMA encounters' });
+        return;
       }
-    );
-
-    // Process and format the encounters data
-    const allEncounters: Encounter[] = encountersResponse.data.map(transformEZDermEncounter);
+      
+      console.log(`🔍 Fetching EMA encounters for firm: ${firmName}`);
+      allEncounters = await fetchEMAEncounters(firmName, userTokens.accessToken, dateRangeStart, dateRangeEnd);
+    } else {
+      // EZDerm encounters (existing logic)
+      console.log(`🔍 Fetching EZDerm encounters`);
+      allEncounters = await fetchEZDermEncounters(userTokens, dateRangeStart, dateRangeEnd, clinicId, providerIds);
+    }
 
     // Filter to only show patients currently in clinic (not checked out)
     const activeEncounters = allEncounters.filter(encounter => {
@@ -454,15 +855,15 @@ app.post('/encounters', validateSession, async (req: Request<{}, EncountersRespo
       return timeA - timeB;
     });
 
-    console.log(`Found ${sortedEncounters.length} active patients out of ${allEncounters.length} total`);
+    console.log(`📊 Found ${sortedEncounters.length} active patients out of ${allEncounters.length} total (${emrProvider})`);
 
     res.json({ encounters: sortedEncounters });
 
   } catch (error: any) {
-    console.error('Encounters error:', error.response?.data || error.message);
+    console.error('💥 Encounters error:', error.response?.data || error.message);
     
     if (error.response?.status === 401) {
-      const { username } = req.body;
+      const username = (req as any).user?.username;
       if (username) {
         tokenStore.delete(username);
       }
