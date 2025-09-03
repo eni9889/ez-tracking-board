@@ -596,7 +596,7 @@ const Dashboard: React.FC = () => {
                                   sx={{ 
                                     display: 'flex', 
                                     alignItems: 'center',
-                                    mb: index < encounter.providers.length - 1 ? 0.5 : 0
+                                    mb: index < encounter.providers.length - 1 ? 0.8 : 0
                                   }}
                                 >
                                   {getProviderIcon(provider.role)}
@@ -761,7 +761,7 @@ const Dashboard: React.FC = () => {
                                 sx={{ 
                                   display: 'flex', 
                                   alignItems: 'center',
-                                  mb: index < encounter.providers.length - 1 ? 0.5 : 0
+                                  mb: index < encounter.providers.length - 1 ? 0.8 : 0
                                 }}
                               >
                                 {getProviderIcon(provider.role)}
