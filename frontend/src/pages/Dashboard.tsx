@@ -220,9 +220,9 @@ const Dashboard: React.FC = () => {
       'CONFIRMED': { color: '#4CAF50', background: '#E8F5E8', text: 'Confirmed' },
       'CHECKED_IN': { color: '#FF9800', background: '#FFF3E0', text: 'Checked In' },
       'IN_ROOM': { color: '#9C27B0', background: '#F3E5F5', text: 'In Room' },
-      'WITH_PROVIDER': { color: '#F44336', background: '#FFEBEE', text: 'With Provider' },
-      'WITH_STAFF': { color: '#607D8B', background: '#ECEFF1', text: 'With Staff' },
-      'READY_FOR_STAFF': { color: '#00C853', background: '#E8F5E8', text: 'Ready for Staff' },
+      'WITH_PROVIDER': { color: '#F44336', background: '#FFEBEE', text: 'W/Provider' },
+      'WITH_STAFF': { color: '#607D8B', background: '#ECEFF1', text: 'W/Staff' },
+      'READY_FOR_STAFF': { color: '#00C853', background: '#E8F5E8', text: 'Ready' },
       'PENDING_COSIGN': { color: '#795548', background: '#EFEBE9', text: 'Pending Cosign' },
       'ARRIVED': { color: '#FF9800', background: '#FFF3E0', text: 'Arrived' }
     } as const;
@@ -359,6 +359,12 @@ const Dashboard: React.FC = () => {
     };
   };
 
+  const getProviderTitle = (provider: any) => {
+    const [firstName, lastName] = provider.name.split(' ');
+
+    return firstName[0] + '.' + lastName + (provider.title ? `, ${provider.title.replace('Medical Assistant', 'MA')}` : '');
+  };
+
   // Calculate stats only from current encounters (excluding those being deleted)
   const currentEncountersForStats = encounters.filter(e => !deletingRows.has(e.id));
   const dangerCount = currentEncountersForStats.filter(e => patientTrackingService.isWaitingTooLong(e.arrivalTime)).length;
@@ -471,13 +477,12 @@ const Dashboard: React.FC = () => {
         </Alert>
       )}
 
-
-
       {/* Two Column Layout */}
       <Box sx={{ flex: 1, overflow: 'hidden', px: 1, py: 0.5 }}>
         <Box sx={{ display: 'flex', gap: 1, height: '100%' }}>
-          {/* Left Column */}
-          <Box sx={{ flex: 1 }}>
+      
+      {/* Left Column */}
+      <Box sx={{ flex: 1 }}>
             <TableContainer 
               component={Paper} 
               sx={{ 
@@ -493,7 +498,7 @@ const Dashboard: React.FC = () => {
                   <TableRow sx={{ '& th': { backgroundColor: '#f8f9fa', fontWeight: 'bold', py: 1 } }}>
                     <TableCell sx={{ width: '60px', textAlign: 'center', fontSize: '1.4rem' }}>Room</TableCell>
                     <TableCell sx={{ width: '90px', fontSize: '1.4rem' }}>Patient</TableCell>
-                    <TableCell sx={{ width: '110px', fontSize: '1.4rem' }}>Time</TableCell>
+                    <TableCell sx={{ width: '80px', fontSize: '1.4rem' }}>Time</TableCell>
                     <TableCell sx={{ width: '110px', fontSize: '1.4rem', textAlign: 'center' }}>Status</TableCell>
                     <TableCell sx={{ width: '150px', fontSize: '1.4rem' }}>Provider</TableCell>
                     <TableCell sx={{ width: '90px', fontSize: '1.4rem' }}>Visit</TableCell>
@@ -536,7 +541,7 @@ const Dashboard: React.FC = () => {
                             {getPatientInitials(encounter.patientInfo.firstName, encounter.patientInfo.lastName)}
                           </Typography>
                           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '1.1rem' }}>
-                            {encounter.patientInfo.gender} • {encounter.appointmentType}
+                            {encounter.patientInfo.gender}
                           </Typography>
                         </Box>
                       </TableCell>
@@ -563,7 +568,7 @@ const Dashboard: React.FC = () => {
                                 color: 'text.secondary'
                               }}
                             >
-                              Arrived: {patientTrackingService.formatAppointmentTime(encounter.arrivalTime)}
+                            {patientTrackingService.formatAppointmentTime(encounter.arrivalTime)}
                             </Typography>
                           )}
                         </Box>
@@ -603,7 +608,7 @@ const Dashboard: React.FC = () => {
                                       lineHeight: 1
                                     }}
                                   >
-                                    {provider.name}{provider.title ? `, ${provider.title}` : ''}
+                                    {getProviderTitle(provider)}
                                   </Typography>
                                 </Box>
                               ))
@@ -620,8 +625,8 @@ const Dashboard: React.FC = () => {
                         <Typography 
                           variant="body1"
                           sx={{
-                            fontWeight: shouldHighlight ? 'bold' : 'normal',
-                            fontSize: shouldHighlight ? '1.4rem' : '1.3rem',
+                            fontWeight: 'bold',
+                            fontSize: '1.4rem',
                             color: shouldHighlight ? 'error.main' : 'text.primary'
                           }}
                         >
@@ -768,7 +773,7 @@ const Dashboard: React.FC = () => {
                                     lineHeight: 1
                                   }}
                                 >
-                                  {provider.name}{provider.title ? `, ${provider.title}` : ''}
+                                  {getProviderTitle(provider)}
                                 </Typography>
                               </Box>
                             ))
