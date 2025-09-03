@@ -661,7 +661,7 @@ const Dashboard: React.FC = () => {
               <TableRow sx={{ '& th': { backgroundColor: '#f8f9fa', fontWeight: 'bold', py: 1 } }}>
                 <TableCell sx={{ width: '60px', textAlign: 'center', fontSize: '1.4rem' }}>Room</TableCell>
                 <TableCell sx={{ width: '90px', fontSize: '1.4rem' }}>Patient</TableCell>
-                <TableCell sx={{ width: '110px', fontSize: '1.4rem' }}>Time</TableCell>
+                <TableCell sx={{ width: '80px', fontSize: '1.4rem' }}>Time</TableCell>
                 <TableCell sx={{ width: '110px', fontSize: '1.4rem', textAlign: 'center' }}>Status</TableCell>
                 <TableCell sx={{ width: '150px', fontSize: '1.4rem' }}>Provider</TableCell>
                 <TableCell sx={{ width: '90px', fontSize: '1.4rem' }}>Visit</TableCell>
@@ -706,7 +706,7 @@ const Dashboard: React.FC = () => {
                            {getPatientInitials(encounter.patientInfo.firstName, encounter.patientInfo.lastName)}
                          </Typography>
                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '1.1rem' }}>
-                           {encounter.patientInfo.gender} • {encounter.appointmentType}
+                           {encounter.patientInfo.gender}
                          </Typography>
                        </Box>
                      </TableCell>
@@ -733,7 +733,7 @@ const Dashboard: React.FC = () => {
                                color: 'text.secondary'
                              }}
                            >
-                             Arrived: {patientTrackingService.formatAppointmentTime(encounter.arrivalTime)}
+                             {patientTrackingService.formatAppointmentTime(encounter.arrivalTime)}
                            </Typography>
                          )}
                        </Box>
@@ -790,8 +790,8 @@ const Dashboard: React.FC = () => {
                       <Typography 
                         variant="body1"
                         sx={{
-                          fontWeight: shouldHighlight ? 'bold' : 'normal',
-                          fontSize: shouldHighlight ? '1.4rem' : '1.3rem',
+                          fontWeight: 'bold',
+                          fontSize: '1.4rem',
                           color: shouldHighlight ? 'error.main' : 'text.primary'
                         }}
                       >
