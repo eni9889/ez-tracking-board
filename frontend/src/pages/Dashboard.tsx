@@ -503,7 +503,7 @@ const Dashboard: React.FC = () => {
                   {sortedEncounters.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
-                        <Typography variant="h6">No patients currently in clinic</Typography>
+                        <Typography variant="h6" sx={{ fontSize: '1.4rem' }}>No patients currently in clinic</Typography>
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -666,7 +666,7 @@ const Dashboard: React.FC = () => {
               {sortedEncounters.length <= 1 ? (
                 <TableRow>
                   <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="h6" color="text.secondary" sx={{ fontSize: '1.4rem' }}>
                       {sortedEncounters.length === 0 ? 'No patients in clinic' : 'Additional patients will appear here'}
                     </Typography>
                   </TableCell>
