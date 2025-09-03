@@ -525,7 +525,7 @@ const Dashboard: React.FC = () => {
                          sx={getRowStyling(encounter)}
                        >
                       {/* Room - Compact */}
-                      <TableCell sx={{ textAlign: 'center', py: 1.5 }}>
+                      <TableCell sx={{ textAlign: 'center', height: '130px', verticalAlign: 'middle' }}>
                         <Typography variant="h4" sx={{ 
                           fontWeight: 'bold', 
                           color: '#1976d2',
@@ -537,7 +537,7 @@ const Dashboard: React.FC = () => {
                       </TableCell>
 
                       {/* Patient - Compact */}
-                      <TableCell sx={{ py: 1.5 }}>
+                      <TableCell sx={{ height: '130px', verticalAlign: 'middle' }}>
                         <Box>
                           <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1, fontSize: '2rem' }}>
                             {getPatientInitials(encounter.patientInfo.firstName, encounter.patientInfo.lastName)}
@@ -549,7 +549,7 @@ const Dashboard: React.FC = () => {
                       </TableCell>
 
                       {/* Time - Compact */}
-                      <TableCell sx={{ py: 1.5 }}>
+                      <TableCell sx={{ height: '130px', verticalAlign: 'middle' }}>
                         <Box>
                           <Typography 
                             variant="body1" 
@@ -577,12 +577,12 @@ const Dashboard: React.FC = () => {
                       </TableCell>
 
                       {/* Status - Compact */}
-                      <TableCell sx={{ py: 1.5, textAlign: 'center' }}>
+                      <TableCell sx={{ height: '130px', verticalAlign: 'middle', textAlign: 'center' }}>
                         {getStatusText(encounter.status)}
                       </TableCell>
 
                       {/* Provider - Compact */}
-                      <TableCell sx={{ py: 1.5 }}>
+                      <TableCell sx={{ height: '130px', verticalAlign: 'middle' }}>
                         <Box>
                           {encounter.providers && encounter.providers.length > 0 ? (
                             encounter.providers
@@ -623,7 +623,7 @@ const Dashboard: React.FC = () => {
                       </TableCell>
 
                       {/* Visit Length - Compact */}
-                      <TableCell sx={{ py: 1.5 }}>
+                      <TableCell sx={{ height: '130px', verticalAlign: 'middle' }}>
                         <Typography 
                           variant="body1"
                           sx={{
@@ -690,7 +690,7 @@ const Dashboard: React.FC = () => {
                       sx={getRowStyling(encounter)}
                     >
                      {/* Room - Compact */}
-                     <TableCell sx={{ textAlign: 'center', py: 1.5 }}>
+                     <TableCell sx={{ textAlign: 'center', height: '130px', verticalAlign: 'middle' }}>
                        <Typography variant="h4" sx={{ 
                          fontWeight: 'bold', 
                          color: '#1976d2',
@@ -702,7 +702,7 @@ const Dashboard: React.FC = () => {
                      </TableCell>
 
                      {/* Patient - Compact */}
-                     <TableCell sx={{ py: 1.5 }}>
+                     <TableCell sx={{ height: '130px', verticalAlign: 'middle' }}>
                        <Box>
                          <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1, fontSize: '2rem' }}>
                            {getPatientInitials(encounter.patientInfo.firstName, encounter.patientInfo.lastName)}
@@ -714,7 +714,7 @@ const Dashboard: React.FC = () => {
                      </TableCell>
 
                      {/* Time - Compact */}
-                     <TableCell sx={{ py: 1.5 }}>
+                     <TableCell sx={{ height: '130px', verticalAlign: 'middle' }}>
                        <Box>
                          <Typography 
                            variant="body1" 
@@ -742,12 +742,12 @@ const Dashboard: React.FC = () => {
                      </TableCell>
 
                      {/* Status - Compact */}
-                     <TableCell sx={{ py: 1.5, textAlign: 'center' }}>
+                     <TableCell sx={{ height: '130px', verticalAlign: 'middle', textAlign: 'center' }}>
                        {getStatusText(encounter.status)}
                      </TableCell>
 
                     {/* Provider - Compact */}
-                    <TableCell sx={{ py: 1.5 }}>
+                    <TableCell sx={{ height: '130px', verticalAlign: 'middle' }}>
                       <Box>
                         {encounter.providers && encounter.providers.length > 0 ? (
                           encounter.providers
@@ -788,7 +788,7 @@ const Dashboard: React.FC = () => {
                     </TableCell>
 
                     {/* Visit Length - Compact */}
-                    <TableCell sx={{ py: 1.5 }}>
+                    <TableCell sx={{ height: '130px', verticalAlign: 'middle' }}>
                       <Typography 
                         variant="body1"
                         sx={{
