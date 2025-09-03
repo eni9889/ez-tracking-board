@@ -405,34 +405,43 @@ class VitalSignsDatabase {
   }
 
   // User credentials management methods
-  async storeUserCredentials(username: string, password: string): Promise<void> {
+  async storeUserCredentials(username: string, password: string, emrProvider: string = 'EZDERM'): Promise<void> {
     if (!this.pool) {
       throw new Error('Database not initialized');
     }
 
     const query = `
       INSERT INTO user_credentials 
-      (username, password, updated_at) 
-      VALUES ($1, $2, CURRENT_TIMESTAMP)
+      (username, password, emr_provider, updated_at) 
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
       ON CONFLICT (username) 
       DO UPDATE SET 
         password = EXCLUDED.password,
+        emr_provider = EXCLUDED.emr_provider,
         updated_at = CURRENT_TIMESTAMP
     `;
 
-    await this.pool.query(query, [username, password]);
-    console.log(`Stored credentials for user: ${username}`);
+    await this.pool.query(query, [username, password, emrProvider]);
+    console.log(`Stored credentials for user: ${username} (${emrProvider})`);
   }
 
-  async getUserCredentials(username: string): Promise<{ username: string; password: string } | null> {
+  async getUserCredentials(username: string): Promise<{ username: string; password: string; emrProvider?: string } | null> {
     if (!this.pool) {
       throw new Error('Database not initialized');
     }
 
-    const query = 'SELECT username, password FROM user_credentials WHERE username = $1 AND is_active = true';
+    const query = 'SELECT username, password, emr_provider FROM user_credentials WHERE username = $1 AND is_active = true';
     const result = await this.pool.query(query, [username]);
     
-    return result.rows.length > 0 ? result.rows[0] : null;
+    if (result.rows.length > 0) {
+      const row = result.rows[0];
+      return {
+        username: row.username,
+        password: row.password,
+        emrProvider: row.emr_provider || 'EZDERM'
+      };
+    }
+    return null;
   }
 
   async getActiveUserCredentials(): Promise<{ username: string; password: string } | null> {
@@ -446,7 +455,7 @@ class VitalSignsDatabase {
     return result.rows.length > 0 ? result.rows[0] : null;
   }
 
-  async storeTokens(username: string, accessToken: string, refreshToken: string, serverUrl: string): Promise<void> {
+  async storeTokens(username: string, accessToken: string, refreshToken: string, serverUrl: string, emrProvider: string = 'EZDERM'): Promise<void> {
     if (!this.pool) {
       throw new Error('Database not initialized');
     }
@@ -454,11 +463,11 @@ class VitalSignsDatabase {
     const expiresAt = new Date(Date.now() + 600000); // 10 minutes from now
     const query = `
       UPDATE user_credentials 
-      SET access_token = $1, refresh_token = $2, server_url = $3, token_expires_at = $4, updated_at = CURRENT_TIMESTAMP
+      SET access_token = $1, refresh_token = $2, server_url = $3, token_expires_at = $4, emr_provider = $6, updated_at = CURRENT_TIMESTAMP
       WHERE username = $5
     `;
 
-    await this.pool.query(query, [accessToken, refreshToken, serverUrl, expiresAt, username]);
+    await this.pool.query(query, [accessToken, refreshToken, serverUrl, expiresAt, username, emrProvider]);
   }
 
   async getStoredTokens(username: string): Promise<{ accessToken: string; refreshToken: string; serverUrl: string } | null> {

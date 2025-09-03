@@ -79,7 +79,7 @@ export interface HealthResponse {
 }
 
 // EZDerm API types
-export interface EZDermLoginRequest {
+export interface EZDermAPILoginRequest {
   username: string;
   password: string;
   application: string;

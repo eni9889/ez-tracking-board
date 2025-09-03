@@ -15,13 +15,15 @@ import { aiNoteChecker } from './aiNoteChecker';
 import { appConfig } from './config';
 import {
   LoginRequest,
+  EZDermLoginRequest as EZDermLoginRequestType,
+  EMALoginRequest,
   LoginResponse,
   EncountersRequest,
   EncountersResponse,
   LogoutRequest,
   ErrorResponse,
   HealthResponse,
-  EZDermLoginRequest,
+  EZDermAPILoginRequest,
   EZDermLoginResponse,
   EZDermEncounterFilter,
   EZDermEncounter,
@@ -30,7 +32,10 @@ import {
   StoredTokens,
   TokenStore,
   RefreshTokenRequest,
-  RefreshTokenResponse
+  RefreshTokenResponse,
+  EMATokenRequest,
+  EMATokenResponse,
+  EMRProvider
 } from './types';
 
 // Load environment variables
@@ -108,6 +113,12 @@ const EZDERM_LOGIN_URL = 'https://login.ezinfra.net/api/login';
 const EZDERM_REFRESH_URL = 'https://login.ezinfra.net/api/refreshToken/getAccessToken';
 const EZDERM_API_BASE = 'https://srvprod.ezinfra.net';
 
+// ModMed EMA API endpoints
+const EMA_API_KEY = appConfig.ema.apiKey;
+const EMA_BASE_URL = appConfig.ema.baseUrl;
+const EMA_OAUTH_PATH = appConfig.ema.oauthPath;
+const EMA_FHIR_PATH = appConfig.ema.fhirPath;
+
 // Constants
 const TOKEN_EXPIRY_MS = 600000; // 10 minutes
 const DEFAULT_CLINIC_ID = '44b62760-50a1-488c-92ed-e0c7aa3cde92';
@@ -171,22 +182,66 @@ const transformEZDermEncounter = (encounter: EZDermEncounter): Encounter => {
   };
 };
 
-// Login endpoint
-app.post('/login', async (req: Request<{}, LoginResponse | ErrorResponse, LoginRequest>, res: Response<LoginResponse | ErrorResponse>) => {
+// EMA Authentication Helper Functions
+async function authenticateEMAUser(loginRequest: EMALoginRequest): Promise<{ accessToken: string; refreshToken: string; serverUrl: string }> {
   try {
-    console.log('🔐 Login attempt received');
-    const { username, password } = req.body;
+    const { firmName, username, password } = loginRequest;
+    console.log(`🔐 Attempting EMA login for user: ${username} at firm: ${firmName}`);
 
-    if (!username || !password) {
-      console.log('❌ Login failed: Missing username or password');
-      res.status(400).json({ error: 'Username and password are required' });
-      return;
-    }
+    // Prepare EMA OAuth2 request
+    const tokenData: EMATokenRequest = {
+      username,
+      password,
+      grant_type: 'password'
+    };
 
-    console.log(`🔐 Attempting login for user: ${username}`);
+    // Build the OAuth URL with firm name
+    const oauthUrl = `${EMA_BASE_URL}/firm/${firmName}${EMA_OAUTH_PATH}`;
+    console.log(`🌐 Making OAuth request to EMA API: ${oauthUrl}`);
+
+    // Make request to EMA OAuth2 API
+    const response: AxiosResponse<EMATokenResponse> = await axios.post(oauthUrl, 
+      // Send as URL-encoded form data
+      `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&grant_type=password`,
+      {
+        headers: {
+          'accept': 'application/json',
+          'content-type': 'application/x-www-form-urlencoded',
+          'x-api-key': EMA_API_KEY
+        }
+      }
+    );
+
+    console.log(`✅ EMA OAuth successful for user: ${username}`);
+    
+    const { access_token, refresh_token } = response.data;
+    
+    // Build server URL for FHIR API
+    const serverUrl = `${EMA_BASE_URL}/firm/${firmName}${EMA_FHIR_PATH}`;
+
+    return {
+      accessToken: access_token,
+      refreshToken: refresh_token,
+      serverUrl
+    };
+  } catch (error: any) {
+    console.error('💥 EMA authentication error:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+    throw error;
+  }
+}
+
+// EZDerm Authentication Helper Function
+async function authenticateEZDermUser(loginRequest: EZDermLoginRequestType): Promise<{ accessToken: string; refreshToken: string; serverUrl: string }> {
+  try {
+    const { username, password } = loginRequest;
+    console.log(`🔐 Attempting EZDerm login for user: ${username}`);
 
     // Prepare EZDerm login request
-    const loginData: EZDermLoginRequest = {
+    const loginData: EZDermAPILoginRequest = {
       username,
       password,
       application: 'EZDERM',
@@ -208,17 +263,80 @@ app.post('/login', async (req: Request<{}, LoginResponse | ErrorResponse, LoginR
 
     console.log(`✅ EZDerm API login successful for user: ${username}`);
 
-    const { accessToken, refreshToken: ezDermRefreshToken, servers } = loginResponse.data;
+    const { accessToken, refreshToken, servers } = loginResponse.data;
 
-    // Store user credentials in database for job system
-    await vitalSignsDb.storeUserCredentials(username, password);
-    await vitalSignsDb.storeTokens(username, accessToken, ezDermRefreshToken, servers.app);
+    return {
+      accessToken,
+      refreshToken,
+      serverUrl: servers.app
+    };
+  } catch (error: any) {
+    console.error('💥 EZDerm authentication error:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+    throw error;
+  }
+}
+
+// Login endpoint
+app.post('/login', async (req: Request<{}, LoginResponse | ErrorResponse, LoginRequest>, res: Response<LoginResponse | ErrorResponse>) => {
+  try {
+    console.log('🔐 Login attempt received');
+    const loginRequest = req.body;
+    const { emrProvider, username, password } = loginRequest;
+
+    if (!emrProvider || !username || !password) {
+      console.log('❌ Login failed: Missing required fields');
+      res.status(400).json({ error: 'EMR provider, username and password are required' });
+      return;
+    }
+
+    // Validate EMR provider specific fields
+    if (emrProvider === 'EMA' && !('firmName' in loginRequest)) {
+      console.log('❌ Login failed: Missing firm name for EMA');
+      res.status(400).json({ error: 'Firm name is required for ModMed EMA' });
+      return;
+    }
+
+    console.log(`🔐 Attempting ${emrProvider} login for user: ${username}`);
+
+    let authResult: { accessToken: string; refreshToken: string; serverUrl: string };
+
+    // Route to appropriate authentication method
+    try {
+      if (emrProvider === 'EMA') {
+        authResult = await authenticateEMAUser(loginRequest as EMALoginRequest);
+      } else if (emrProvider === 'EZDERM') {
+        authResult = await authenticateEZDermUser(loginRequest as EZDermLoginRequestType);
+      } else {
+        console.log('❌ Login failed: Unsupported EMR provider');
+        res.status(400).json({ error: 'Unsupported EMR provider' });
+        return;
+      }
+    } catch (authError: any) {
+      console.error(`💥 ${emrProvider} authentication failed:`, authError.message);
+      const statusCode = authError.response?.status || 500;
+      res.status(statusCode === 200 ? 401 : statusCode).json({ 
+        error: `${emrProvider} authentication failed`,
+        details: authError.response?.data?.message || authError.message
+      });
+      return;
+    }
+
+    const { accessToken, refreshToken: emrRefreshToken, serverUrl } = authResult;
+
+    // Store user credentials and tokens in database
+    console.log('💾 Storing user credentials and tokens in database');
+    await vitalSignsDb.storeUserCredentials(username, password, emrProvider);
+    await vitalSignsDb.storeTokens(username, accessToken, emrRefreshToken, serverUrl, emrProvider);
 
     // Store tokens with username as key (for backwards compatibility with existing endpoints)
     const tokenData: StoredTokens = {
       accessToken,
-      refreshToken: ezDermRefreshToken,
-      serverUrl: servers.app,
+      refreshToken: emrRefreshToken,
+      serverUrl,
       timestamp: Date.now()
     };
     
@@ -234,6 +352,7 @@ app.post('/login', async (req: Request<{}, LoginResponse | ErrorResponse, LoginR
 
     console.log('💾 Creating session and refresh token in database:', {
       username,
+      emrProvider,
       sessionToken: sessionToken.substring(0, 20) + '...',
       refreshToken: userRefreshToken.substring(0, 20) + '...',
       sessionExpiresAt: sessionExpiresAt.toISOString(),
@@ -248,7 +367,8 @@ app.post('/login', async (req: Request<{}, LoginResponse | ErrorResponse, LoginR
     res.json({
       success: true,
       username,
-      serverUrl: servers.app,
+      serverUrl,
+      emrProvider,
       sessionToken,
       refreshToken: userRefreshToken,
       expiresAt: sessionExpiresAt.toISOString()
@@ -1373,7 +1493,7 @@ async function getValidTokens(username: string): Promise<{ accessToken: string; 
     const credentials = await vitalSignsDb.getUserCredentials(username);
     
     if (credentials) {
-      const loginData: EZDermLoginRequest = {
+      const loginData: EZDermAPILoginRequest = {
         username: credentials.username,
         password: credentials.password,
         application: 'EZDERM',

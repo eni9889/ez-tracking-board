@@ -7,7 +7,7 @@ import { vitalSignsService } from './vitalSignsService';
 import { aiNoteChecker } from './aiNoteChecker';
 import { appConfig } from './config';
 import {
-  EZDermLoginRequest,
+  EZDermAPILoginRequest,
   EZDermLoginResponse,
   EZDermEncounterFilter,
   EZDermEncounter,
@@ -145,7 +145,7 @@ const transformEZDermEncounter = (encounter: EZDermEncounter): Encounter => {
 // Login to EZDerm with stored credentials
 async function loginToEZDerm(username: string, password: string): Promise<{ accessToken: string; refreshToken: string; serverUrl: string } | null> {
   try {
-    const loginData: EZDermLoginRequest = {
+    const loginData: EZDermAPILoginRequest = {
       username,
       password,
       application: 'EZDERM',

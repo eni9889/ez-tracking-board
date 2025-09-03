@@ -25,6 +25,13 @@ interface EZDermConfig {
   servicePassword: string;
 }
 
+interface EMAConfig {
+  apiKey: string;
+  baseUrl: string;
+  oauthPath: string;
+  fhirPath: string;
+}
+
 interface AppConfig {
   port: number;
   nodeEnv: string;
@@ -32,6 +39,7 @@ interface AppConfig {
   database: DatabaseConfig;
   redis: RedisConfig;
   ezderm: EZDermConfig;
+  ema: EMAConfig;
 }
 
 // Parse secrets from AWS Secrets Manager
@@ -101,6 +109,12 @@ export const appConfig: AppConfig = {
     serviceUser: process.env.EZDERM_USER || '',
     servicePassword: process.env.EZDERM_PASS || '',
   },
+  ema: {
+    apiKey: process.env.EMA_API_KEY || '6517a4c7-ef0a-43b9-8305-ddd0b6e33dc9',
+    baseUrl: process.env.EMA_BASE_URL || 'https://stage.ema-api.com/ema-dev',
+    oauthPath: process.env.EMA_OAUTH_PATH || '/ema/ws/oauth2/grant',
+    fhirPath: process.env.EMA_FHIR_PATH || '/ema/fhir/v2',
+  },
 };
 
 // Log configuration (without sensitive data)
@@ -122,5 +136,11 @@ console.log('App Configuration:', {
   ezderm: {
     serviceUser: appConfig.ezderm.serviceUser ? '***configured***' : 'not set',
     servicePasswordConfigured: !!appConfig.ezderm.servicePassword,
+  },
+  ema: {
+    apiKey: appConfig.ema.apiKey ? '***configured***' : 'not set',
+    baseUrl: appConfig.ema.baseUrl,
+    oauthPath: appConfig.ema.oauthPath,
+    fhirPath: appConfig.ema.fhirPath,
   },
 }); 
