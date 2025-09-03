@@ -154,7 +154,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      REACT_APP_API_URL: http://0.0.0.0:5001
+      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://0.0.0.0:5001}
+      REACT_APP_USE_MOCK_DATA: ${REACT_APP_USE_MOCK_DATA:-false}
       CHOKIDAR_USEPOLLING: true
     volumes:
       - ./frontend/src:/app/src

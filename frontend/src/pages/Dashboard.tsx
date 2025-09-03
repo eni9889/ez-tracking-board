@@ -101,13 +101,13 @@ const Dashboard: React.FC = () => {
               setDeletingRows(toDeleteRows);
               // Wait for deletion animation, then update data
               setTimeout(() => {
-                setEncounters(data);
+                setEncounters(data.filter(enc => enc && enc.id)); // Safety filter
                 setDeletingRows(new Set());
                 setNewRows(newNewRows);
                 setChangedRows(newChangedRows);
                 setPreviousEncounters(data);
               }, 500);
-              return currentEncounters; // Keep current data during animation
+              return currentEncounters.filter(enc => enc && enc.id); // Safety filter
             } else {
               // No deletions, update immediately
               setNewRows(newNewRows);
@@ -120,13 +120,13 @@ const Dashboard: React.FC = () => {
                 setChangedRows(new Set());
               }, 2000);
               
-              return data;
+              return data.filter(enc => enc && enc.id); // Safety filter
             }
           }
-          return data;
+          return data.filter(enc => enc && enc.id); // Safety filter
         });
       } else {
-        setEncounters(data);
+        setEncounters(data.filter(enc => enc && enc.id)); // Safety filter
       }
       
       setLastRefresh(new Date());
@@ -144,11 +144,13 @@ const Dashboard: React.FC = () => {
     
     // Add encounters that are being deleted for animation purposes
     if (deletingRows.size > 0 && previousEncounters.length > 0) {
-      const deletingEncounters = previousEncounters.filter(enc => deletingRows.has(enc.id));
+      const deletingEncounters = previousEncounters.filter(enc => 
+        enc && enc.id && deletingRows.has(enc.id)
+      );
       currentEncounters.push(...deletingEncounters);
     }
     
-    return currentEncounters;
+    return currentEncounters.filter(enc => enc && enc.id); // Safety filter
   };
 
   const sortedEncounters = getAllEncounters().sort((a, b) => {
@@ -220,9 +222,9 @@ const Dashboard: React.FC = () => {
       'CONFIRMED': { color: '#4CAF50', background: '#E8F5E8', text: 'Confirmed' },
       'CHECKED_IN': { color: '#FF9800', background: '#FFF3E0', text: 'Checked In' },
       'IN_ROOM': { color: '#9C27B0', background: '#F3E5F5', text: 'In Room' },
-      'WITH_PROVIDER': { color: '#F44336', background: '#FFEBEE', text: 'With Provider' },
-      'WITH_STAFF': { color: '#607D8B', background: '#ECEFF1', text: 'With Staff' },
-      'READY_FOR_STAFF': { color: '#00C853', background: '#E8F5E8', text: 'Ready for Staff' },
+      'WITH_PROVIDER': { color: '#F44336', background: '#FFEBEE', text: 'W/Provider' },
+      'WITH_STAFF': { color: '#607D8B', background: '#ECEFF1', text: 'W/Staff' },
+      'READY_FOR_STAFF': { color: '#00C853', background: '#E8F5E8', text: 'Ready' },
       'PENDING_COSIGN': { color: '#795548', background: '#EFEBE9', text: 'Pending Cosign' },
       'ARRIVED': { color: '#FF9800', background: '#FFF3E0', text: 'Arrived' }
     } as const;
@@ -239,9 +241,9 @@ const Dashboard: React.FC = () => {
           color: config.color,
           border: `1px solid ${config.color}`,
           fontWeight: 'bold',
-          minWidth: '120px',
-          height: '36px',
-          fontSize: '1rem'
+          minWidth: '160px',
+          height: '48px',
+          fontSize: '1.5rem'
         }}
       />
     );
@@ -254,7 +256,7 @@ const Dashboard: React.FC = () => {
   };
 
   const getProviderIcon = (role: string) => {
-    const iconProps = { sx: { fontSize: '1.2rem', mr: 0.5, minWidth: '20px', display: 'flex', alignItems: 'center' } };
+    const iconProps = { sx: { fontSize: '1.5rem', mr: 0.5, minWidth: '24px', display: 'flex', alignItems: 'center' } };
     
     switch (role) {
       case 'PROVIDER':
@@ -359,6 +361,12 @@ const Dashboard: React.FC = () => {
     };
   };
 
+  const getProviderTitle = (provider: any) => {
+    const [firstName, lastName] = provider.name.split(' ');
+
+    return firstName[0] + '.' + lastName + (provider.title ? `, ${provider.title.replace('Medical Assistant', 'MA')}` : '');
+  };
+
   // Calculate stats only from current encounters (excluding those being deleted)
   const currentEncountersForStats = encounters.filter(e => !deletingRows.has(e.id));
   const dangerCount = currentEncountersForStats.filter(e => patientTrackingService.isWaitingTooLong(e.arrivalTime)).length;
@@ -368,19 +376,29 @@ const Dashboard: React.FC = () => {
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f5f5f5' }}>
       {/* Compact Header with integrated summary */}
       <Box sx={{ 
-        backgroundColor: '#1976d2', 
+        backgroundColor: '#0a0a0a', 
         color: 'white', 
         px: 3, 
         py: 1.5,
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',
-        boxShadow: 2
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        borderBottom: '1px solid #1a1a1a'
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <LocalHospital sx={{ fontSize: '2rem' }} />
+          <LocalHospital sx={{ 
+            fontSize: '2rem', 
+            color: '#f8fafc',
+            filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1))'
+          }} />
           <Box>
-            <Typography variant="h5" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
+            <Typography variant="h5" sx={{ 
+              fontWeight: 600, 
+              lineHeight: 1.2,
+              color: '#f8fafc',
+              letterSpacing: '-0.025em'
+            }}>
               DCC - Flint
               {isUsingMockData && (
                 <Chip 
@@ -388,15 +406,24 @@ const Dashboard: React.FC = () => {
                   size="small" 
                   sx={{ 
                     ml: 1, 
-                    backgroundColor: '#ff9800', 
+                    backgroundColor: '#dc2626', 
                     color: 'white',
-                    fontWeight: 'bold',
-                    fontSize: '0.7rem'
+                    fontWeight: 600,
+                    fontSize: '0.7rem',
+                    border: '1px solid #ef4444',
+                    '&:hover': {
+                      backgroundColor: '#b91c1c'
+                    }
                   }} 
                 />
               )}
             </Typography>
-            <Typography variant="body2" sx={{ opacity: 0.9 }}>
+            <Typography variant="body2" sx={{ 
+              opacity: 0.8,
+              color: '#e2e8f0',
+              fontSize: '0.875rem',
+              fontWeight: 400
+            }}>
               {new Date().toLocaleDateString('en-US', { 
                 weekday: 'long', 
                 month: 'short', 
@@ -408,56 +435,151 @@ const Dashboard: React.FC = () => {
 
         {/* Integrated Summary Stats */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Box sx={{ textAlign: 'center' }}>
-            <Typography variant="h4" sx={{ fontWeight: 'bold', lineHeight: 1 }}>
+          <Box sx={{ 
+            textAlign: 'center',
+            px: 2,
+            py: 1,
+            borderRadius: 2,
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #2a2a2a'
+          }}>
+            <Typography variant="h4" sx={{ 
+              fontWeight: 700, 
+              lineHeight: 1,
+              color: '#f8fafc',
+              fontSize: '1.875rem'
+            }}>
               {currentEncountersForStats.length}
             </Typography>
-            <Typography variant="caption" sx={{ fontSize: '0.8rem', opacity: 0.9 }}>
+            <Typography variant="caption" sx={{ 
+              fontSize: '0.75rem', 
+              opacity: 0.8,
+              color: '#94a3b8',
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em'
+            }}>
               Total Patients
             </Typography>
           </Box>
-          <Box sx={{ textAlign: 'center' }}>
-            <Typography variant="h4" sx={{ fontWeight: 'bold', lineHeight: 1, color: '#ffeb3b' }}>
+          <Box sx={{ 
+            textAlign: 'center',
+            px: 2,
+            py: 1,
+            borderRadius: 2,
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #2a2a2a'
+          }}>
+            <Typography variant="h4" sx={{ 
+              fontWeight: 700, 
+              lineHeight: 1, 
+              color: '#fbbf24',
+              fontSize: '1.875rem'
+            }}>
               {dangerCount}
             </Typography>
-            <Typography variant="caption" sx={{ fontSize: '0.8rem', opacity: 0.9 }}>
-                             Waiting &gt;10min
+            <Typography variant="caption" sx={{ 
+              fontSize: '0.75rem', 
+              opacity: 0.8,
+              color: '#94a3b8',
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em'
+            }}>
+              Waiting &gt;10min
             </Typography>
           </Box>
-          <Box sx={{ textAlign: 'center' }}>
-            <Typography variant="h4" sx={{ fontWeight: 'bold', lineHeight: 1, color: '#4caf50' }}>
+          <Box sx={{ 
+            textAlign: 'center',
+            px: 2,
+            py: 1,
+            borderRadius: 2,
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #2a2a2a'
+          }}>
+            <Typography variant="h4" sx={{ 
+              fontWeight: 700, 
+              lineHeight: 1, 
+              color: '#10b981',
+              fontSize: '1.875rem'
+            }}>
               {occupiedRooms}
             </Typography>
-            <Typography variant="caption" sx={{ fontSize: '0.8rem', opacity: 0.9 }}>
+            <Typography variant="caption" sx={{ 
+              fontSize: '0.75rem', 
+              opacity: 0.8,
+              color: '#94a3b8',
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em'
+            }}>
               Rooms Occupied
             </Typography>
           </Box>
           
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
             <Tooltip title="AI Note Checker">
               <IconButton 
                 onClick={() => navigate('/ai-note-checker')}
-                sx={{ color: 'white' }}
+                sx={{ 
+                  color: '#f8fafc',
+                  backgroundColor: '#1a1a1a',
+                  border: '1px solid #2a2a2a',
+                  borderRadius: 2,
+                  p: 1.5,
+                  '&:hover': {
+                    backgroundColor: '#2a2a2a',
+                    borderColor: '#3a3a3a'
+                  }
+                }}
               >
-                <Psychology sx={{ fontSize: '1.5rem' }} />
+                <Psychology sx={{ fontSize: '1.25rem' }} />
               </IconButton>
             </Tooltip>
             <Tooltip title="Refresh">
               <IconButton 
                 onClick={() => fetchEncounters(true)} 
                 disabled={loading || refreshing}
-                sx={{ color: 'white' }}
+                sx={{ 
+                  color: '#f8fafc',
+                  backgroundColor: '#1a1a1a',
+                  border: '1px solid #2a2a2a',
+                  borderRadius: 2,
+                  p: 1.5,
+                  '&:hover': {
+                    backgroundColor: '#2a2a2a',
+                    borderColor: '#3a3a3a'
+                  },
+                  '&:disabled': {
+                    color: '#64748b',
+                    backgroundColor: '#0f0f0f',
+                    borderColor: '#1a1a1a'
+                  }
+                }}
               >
                 {refreshing ? (
-                  <CircularProgress size={24} sx={{ color: 'white' }} />
+                  <CircularProgress size={20} sx={{ color: '#f8fafc' }} />
                 ) : (
-                  <Refresh sx={{ fontSize: '1.5rem' }} />
+                  <Refresh sx={{ fontSize: '1.25rem' }} />
                 )}
               </IconButton>
             </Tooltip>
             <Tooltip title="Logout">
-              <IconButton onClick={handleLogout} sx={{ color: 'white' }}>
-                <ExitToApp sx={{ fontSize: '1.5rem' }} />
+              <IconButton 
+                onClick={handleLogout} 
+                sx={{ 
+                  color: '#f8fafc',
+                  backgroundColor: '#dc2626',
+                  border: '1px solid #ef4444',
+                  borderRadius: 2,
+                  p: 1.5,
+                  '&:hover': {
+                    backgroundColor: '#b91c1c',
+                    borderColor: '#dc2626'
+                  }
+                }}
+              >
+                <ExitToApp sx={{ fontSize: '1.25rem' }} />
               </IconButton>
             </Tooltip>
           </Box>
@@ -471,13 +593,12 @@ const Dashboard: React.FC = () => {
         </Alert>
       )}
 
-
-
       {/* Two Column Layout */}
-      <Box sx={{ flex: 1, overflow: 'hidden', px: 2, py: 1 }}>
-        <Box sx={{ display: 'flex', gap: 2, height: '100%' }}>
-          {/* Left Column */}
-          <Box sx={{ flex: 1 }}>
+      <Box sx={{ flex: 1, overflow: 'hidden', px: 1, py: 0.5 }}>
+        <Box sx={{ display: 'flex', gap: 1, height: '100%' }}>
+      
+      {/* Left Column */}
+      <Box sx={{ flex: 1 }}>
             <TableContainer 
               component={Paper} 
               sx={{ 
@@ -491,19 +612,19 @@ const Dashboard: React.FC = () => {
               <Table stickyHeader size="small" sx={{ tableLayout: 'fixed' }}>
                 <TableHead>
                   <TableRow sx={{ '& th': { backgroundColor: '#f8f9fa', fontWeight: 'bold', py: 1.5 } }}>
-                    <TableCell sx={{ width: '60px', textAlign: 'center', fontSize: '1.1rem' }}>Room</TableCell>
-                    <TableCell sx={{ width: '90px', fontSize: '1.1rem' }}>Patient</TableCell>
-                    <TableCell sx={{ width: '110px', fontSize: '1.1rem' }}>Time</TableCell>
-                    <TableCell sx={{ width: '110px', fontSize: '1.1rem', textAlign: 'center' }}>Status</TableCell>
-                    <TableCell sx={{ width: '150px', fontSize: '1.1rem' }}>Provider</TableCell>
-                    <TableCell sx={{ width: '90px', fontSize: '1.1rem' }}>Visit</TableCell>
+                    <TableCell sx={{ width: '60px', textAlign: 'center', fontSize: '1.6rem' }}>Room</TableCell>
+                    <TableCell sx={{ width: '90px', fontSize: '1.6rem' }}>Patient</TableCell>
+                    <TableCell sx={{ width: '80px', fontSize: '1.6rem' }}>Time</TableCell>
+                    <TableCell sx={{ width: '110px', fontSize: '1.6rem', textAlign: 'center' }}>Status</TableCell>
+                    <TableCell sx={{ width: '150px', fontSize: '1.6rem' }}>Provider</TableCell>
+                    <TableCell sx={{ width: '90px', fontSize: '1.6rem' }}>Visit</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {sortedEncounters.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
-                        <Typography variant="h6">No patients currently in clinic</Typography>
+                        <Typography variant="h6" color="text.secondary" sx={{ fontSize: '1.4rem' }}>No patients currently in clinic</Typography>
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -518,38 +639,38 @@ const Dashboard: React.FC = () => {
                          sx={getRowStyling(encounter)}
                        >
                       {/* Room - Compact */}
-                      <TableCell sx={{ textAlign: 'center', py: 1.5 }}>
+                      <TableCell sx={{ textAlign: 'center', height: '130px', verticalAlign: 'middle' }}>
                         <Typography variant="h4" sx={{ 
                           fontWeight: 'bold', 
                           color: '#1976d2',
                           lineHeight: 1,
-                          fontSize: '2.2rem'
+                          fontSize: '3.5rem'
                         }}>
                           {encounter.room !== 'N/A' && encounter.room !== 0 ? encounter.room : '-'}
                         </Typography>
                       </TableCell>
 
                       {/* Patient - Compact */}
-                      <TableCell sx={{ py: 1.5 }}>
+                      <TableCell sx={{ height: '130px', verticalAlign: 'middle' }}>
                         <Box>
-                          <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2, fontSize: '1.4rem' }}>
+                          <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1, fontSize: '2rem' }}>
                             {getPatientInitials(encounter.patientInfo.firstName, encounter.patientInfo.lastName)}
                           </Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
-                            {encounter.patientInfo.gender} • {encounter.appointmentType}
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '1.3rem' }}>
+                            {encounter.patientInfo.gender}
                           </Typography>
                         </Box>
                       </TableCell>
 
                       {/* Time - Compact */}
-                      <TableCell sx={{ py: 1.5 }}>
+                      <TableCell sx={{ height: '130px', verticalAlign: 'middle' }}>
                         <Box>
                           <Typography 
                             variant="body1" 
                             sx={{ 
                               fontWeight: 'bold',
-                              lineHeight: 1.2,
-                              fontSize: '1.1rem',
+                              lineHeight: 1,
+                              fontSize: '1.6rem',
                               color: 'black'
                             }}
                           >
@@ -559,23 +680,23 @@ const Dashboard: React.FC = () => {
                             <Typography 
                               variant="body2" 
                               sx={{ 
-                                fontSize: '0.9rem',
+                                fontSize: '1.3rem',
                                 color: 'text.secondary'
                               }}
                             >
-                              Arrived: {patientTrackingService.formatAppointmentTime(encounter.arrivalTime)}
+                            {patientTrackingService.formatAppointmentTime(encounter.arrivalTime)}
                             </Typography>
                           )}
                         </Box>
                       </TableCell>
 
                       {/* Status - Compact */}
-                      <TableCell sx={{ py: 1.5, textAlign: 'center' }}>
+                      <TableCell sx={{ height: '130px', verticalAlign: 'middle', textAlign: 'center' }}>
                         {getStatusText(encounter.status)}
                       </TableCell>
 
                       {/* Provider - Compact */}
-                      <TableCell sx={{ py: 1.5 }}>
+                      <TableCell sx={{ height: '130px', verticalAlign: 'middle' }}>
                         <Box>
                           {encounter.providers && encounter.providers.length > 0 ? (
                             encounter.providers
@@ -591,7 +712,7 @@ const Dashboard: React.FC = () => {
                                   sx={{ 
                                     display: 'flex', 
                                     alignItems: 'center',
-                                    mb: index < encounter.providers.length - 1 ? 0.3 : 0
+                                    mb: index < encounter.providers.length - 1 ? 0.8 : 0
                                   }}
                                 >
                                   {getProviderIcon(provider.role)}
@@ -599,16 +720,25 @@ const Dashboard: React.FC = () => {
                                     variant="body1" 
                                     sx={{ 
                                       fontWeight: 'bold', 
-                                      fontSize: '1rem',
-                                      lineHeight: 1.2
+                                      fontSize: '1.5rem',
+                                      lineHeight: 1.25,
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap'
                                     }}
                                   >
-                                    {provider.name}{provider.title ? `, ${provider.title}` : ''}
+                                    {getProviderTitle(provider)}
                                   </Typography>
                                 </Box>
                               ))
                           ) : (
-                            <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1rem' }}>
+                            <Typography variant="body1" sx={{ 
+                              fontWeight: 'bold', 
+                              fontSize: '1.5rem',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
                               No staff assigned
                             </Typography>
                           )}
@@ -616,12 +746,12 @@ const Dashboard: React.FC = () => {
                       </TableCell>
 
                       {/* Visit Length - Compact */}
-                      <TableCell sx={{ py: 1.5 }}>
+                      <TableCell sx={{ height: '130px', verticalAlign: 'middle' }}>
                         <Typography 
                           variant="body1"
                           sx={{
-                            fontWeight: shouldHighlight ? 'bold' : 'normal',
-                            fontSize: shouldHighlight ? '1.1rem' : '1rem',
+                            fontWeight: 'bold',
+                            fontSize: '2rem',
                             color: shouldHighlight ? 'error.main' : 'text.primary'
                           }}
                         >
@@ -654,20 +784,20 @@ const Dashboard: React.FC = () => {
           <Table stickyHeader size="small" sx={{ tableLayout: 'fixed' }}>
             <TableHead>
               <TableRow sx={{ '& th': { backgroundColor: '#f8f9fa', fontWeight: 'bold', py: 1.5 } }}>
-                <TableCell sx={{ width: '60px', textAlign: 'center', fontSize: '1.1rem' }}>Room</TableCell>
-                <TableCell sx={{ width: '90px', fontSize: '1.1rem' }}>Patient</TableCell>
-                <TableCell sx={{ width: '110px', fontSize: '1.1rem' }}>Time</TableCell>
-                <TableCell sx={{ width: '110px', fontSize: '1.1rem', textAlign: 'center' }}>Status</TableCell>
-                <TableCell sx={{ width: '150px', fontSize: '1.1rem' }}>Provider</TableCell>
-                <TableCell sx={{ width: '90px', fontSize: '1.1rem' }}>Visit</TableCell>
+                <TableCell sx={{ width: '60px', textAlign: 'center', fontSize: '1.6rem' }}>Room</TableCell>
+                <TableCell sx={{ width: '90px', fontSize: '1.6rem' }}>Patient</TableCell>
+                <TableCell sx={{ width: '80px', fontSize: '1.6rem' }}>Time</TableCell>
+                <TableCell sx={{ width: '110px', fontSize: '1.6rem', textAlign: 'center' }}>Status</TableCell>
+                <TableCell sx={{ width: '150px', fontSize: '1.6rem' }}>Provider</TableCell>
+                <TableCell sx={{ width: '90px', fontSize: '1.6rem' }}>Visit</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {sortedEncounters.length <= 1 ? (
                 <TableRow>
                   <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      {sortedEncounters.length === 0 ? 'No patients in clinic' : 'Additional patients will appear here'}
+                    <Typography variant="h6" color="text.secondary" sx={{ fontSize: '1.4rem' }}>
+                      {sortedEncounters.length === 0 ? 'No patients currently in clinic' : 'Additional patients will appear here'}
                     </Typography>
                   </TableCell>
                 </TableRow>
@@ -683,38 +813,38 @@ const Dashboard: React.FC = () => {
                       sx={getRowStyling(encounter)}
                     >
                      {/* Room - Compact */}
-                     <TableCell sx={{ textAlign: 'center', py: 1.5 }}>
+                     <TableCell sx={{ textAlign: 'center', height: '130px', verticalAlign: 'middle' }}>
                        <Typography variant="h4" sx={{ 
                          fontWeight: 'bold', 
                          color: '#1976d2',
                          lineHeight: 1,
-                         fontSize: '2.2rem'
+                         fontSize: '3.5rem'
                        }}>
                          {encounter.room !== 'N/A' && encounter.room !== 0 ? encounter.room : '-'}
                        </Typography>
                      </TableCell>
 
                      {/* Patient - Compact */}
-                     <TableCell sx={{ py: 1.5 }}>
+                     <TableCell sx={{ height: '130px', verticalAlign: 'middle' }}>
                        <Box>
-                         <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2, fontSize: '1.4rem' }}>
+                         <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1, fontSize: '2rem' }}>
                            {getPatientInitials(encounter.patientInfo.firstName, encounter.patientInfo.lastName)}
                          </Typography>
-                         <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
-                           {encounter.patientInfo.gender} • {encounter.appointmentType}
+                         <Typography variant="body2" color="text.secondary" sx={{ fontSize: '1.3rem' }}>
+                           {encounter.patientInfo.gender}
                          </Typography>
                        </Box>
                      </TableCell>
 
                      {/* Time - Compact */}
-                     <TableCell sx={{ py: 1.5 }}>
+                     <TableCell sx={{ height: '130px', verticalAlign: 'middle' }}>
                        <Box>
                          <Typography 
                            variant="body1" 
                            sx={{ 
                              fontWeight: 'bold',
-                             lineHeight: 1.2,
-                             fontSize: '1.1rem',
+                             lineHeight: 1,
+                             fontSize: '1.6rem',
                              color: 'black'
                            }}
                          >
@@ -724,23 +854,23 @@ const Dashboard: React.FC = () => {
                            <Typography 
                              variant="body2" 
                              sx={{ 
-                               fontSize: '0.9rem',
+                               fontSize: '1.3rem',
                                color: 'text.secondary'
                              }}
                            >
-                             Arrived: {patientTrackingService.formatAppointmentTime(encounter.arrivalTime)}
+                             {patientTrackingService.formatAppointmentTime(encounter.arrivalTime)}
                            </Typography>
                          )}
                        </Box>
                      </TableCell>
 
                      {/* Status - Compact */}
-                     <TableCell sx={{ py: 1.5, textAlign: 'center' }}>
+                     <TableCell sx={{ height: '130px', verticalAlign: 'middle', textAlign: 'center' }}>
                        {getStatusText(encounter.status)}
                      </TableCell>
 
                     {/* Provider - Compact */}
-                    <TableCell sx={{ py: 1.5 }}>
+                    <TableCell sx={{ height: '130px', verticalAlign: 'middle' }}>
                       <Box>
                         {encounter.providers && encounter.providers.length > 0 ? (
                           encounter.providers
@@ -756,7 +886,7 @@ const Dashboard: React.FC = () => {
                                 sx={{ 
                                   display: 'flex', 
                                   alignItems: 'center',
-                                  mb: index < encounter.providers.length - 1 ? 0.3 : 0
+                                  mb: index < encounter.providers.length - 1 ? 0.8 : 0
                                 }}
                               >
                                 {getProviderIcon(provider.role)}
@@ -764,16 +894,25 @@ const Dashboard: React.FC = () => {
                                   variant="body1" 
                                   sx={{ 
                                     fontWeight: 'bold', 
-                                    fontSize: '1rem',
-                                    lineHeight: 1.2
+                                    fontSize: '1.5rem',
+                                    lineHeight: 1.25,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
                                   }}
                                 >
-                                  {provider.name}{provider.title ? `, ${provider.title}` : ''}
+                                  {getProviderTitle(provider)}
                                 </Typography>
                               </Box>
                             ))
                         ) : (
-                          <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1rem' }}>
+                          <Typography variant="body1" sx={{ 
+                            fontWeight: 'bold', 
+                            fontSize: '1.5rem',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
                             No staff assigned
                           </Typography>
                         )}
@@ -781,12 +920,12 @@ const Dashboard: React.FC = () => {
                     </TableCell>
 
                     {/* Visit Length - Compact */}
-                    <TableCell sx={{ py: 1.5 }}>
+                    <TableCell sx={{ height: '130px', verticalAlign: 'middle' }}>
                       <Typography 
                         variant="body1"
                         sx={{
-                          fontWeight: shouldHighlight ? 'bold' : 'normal',
-                          fontSize: shouldHighlight ? '1.1rem' : '1rem',
+                          fontWeight: 'bold',
+                          fontSize: '2rem',
                           color: shouldHighlight ? 'error.main' : 'text.primary'
                         }}
                       >
