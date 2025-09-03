@@ -1,8 +1,23 @@
+// EMR Provider types
+export type EMRProvider = 'EZDERM' | 'EMA';
+
 // Request types
-export interface LoginRequest {
+export interface BaseLoginRequest {
+  emrProvider: EMRProvider;
   username: string;
   password: string;
 }
+
+export interface EZDermLoginRequest extends BaseLoginRequest {
+  emrProvider: 'EZDERM';
+}
+
+export interface EMALoginRequest extends BaseLoginRequest {
+  emrProvider: 'EMA';
+  firmName: string;
+}
+
+export type LoginRequest = EZDermLoginRequest | EMALoginRequest;
 
 export interface EncountersRequest {
   username: string;
@@ -21,6 +36,7 @@ export interface LoginResponse {
   success: boolean;
   username: string;
   serverUrl: string;
+  emrProvider: EMRProvider;
   sessionToken?: string;
   refreshToken?: string;
   expiresAt?: string;
@@ -397,4 +413,86 @@ export interface InvalidIssue {
   markedInvalidBy: string;
   markedInvalidAt: Date;
   reason?: string;
+}
+
+// ModMed EMA OAuth2 types
+export interface EMATokenRequest {
+  username: string;
+  password: string;
+  grant_type: 'password';
+}
+
+export interface EMATokenResponse {
+  scope: string;
+  token_type: string;
+  access_token: string;
+  refresh_token: string;
+}
+
+// FHIR Bundle types for EMA encounters
+export interface FHIRCoding {
+  system: string;
+  code: string;
+  display: string;
+}
+
+export interface FHIRCodeableConcept {
+  coding: FHIRCoding[];
+  text?: string;
+}
+
+export interface FHIRReference {
+  reference: string;
+  display: string;
+}
+
+export interface FHIRPeriod {
+  start: string;
+  end?: string;
+}
+
+export interface FHIRParticipant {
+  type: FHIRCodeableConcept[];
+  individual: FHIRReference;
+}
+
+export interface FHIRLocation {
+  location: FHIRReference;
+}
+
+export interface FHIREncounter {
+  resourceType: 'Encounter';
+  id: string;
+  meta: {
+    lastUpdated: string;
+  };
+  status: string;
+  class: FHIRCoding;
+  type: FHIRCodeableConcept[];
+  subject: FHIRReference;
+  participant: FHIRParticipant[];
+  period: FHIRPeriod;
+  location: FHIRLocation[];
+}
+
+export interface FHIRBundleLink {
+  relation: string;
+  url: string;
+}
+
+export interface FHIRBundleEntry {
+  fullUrl: string;
+  resource: FHIREncounter;
+}
+
+export interface FHIRBundle {
+  resourceType: 'Bundle';
+  id: string;
+  meta: {
+    lastUpdated: string;
+  };
+  type: 'searchset';
+  total: number;
+  link: FHIRBundleLink[];
+  entry: FHIRBundleEntry[];
 } 

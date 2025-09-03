@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { LoginResponse } from '../types/api.types';
+import { LoginResponse, LoginRequest, EMRProvider } from '../types/api.types';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://0.0.0.0:5001';
 
@@ -12,6 +12,7 @@ interface SessionData {
   username: string;
   expiresAt: string;
   serverUrl?: string;
+  emrProvider?: EMRProvider;
 }
 
 // Removed CredentialData interface for security reasons
@@ -238,11 +239,13 @@ class AuthService {
     }
   }
 
-  async login(username: string, password: string): Promise<LoginResponse> {
+  async login(loginRequest: LoginRequest): Promise<LoginResponse> {
     try {
+      const { username, emrProvider } = loginRequest;
+      
       // Mock login in development mode
       if (USE_MOCK_DATA) {
-        console.log('🚧 Development Mode: Mock login successful');
+        console.log('🚧 Development Mode: Mock login successful for', emrProvider);
         this.currentUser = username;
         
         // Create mock session
@@ -256,7 +259,8 @@ class AuthService {
           refreshToken: mockRefreshToken,
           username,
           expiresAt: mockExpiresAt,
-          serverUrl: process.env.REACT_APP_API_URL || 'http://0.0.0.0:5001'
+          serverUrl: process.env.REACT_APP_API_URL || 'http://0.0.0.0:5001',
+          emrProvider
         });
         
         // Simulate API delay
@@ -265,28 +269,28 @@ class AuthService {
           success: true,
           username,
           serverUrl: process.env.REACT_APP_API_URL || 'http://0.0.0.0:5001',
+          emrProvider,
           sessionToken: mockSessionToken,
           refreshToken: mockRefreshToken,
           expiresAt: mockExpiresAt
         };
       }
 
-      const response = await axios.post<LoginResponse>(`${API_BASE_URL}/login`, {
-        username,
-        password
-      });
+      // Send the full login request to the backend
+      const response = await axios.post<LoginResponse>(`${API_BASE_URL}/login`, loginRequest);
 
       if (response.data.success && response.data.sessionToken && response.data.refreshToken && response.data.expiresAt) {
         this.currentUser = username;
         this.sessionToken = response.data.sessionToken;
         
-        // Store session data
+        // Store session data including EMR provider
         this.storeSession({
           sessionToken: response.data.sessionToken,
           refreshToken: response.data.refreshToken,
           username,
           expiresAt: response.data.expiresAt,
-          serverUrl: response.data.serverUrl
+          serverUrl: response.data.serverUrl,
+          emrProvider: response.data.emrProvider
         });
       }
 
@@ -336,6 +340,19 @@ class AuthService {
 
   getCurrentUser(): string | null {
     return this.currentUser;
+  }
+
+  getCurrentEMRProvider(): EMRProvider | null {
+    try {
+      const storedData = localStorage.getItem(this.SESSION_STORAGE_KEY);
+      if (storedData) {
+        const sessionData: SessionData = JSON.parse(storedData);
+        return sessionData.emrProvider || 'EZDERM'; // Default to EZDERM for backward compatibility
+      }
+    } catch (error) {
+      console.error('Error getting EMR provider:', error);
+    }
+    return null;
   }
 
   isAuthenticated(): boolean {

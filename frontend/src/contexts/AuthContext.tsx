@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import authService from '../services/auth.service';
-import { AuthContextType, User } from '../types/api.types';
+import { AuthContextType, User, LoginRequest } from '../types/api.types';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -29,10 +29,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         await authService.waitForSessionRestore();
         
         const username = authService.getCurrentUser();
-        console.log('🔍 AuthContext: Session restoration complete, current user:', username);
+        const emrProvider = authService.getCurrentEMRProvider();
+        console.log('🔍 AuthContext: Session restoration complete, current user:', username, 'EMR:', emrProvider);
         
-        if (username) {
-          setUser({ username });
+        if (username && emrProvider) {
+          setUser({ username, emrProvider });
           console.log('✅ AuthContext: User authenticated');
         } else {
           console.log('❌ AuthContext: No authenticated user');
@@ -48,13 +49,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initializeAuth();
   }, []);
 
-  const login = async (username: string, password: string, persistentLogin: boolean = true) => {
+  const login = async (loginRequest: LoginRequest, persistentLogin: boolean = true) => {
     try {
       setIsLoading(true);
       setError(null);
       
-      await authService.login(username, password);
-      setUser({ username });
+      const response = await authService.login(loginRequest);
+      setUser({ username: response.username, emrProvider: response.emrProvider });
     } catch (err: any) {
       setError(err.message || 'Login failed');
       throw err;
