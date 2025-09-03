@@ -376,19 +376,29 @@ const Dashboard: React.FC = () => {
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f5f5f5' }}>
       {/* Compact Header with integrated summary */}
       <Box sx={{ 
-        backgroundColor: '#1976d2', 
+        backgroundColor: '#0a0a0a', 
         color: 'white', 
         px: 3, 
         py: 1.5,
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',
-        boxShadow: 2
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        borderBottom: '1px solid #1a1a1a'
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <LocalHospital sx={{ fontSize: '2rem' }} />
+          <LocalHospital sx={{ 
+            fontSize: '2rem', 
+            color: '#f8fafc',
+            filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1))'
+          }} />
           <Box>
-            <Typography variant="h5" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
+            <Typography variant="h5" sx={{ 
+              fontWeight: 600, 
+              lineHeight: 1.2,
+              color: '#f8fafc',
+              letterSpacing: '-0.025em'
+            }}>
               DCC - Flint
               {isUsingMockData && (
                 <Chip 
@@ -396,15 +406,24 @@ const Dashboard: React.FC = () => {
                   size="small" 
                   sx={{ 
                     ml: 1, 
-                    backgroundColor: '#ff9800', 
+                    backgroundColor: '#dc2626', 
                     color: 'white',
-                    fontWeight: 'bold',
-                    fontSize: '0.7rem'
+                    fontWeight: 600,
+                    fontSize: '0.7rem',
+                    border: '1px solid #ef4444',
+                    '&:hover': {
+                      backgroundColor: '#b91c1c'
+                    }
                   }} 
                 />
               )}
             </Typography>
-            <Typography variant="body2" sx={{ opacity: 0.9 }}>
+            <Typography variant="body2" sx={{ 
+              opacity: 0.8,
+              color: '#e2e8f0',
+              fontSize: '0.875rem',
+              fontWeight: 400
+            }}>
               {new Date().toLocaleDateString('en-US', { 
                 weekday: 'long', 
                 month: 'short', 
@@ -416,56 +435,151 @@ const Dashboard: React.FC = () => {
 
         {/* Integrated Summary Stats */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Box sx={{ textAlign: 'center' }}>
-            <Typography variant="h4" sx={{ fontWeight: 'bold', lineHeight: 1 }}>
+          <Box sx={{ 
+            textAlign: 'center',
+            px: 2,
+            py: 1,
+            borderRadius: 2,
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #2a2a2a'
+          }}>
+            <Typography variant="h4" sx={{ 
+              fontWeight: 700, 
+              lineHeight: 1,
+              color: '#f8fafc',
+              fontSize: '1.875rem'
+            }}>
               {currentEncountersForStats.length}
             </Typography>
-            <Typography variant="caption" sx={{ fontSize: '0.8rem', opacity: 0.9 }}>
+            <Typography variant="caption" sx={{ 
+              fontSize: '0.75rem', 
+              opacity: 0.8,
+              color: '#94a3b8',
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em'
+            }}>
               Total Patients
             </Typography>
           </Box>
-          <Box sx={{ textAlign: 'center' }}>
-            <Typography variant="h4" sx={{ fontWeight: 'bold', lineHeight: 1, color: '#ffeb3b' }}>
+          <Box sx={{ 
+            textAlign: 'center',
+            px: 2,
+            py: 1,
+            borderRadius: 2,
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #2a2a2a'
+          }}>
+            <Typography variant="h4" sx={{ 
+              fontWeight: 700, 
+              lineHeight: 1, 
+              color: '#fbbf24',
+              fontSize: '1.875rem'
+            }}>
               {dangerCount}
             </Typography>
-            <Typography variant="caption" sx={{ fontSize: '0.8rem', opacity: 0.9 }}>
-                             Waiting &gt;10min
+            <Typography variant="caption" sx={{ 
+              fontSize: '0.75rem', 
+              opacity: 0.8,
+              color: '#94a3b8',
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em'
+            }}>
+              Waiting &gt;10min
             </Typography>
           </Box>
-          <Box sx={{ textAlign: 'center' }}>
-            <Typography variant="h4" sx={{ fontWeight: 'bold', lineHeight: 1, color: '#4caf50' }}>
+          <Box sx={{ 
+            textAlign: 'center',
+            px: 2,
+            py: 1,
+            borderRadius: 2,
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #2a2a2a'
+          }}>
+            <Typography variant="h4" sx={{ 
+              fontWeight: 700, 
+              lineHeight: 1, 
+              color: '#10b981',
+              fontSize: '1.875rem'
+            }}>
               {occupiedRooms}
             </Typography>
-            <Typography variant="caption" sx={{ fontSize: '0.8rem', opacity: 0.9 }}>
+            <Typography variant="caption" sx={{ 
+              fontSize: '0.75rem', 
+              opacity: 0.8,
+              color: '#94a3b8',
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em'
+            }}>
               Rooms Occupied
             </Typography>
           </Box>
           
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
             <Tooltip title="AI Note Checker">
               <IconButton 
                 onClick={() => navigate('/ai-note-checker')}
-                sx={{ color: 'white' }}
+                sx={{ 
+                  color: '#f8fafc',
+                  backgroundColor: '#1a1a1a',
+                  border: '1px solid #2a2a2a',
+                  borderRadius: 2,
+                  p: 1.5,
+                  '&:hover': {
+                    backgroundColor: '#2a2a2a',
+                    borderColor: '#3a3a3a'
+                  }
+                }}
               >
-                <Psychology sx={{ fontSize: '1.5rem' }} />
+                <Psychology sx={{ fontSize: '1.25rem' }} />
               </IconButton>
             </Tooltip>
             <Tooltip title="Refresh">
               <IconButton 
                 onClick={() => fetchEncounters(true)} 
                 disabled={loading || refreshing}
-                sx={{ color: 'white' }}
+                sx={{ 
+                  color: '#f8fafc',
+                  backgroundColor: '#1a1a1a',
+                  border: '1px solid #2a2a2a',
+                  borderRadius: 2,
+                  p: 1.5,
+                  '&:hover': {
+                    backgroundColor: '#2a2a2a',
+                    borderColor: '#3a3a3a'
+                  },
+                  '&:disabled': {
+                    color: '#64748b',
+                    backgroundColor: '#0f0f0f',
+                    borderColor: '#1a1a1a'
+                  }
+                }}
               >
                 {refreshing ? (
-                  <CircularProgress size={24} sx={{ color: 'white' }} />
+                  <CircularProgress size={20} sx={{ color: '#f8fafc' }} />
                 ) : (
-                  <Refresh sx={{ fontSize: '1.5rem' }} />
+                  <Refresh sx={{ fontSize: '1.25rem' }} />
                 )}
               </IconButton>
             </Tooltip>
             <Tooltip title="Logout">
-              <IconButton onClick={handleLogout} sx={{ color: 'white' }}>
-                <ExitToApp sx={{ fontSize: '1.5rem' }} />
+              <IconButton 
+                onClick={handleLogout} 
+                sx={{ 
+                  color: '#f8fafc',
+                  backgroundColor: '#dc2626',
+                  border: '1px solid #ef4444',
+                  borderRadius: 2,
+                  p: 1.5,
+                  '&:hover': {
+                    backgroundColor: '#b91c1c',
+                    borderColor: '#dc2626'
+                  }
+                }}
+              >
+                <ExitToApp sx={{ fontSize: '1.25rem' }} />
               </IconButton>
             </Tooltip>
           </Box>
