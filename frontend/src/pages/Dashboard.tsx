@@ -607,7 +607,10 @@ const Dashboard: React.FC = () => {
                                     sx={{ 
                                       fontWeight: 'bold', 
                                       fontSize: '1.5rem',
-                                      lineHeight: 1.25
+                                      lineHeight: 1.25,
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap'
                                     }}
                                   >
                                     {getProviderTitle(provider)}
@@ -615,7 +618,13 @@ const Dashboard: React.FC = () => {
                                 </Box>
                               ))
                           ) : (
-                            <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1.5rem' }}>
+                            <Typography variant="body1" sx={{ 
+                              fontWeight: 'bold', 
+                              fontSize: '1.5rem',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
                               No staff assigned
                             </Typography>
                           )}
@@ -772,7 +781,10 @@ const Dashboard: React.FC = () => {
                                   sx={{ 
                                     fontWeight: 'bold', 
                                     fontSize: '1.5rem',
-                                    lineHeight: 1.25
+                                    lineHeight: 1.25,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
                                   }}
                                 >
                                   {getProviderTitle(provider)}
@@ -780,7 +792,13 @@ const Dashboard: React.FC = () => {
                               </Box>
                             ))
                         ) : (
-                          <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1.5rem' }}>
+                          <Typography variant="body1" sx={{ 
+                            fontWeight: 'bold', 
+                            fontSize: '1.5rem',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
                             No staff assigned
                           </Typography>
                         )}
