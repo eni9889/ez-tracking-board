@@ -37,12 +37,8 @@ const Dashboard: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState(new Date());
-  const [previousEncounters, setPreviousEncounters] = useState<Encounter[]>([]);
-  const [changedRows, setChangedRows] = useState<Set<string>>(new Set());
-  const [newRows, setNewRows] = useState<Set<string>>(new Set());
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [sessionTimeRemaining, setSessionTimeRemaining] = useState<number | null>(null); // Used for session monitoring
-  const [deletingRows, setDeletingRows] = useState<Set<string>>(new Set());
 
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -62,73 +58,8 @@ const Dashboard: React.FC = () => {
       setError(null);
       const data = await patientTrackingService.getEncounters();
       
-      // Compare with previous data to identify changes
-      if (isRefresh) {
-        setEncounters(currentEncounters => {
-          if (currentEncounters.length > 0) {
-            const newChangedRows = new Set<string>();
-            const newNewRows = new Set<string>();
-            const toDeleteRows = new Set<string>();
-            
-            // Find new and changed patients
-            data.forEach(newEncounter => {
-              const oldEncounter = currentEncounters.find(old => old.id === newEncounter.id);
-              if (!oldEncounter) {
-                // New patient
-                newNewRows.add(newEncounter.id);
-              } else {
-                // Check for changes in key fields
-                if (
-                  oldEncounter.status !== newEncounter.status ||
-                  oldEncounter.room !== newEncounter.room ||
-                  oldEncounter.arrivalTime !== newEncounter.arrivalTime ||
-                  JSON.stringify(oldEncounter.providers) !== JSON.stringify(newEncounter.providers)
-                ) {
-                  newChangedRows.add(newEncounter.id);
-                }
-              }
-            });
-            
-            // Find patients that were removed
-            currentEncounters.forEach(oldEncounter => {
-              if (!data.find(newEnc => newEnc.id === oldEncounter.id)) {
-                toDeleteRows.add(oldEncounter.id);
-              }
-            });
-            
-            // Handle deletions with animation
-            if (toDeleteRows.size > 0) {
-              setDeletingRows(toDeleteRows);
-              // Wait for deletion animation, then update data
-              setTimeout(() => {
-                setEncounters(data.filter(enc => enc && enc.id)); // Safety filter
-                setDeletingRows(new Set());
-                setNewRows(newNewRows);
-                setChangedRows(newChangedRows);
-                setPreviousEncounters(data);
-              }, 500);
-              return currentEncounters.filter(enc => enc && enc.id); // Safety filter
-            } else {
-              // No deletions, update immediately
-              setNewRows(newNewRows);
-              setChangedRows(newChangedRows);
-              setPreviousEncounters(currentEncounters);
-              
-              // Clear animations after their duration
-              setTimeout(() => {
-                setNewRows(new Set());
-                setChangedRows(new Set());
-              }, 2000);
-              
-              return data.filter(enc => enc && enc.id); // Safety filter
-            }
-          }
-          return data.filter(enc => enc && enc.id); // Safety filter
-        });
-      } else {
-        setEncounters(data.filter(enc => enc && enc.id)); // Safety filter
-      }
-      
+      // Simply update the data without animations
+      setEncounters(data.filter(enc => enc && enc.id)); // Safety filter
       setLastRefresh(new Date());
     } catch (err: any) {
       setError(err.message || 'Failed to fetch patient data');
@@ -138,22 +69,8 @@ const Dashboard: React.FC = () => {
     }
   }, []);
 
-  // Sort encounters by room number, including those being deleted for animation
-  const getAllEncounters = () => {
-    const currentEncounters = [...encounters];
-    
-    // Add encounters that are being deleted for animation purposes
-    if (deletingRows.size > 0 && previousEncounters.length > 0) {
-      const deletingEncounters = previousEncounters.filter(enc => 
-        enc && enc.id && deletingRows.has(enc.id)
-      );
-      currentEncounters.push(...deletingEncounters);
-    }
-    
-    return currentEncounters.filter(enc => enc && enc.id); // Safety filter
-  };
-
-  const sortedEncounters = getAllEncounters().sort((a, b) => {
+  // Sort encounters by room number
+  const sortedEncounters = encounters.sort((a, b) => {
     // Convert room to number, handle undefined, 'N/A' and 0 as no room assigned
     const getRoomNumber = (room: string | number | undefined) => {
       if (!room || room === 'N/A' || room === 0 || room === '0' || room === 'TBD') return 999; // Put unassigned rooms at end
@@ -272,91 +189,18 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Get row styling based on wait time, status, and changes
+  // Get row styling based on wait time and status only
   const getRowStyling = (encounter: Encounter) => {
     const isWaitingTooLong = patientTrackingService.isWaitingTooLong(encounter.arrivalTime);
     const isDangerStatus = encounter.status === 'CHECKED_IN' || encounter.status === 'WITH_STAFF';
     const shouldHighlight = isWaitingTooLong && isDangerStatus;
-    const isChanged = changedRows.has(encounter.id);
-    const isNew = newRows.has(encounter.id);
-    const isDeleting = deletingRows.has(encounter.id);
-    
-    // Priority: Deleting > New > Changed > Danger > Normal
-    let backgroundColor, borderLeft, animation;
-    
-    if (isDeleting) {
-      backgroundColor = '#ffebee';
-      borderLeft = '5px solid #f44336';
-      animation = 'slideOut 0.5s ease-in-out forwards';
-    } else if (isNew) {
-      backgroundColor = '#e3f2fd';
-      borderLeft = '5px solid #2196f3';
-      animation = 'slideIn 0.5s ease-in-out';
-    } else if (isChanged) {
-      backgroundColor = '#e8f5e8';
-      borderLeft = '5px solid #4caf50';
-      animation = 'pulse 2s ease-in-out';
-    } else if (shouldHighlight) {
-      backgroundColor = 'inherit';
-      borderLeft = '5px solid #f44336';
-      animation = 'none';
-    } else {
-      backgroundColor = 'inherit';
-      borderLeft = 'none';
-      animation = 'none';
-    }
     
     return {
-      backgroundColor,
-      borderLeft,
+      backgroundColor: 'inherit',
+      borderLeft: shouldHighlight ? '5px solid #f44336' : 'none',
       transition: 'all 0.3s ease-in-out',
-      animation,
-      '@keyframes slideIn': {
-        '0%': {
-          opacity: 0,
-          transform: 'translateX(-20px) scale(0.95)',
-          backgroundColor: '#bbdefb'
-        },
-        '100%': {
-          opacity: 1,
-          transform: 'translateX(0) scale(1)',
-          backgroundColor: '#e3f2fd'
-        }
-      },
-      '@keyframes slideOut': {
-        '0%': {
-          opacity: 1,
-          transform: 'translateX(0) scale(1)',
-          backgroundColor: '#ffebee'
-        },
-        '100%': {
-          opacity: 0,
-          transform: 'translateX(20px) scale(0.95)',
-          backgroundColor: '#ffcdd2'
-        }
-      },
-      '@keyframes pulse': {
-        '0%': {
-          backgroundColor: '#c8e6c9',
-          transform: 'scale(1)'
-        },
-        '50%': {
-          backgroundColor: '#e8f5e8',
-          transform: 'scale(1.01)'
-        },
-        '100%': {
-          backgroundColor: '#e8f5e8',
-          transform: 'scale(1)'
-        }
-      },
       '&:hover': {
-        backgroundColor: isDeleting
-          ? '#ffcdd2'
-          : isNew
-            ? '#bbdefb'
-            : isChanged
-              ? '#dcedc8'
-              : '#f5f5f5'
+        backgroundColor: '#f5f5f5'
       }
     };
   };
@@ -367,10 +211,9 @@ const Dashboard: React.FC = () => {
     return firstName[0] + '.' + lastName + (provider.title ? `, ${provider.title.replace('Medical Assistant', 'MA')}` : '');
   };
 
-  // Calculate stats only from current encounters (excluding those being deleted)
-  const currentEncountersForStats = encounters.filter(e => !deletingRows.has(e.id));
-  const dangerCount = currentEncountersForStats.filter(e => patientTrackingService.isWaitingTooLong(e.arrivalTime)).length;
-  const occupiedRooms = currentEncountersForStats.filter(e => e.room !== 'N/A' && e.room !== 0).length;
+  // Calculate stats from current encounters
+  const dangerCount = encounters.filter(e => patientTrackingService.isWaitingTooLong(e.arrivalTime)).length;
+  const occupiedRooms = encounters.filter(e => e.room !== 'N/A' && e.room !== 0).length;
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f5f5f5' }}>
@@ -449,7 +292,7 @@ const Dashboard: React.FC = () => {
               color: '#f8fafc',
               fontSize: '1.875rem'
             }}>
-              {currentEncountersForStats.length}
+              {encounters.length}
             </Typography>
             <Typography variant="caption" sx={{ 
               fontSize: '0.75rem', 
