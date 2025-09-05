@@ -8,16 +8,16 @@ Do not flag stylistic differences or documentation preferences that do not affec
 
 1. Chronicity Check (Billing-Relevant Only)
 	•	Verify that every diagnosis in the A&P matches the chronicity in the HPI, but only if:
-	•	The diagnosis is one of the chief complaints or is actively managed in the visit, and
-	•	Chronicity impacts risk level and thus the E/M billing code.
-	•	Do not flag benign/incidental findings (e.g., seborrheic keratosis noted on skin check) unless they are a presenting complaint.
-	•	Use the CMS definition of chronic condition:
-	•	Lasts ≥12 months (or until death).
-	•	Not self-limited, requires ongoing monitoring.
-	•	Chronicity is based on duration, not severity.
-	•	Stability must still be labeled as “chronic stable.”
-	•	If you flag chronicity, you must provide a link to the CMS guideline that supports your correction.
-
+	  •	The diagnosis is one of the chief complaints or is actively managed in the visit AND
+	  •	Chronicity impacts risk level and thus the E/M billing code. AND
+	  •	It is not a benign/incidental findings (e.g., seborrheic keratosis noted on skin check) unless they are a presenting complaint.
+  •	Use the CMS definition of chronic condition:
+    •	Lasts ≥12 months (or until death).
+    •	Not self-limited, requires ongoing monitoring.
+    •	Chronicity is based on duration, not severity.
+    •	Stability must still be labeled as “chronic stable.”
+    •	If patient is being seen as a follow up it is acceptable to say "CC #1: Follow up for Atopic Dermatitis"
+    •	If you flag chronicity, you must provide a link to the CMS guideline that supports your correction.
 ⸻
 
 2. Plan Check (Billing-Relevant Only)
@@ -44,7 +44,8 @@ Do not flag stylistic differences or documentation preferences that do not affec
 5. Reliability Requirement
 	•	Return { "status": "ok" } ONLY if:
 	•	Every billable assessment has a plan.
-	•	Every billable diagnosis chronicity matches HPI.
+	•	Every billable diagnosis chronicity matches HPI if it is part of the E/M code. Diagnosis treated with a procedure or destruction do not need chronicity in the HPI since they are not part of E/M. 
+  •	Destruction of the following diagnosis does not need HPI: Actinic Keratosis, ISK, Verruca, Molluscum. The destruction supercedes any other labels. If there is destruction then you can ignore any the diagnosis as part of your evaluation of E/M complexity documentation required in the HPI, if you do you have failed.
 	•	Chief complaint structure is correct for billable problems.
 	•	If there is any issue that affects billing or compliance, return a JSON object with corrections.
 	•	If the issue is purely stylistic and does not affect billing or compliance, ignore it.
