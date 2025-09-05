@@ -37,11 +37,14 @@ class AINoteChecker {
   private async loadPromptTemplate(): Promise<void> {
     try {
       const promptPath = path.join(__dirname, 'ai-prompt.md');
-      console.log('📝 Prompt path:', promptPath);
+      console.log('📝 Loading prompt from:', promptPath);
       this.promptTemplate = await fs.readFile(promptPath, 'utf8');
-      console.log('📝 AI prompt template loaded successfully');
+      const lines = this.promptTemplate.split('\n').length;
+      const chars = this.promptTemplate.length;
+      console.log(`📝 AI prompt template loaded successfully (${lines} lines, ${chars} characters)`);
     } catch (error) {
       console.error('❌ Failed to load AI prompt template:', error);
+      console.log('🔄 Using fallback prompt template');
       this.promptTemplate = `You are a dermatology medical coder. I want you to strictly check two things:
 1. If the chronicity of every diagnosis in the A&P matches what is documented in the HPI.
 2. If every assessment in the A&P has a documented plan.
@@ -282,6 +285,13 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
 
     try {
       console.log('🤖 Analyzing progress note with Claude AI...');
+      
+      // In development mode, reload the prompt template every time
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔄 Development mode: Reloading AI prompt template from ai-prompt.md...');
+        await this.loadPromptTemplate();
+        console.log('✅ AI prompt template reloaded successfully');
+      }
       
       const noteText = this.formatProgressNoteForAnalysis(progressNote);
       const fullPrompt = `${this.promptTemplate}\n\nProgress Note to analyze:\n${noteText}`;
