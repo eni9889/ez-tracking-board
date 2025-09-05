@@ -11,6 +11,8 @@ interface IncompleteNote {
   lastCheckStatus?: string | null;
   lastCheckDate?: string | null;
   issuesFound?: boolean;
+  todoCreated?: boolean;
+  todoCount?: number;
 }
 
 interface EncountersContextType {
@@ -69,13 +71,22 @@ export const EncountersProvider: React.FC<EncountersProviderProps> = ({ children
         checkResults.map(result => [result.encounterId, result])
       );
       
+      // Get ToDo status for these notes
+      const encounterIds = uniqueNotes.map(note => note.encounterId);
+      const todoStatusMap = await aiNoteCheckerService.getTodoStatusForEncounters(encounterIds);
+      
       // Combine the data
-      const notesWithStatus = uniqueNotes.map(note => ({
-        ...note,
-        lastCheckStatus: checkResultsMap.get(note.encounterId)?.status || null,
-        lastCheckDate: checkResultsMap.get(note.encounterId)?.checkedAt || null,
-        issuesFound: checkResultsMap.get(note.encounterId)?.issuesFound || false
-      }));
+      const notesWithStatus = uniqueNotes.map(note => {
+        const todoStatus = todoStatusMap.get(note.encounterId);
+        return {
+          ...note,
+          lastCheckStatus: checkResultsMap.get(note.encounterId)?.status || null,
+          lastCheckDate: checkResultsMap.get(note.encounterId)?.checkedAt || null,
+          issuesFound: checkResultsMap.get(note.encounterId)?.issuesFound || false,
+          todoCreated: todoStatus?.todoCreated || false,
+          todoCount: todoStatus?.todoCount || 0
+        };
+      });
       
       // Sort by date of service (newest first)
       const sortedNotes = notesWithStatus.sort((a, b) => {

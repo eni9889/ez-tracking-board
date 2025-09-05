@@ -609,6 +609,50 @@ class AINoteCheckerService {
   }
 
   /**
+   * Get ToDo status for multiple encounters
+   */
+  async getTodoStatusForEncounters(encounterIds: string[]): Promise<Map<string, { todoCreated: boolean; todoCount: number }>> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Returning mock ToDo status');
+      await new Promise(resolve => setTimeout(resolve, 200)); // Simulate API delay
+      
+      // Mock data - some encounters have ToDos created
+      const mockStatuses = new Map<string, { todoCreated: boolean; todoCount: number }>();
+      encounterIds.forEach((encounterId, index) => {
+        // Mock: every 3rd encounter has a ToDo
+        const hasTodo = index % 3 === 0;
+        mockStatuses.set(encounterId, {
+          todoCreated: hasTodo,
+          todoCount: hasTodo ? Math.floor(Math.random() * 3) + 1 : 0
+        });
+      });
+      return mockStatuses;
+    }
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}/notes/todos/bulk-status`, {
+        encounterIds
+      }, {
+        headers: this.headers()
+      });
+
+      const statusMap = new Map<string, { todoCreated: boolean; todoCount: number }>();
+      response.data.todoStatuses?.forEach((status: any) => {
+        statusMap.set(status.encounterId, {
+          todoCreated: status.todoCount > 0,
+          todoCount: status.todoCount
+        });
+      });
+
+      return statusMap;
+    } catch (error: any) {
+      console.error('Error fetching ToDo status:', error);
+      // Return empty map on error instead of throwing
+      return new Map();
+    }
+  }
+
+  /**
    * Get created ToDos for an encounter
    */
   async getCreatedToDos(encounterId: string): Promise<CreatedToDo[]> {

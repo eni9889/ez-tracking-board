@@ -44,6 +44,8 @@ interface IncompleteNote {
   lastCheckStatus?: string | null;
   lastCheckDate?: string | null;
   issuesFound?: boolean;
+  todoCreated?: boolean;
+  todoCount?: number;
 }
 
 type FilterType = 'all' | 'clean' | 'issues' | 'unchecked';
@@ -473,6 +475,9 @@ const AINoteChecker: React.FC = () => {
                     AI Check Status
                   </TableCell>
                   <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }} align="center">
+                    ToDo Status
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }} align="center">
                     Actions
                   </TableCell>
                 </TableRow>
@@ -544,6 +549,28 @@ const AINoteChecker: React.FC = () => {
                         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
                           {aiNoteCheckerService.formatTimeAgo(note.lastCheckDate)}
                         </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell 
+                      align="center"
+                      sx={{ cursor: 'pointer' }}
+                      onClick={() => handleViewNote(note)}
+                    >
+                      {note.todoCreated ? (
+                        <Chip
+                          icon={<Assignment />}
+                          label={note.todoCount && note.todoCount > 1 ? `${note.todoCount} ToDos` : 'ToDo Created'}
+                          color="success"
+                          size="small"
+                          sx={{ fontWeight: 'bold' }}
+                        />
+                      ) : (
+                        <Chip
+                          label="No ToDo"
+                          color="default"
+                          size="small"
+                          variant="outlined"
+                        />
                       )}
                     </TableCell>
                     <TableCell align="center" onClick={(e) => e.stopPropagation()}>

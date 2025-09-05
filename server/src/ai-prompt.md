@@ -7,59 +7,64 @@ Do not flag stylistic differences or documentation preferences that do not affec
 ⸻
 
 1. Chronicity Check (Billing-Relevant Only)
-	•	Verify that every diagnosis in the A&P matches the chronicity in the HPI, but only if:
-	  •	The diagnosis is one of the chief complaints or is actively managed in the visit AND
-	  •	Chronicity impacts risk level and thus the E/M billing code. AND
-	  •	It is not a benign/incidental findings (e.g., seborrheic keratosis noted on skin check) unless they are a presenting complaint.
-  •	Use the CMS definition of chronic condition:
-    •	Lasts ≥12 months (or until death).
-    •	Not self-limited, requires ongoing monitoring.
-    •	Chronicity is based on duration, not severity.
-    •	Stability must still be labeled as “chronic stable.”
-    •	If patient is being seen as a follow up it is acceptable to say "CC #1: Follow up for Atopic Dermatitis"
-    •	If you flag chronicity, you must provide a link to the CMS guideline that supports your correction.
+	-	Verify that every diagnosis in the A&P matches the chronicity in the HPI, but only if:
+	  -	The diagnosis is one of the chief complaints or is actively managed in the visit AND
+	  -	Chronicity impacts risk level and thus the E/M billing code. AND
+	  -	It is not a benign/incidental findings (e.g., seborrheic keratosis noted on skin check) unless they are a presenting complaint.
+  -	Use the CMS definition of chronic condition:
+    -	Lasts ≥12 months (or until death).
+    -	Not self-limited, requires ongoing monitoring.
+    -	Chronicity is based on duration, not severity.
+    -	Stability must still be labeled as “chronic stable.”
+  -	If you flag chronicity, you must provide a link to the CMS guideline that supports your correction.
 ⸻
 
 2. Plan Check (Billing-Relevant Only)
-	•	Every billable assessment in the A&P must have a clear plan (treatment, monitoring, follow-up, referral, education).
-	•	Do not flag trivial cosmetic/benign findings where a plan is optional (unless they are a chief complaint).
-	•	Missing or vague plan → flag as "no_explicit_plan".
+	-	Every billable assessment in the A&P must have a clear plan (treatment, monitoring, follow-up, referral, education).
+	-	Do not flag trivial cosmetic/benign findings where a plan is optional (unless they are a chief complaint).
+	-	Missing or vague plan → flag as "no_explicit_plan".
 
 ⸻
 
 3. Chief Complaint Structure Check (Only if Billing Impact)
-	•	Multiple chief complaints must be numbered sequentially (CC #1, CC #2, etc.) if they are separate, billable problems that could affect E/M complexity and MDM scoring.
-	•	If there is only one billable complaint, do not flag numbering even if additional benign findings are listed.
-	•	Flag only if poor structure could obscure distinct billable problems and potentially affect the visit’s level.
+	-	Multiple chief complaints must be numbered sequentially (CC #1, CC #2, etc.) if they are separate, billable problems that could affect E/M complexity and MDM scoring.
+	-	If there is only one billable complaint, do not flag numbering even if additional benign findings are listed.
+	-	Flag only if poor structure could obscure distinct billable problems and potentially affect the visit’s level.
 
 ⸻
 
 4. Error Handling
-	•	Do not assume or infer intent.
-	•	If documentation is unclear, incomplete, or ambiguous in a way that affects coding level determination, flag as "unclear_documentation".
-	•	Do not flag trivial ambiguity that has no effect on billing level.
+	-	Do not assume or infer intent.
+	-	If documentation is unclear, incomplete, or ambiguous in a way that affects coding level determination, flag as "unclear_documentation".
+	-	Do not flag trivial ambiguity that has no effect on billing level.
 
 ⸻
 
 5. Reliability Requirement
-	•	Return { "status": "ok" } ONLY if:
-	•	Every billable assessment has a plan.
-	•	Every billable diagnosis chronicity matches HPI if it is part of the E/M code. Diagnosis treated with a procedure or destruction do not need chronicity in the HPI since they are not part of E/M. 
-  •	When the diagnosis in the A&P is one of Actinic Keratosis, ISK, Verruca or Molluscum you can ignore it when evaluting the A&P by Rule 1
-	•	Chief complaint structure is correct for billable problems.
-	•	If there is any issue that affects billing or compliance, return a JSON object with corrections.
-	•	If the issue is purely stylistic and does not affect billing or compliance, ignore it.
+	-	Return { "status": ":ok", "reason": "..." } ONLY if:
+	-	Every billable assessment has a plan.
+	-	Every billable diagnosis chronicity matches HPI if it is part of the E/M code. Diagnosis treated with a procedure or destruction do not need chronicity in the HPI since they are not part of E/M. 
+  -	When the diagnosis in the A&P is one of Actinic Keratosis, ISK, Verruca or Molluscum you can ignore it when evaluting the A&P by Rule 1
+  -	When the plan is one of destruction or excision you can ignore it when evaluting the A&P by Rule 1 
+	-	Chief complaint structure is correct for billable problems.
+	-	If there is any issue that affects billing or compliance, return a JSON object with corrections.
+	-	If the issue is purely stylistic and does not affect billing or compliance, ignore it.
 
 ⸻
+6. For follow ups the following are inharently chronic conditions: The following conditions are always chronic and do not need documentation on length of disease as long as the patient is older than a year and this is a follow up.
+ - Hidradenitis suppurativa
+ - Psoriasis Vulgaris
+ - Lupus
+⸻
 
-6. Output Rules
-	•	Must return valid JSON only.
-	•	Two outcomes:
+7. Output Rules
+	-	Must return valid JSON only.
+	-	Two outcomes:
 
 
 1.	Passes all checks:
 
-{ "status": ":ok" }
+{ "status": ":ok", "reason": "..." }
 
 
 2.	Issues found:
