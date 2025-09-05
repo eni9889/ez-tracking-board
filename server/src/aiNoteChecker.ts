@@ -613,10 +613,11 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
    * Normalize AI response to match expected format
    */
   private normalizeAIResponse(response: any): AIAnalysisResult {
-    // Handle the case where Claude returns "ok" status
-    if (response.status === 'ok') {
+    // Handle the case where Claude returns "ok" or ":ok" status
+    if (response.status === 'ok' || response.status === ':ok') {
       return {
-        status: 'ok'
+        status: 'ok',
+        reason: response.reason || undefined
       };
     }
 

@@ -1246,7 +1246,30 @@ const NoteDetail: React.FC = () => {
                             <Alert severity="success" sx={{ fontSize: '0.75rem' }}>
                               {result.aiAnalysis?.issues && result.aiAnalysis.issues.length > 0 
                                 ? '✅ All issues marked as invalid - note now meets coding requirements'
-                                : '✅ All checks passed - note meets coding requirements'
+                                : (
+                                  <Box>
+                                    <Box sx={{ fontWeight: 'bold', mb: result.aiAnalysis?.reason ? 1 : 0 }}>
+                                      ✅ All checks passed - note meets coding requirements
+                                    </Box>
+                                    {result.aiAnalysis?.reason && (
+                                      <Box sx={{ 
+                                        mt: 1, 
+                                        p: 1, 
+                                        bgcolor: 'success.50', 
+                                        borderRadius: 1,
+                                        border: '1px solid',
+                                        borderColor: 'success.200'
+                                      }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 'medium', mb: 0.5 }}>
+                                          AI Assessment:
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+                                          "{result.aiAnalysis.reason}"
+                                        </Typography>
+                                      </Box>
+                                    )}
+                                  </Box>
+                                )
                               }
                             </Alert>
                           </Box>

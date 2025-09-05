@@ -14,7 +14,7 @@ Do not flag stylistic differences or documentation preferences that do not affec
   -	Use the CMS definition of chronic condition:
     -	Lasts ≥12 months (or until death).
     -	Not self-limited, requires ongoing monitoring.
-    -	Chronicity is based on duration, not severity.
+    -	Chronicity is based on duration, not severity. Duration has to be over a year or over 12 months. We do not need to know the exact amount of time. The HPI can say last several years, more than a year, a few years etc. As long as the implication is that the condition has been there for longer than 12 months the documentation is valid.
     -	Stability must still be labeled as “chronic stable.”
   -	If you flag chronicity, you must provide a link to the CMS guideline that supports your correction.
 ⸻
@@ -23,6 +23,9 @@ Do not flag stylistic differences or documentation preferences that do not affec
 	-	Every billable assessment in the A&P must have a clear plan (treatment, monitoring, follow-up, referral, education).
 	-	Do not flag trivial cosmetic/benign findings where a plan is optional (unless they are a chief complaint).
 	-	Missing or vague plan → flag as "no_explicit_plan".
+  - Diagnosis treated with a procedure or destruction do not need chronicity in the HPI since they are not part of E/M. 
+  -	When the diagnosis in the A&P is one of Actinic Keratosis, ISK, Verruca or Molluscum you can ignore it when evaluting the A&P by Rule 1
+  -	When the plan is one of destruction or excision you can ignore it when evaluting the A&P by Rule 1 
 
 ⸻
 
@@ -42,13 +45,12 @@ Do not flag stylistic differences or documentation preferences that do not affec
 
 5. Reliability Requirement
 	-	Return { "status": ":ok", "reason": "..." } ONLY if:
-	-	Every billable assessment has a plan.
-	-	Every billable diagnosis chronicity matches HPI if it is part of the E/M code. Diagnosis treated with a procedure or destruction do not need chronicity in the HPI since they are not part of E/M. 
-  -	When the diagnosis in the A&P is one of Actinic Keratosis, ISK, Verruca or Molluscum you can ignore it when evaluting the A&P by Rule 1
-  -	When the plan is one of destruction or excision you can ignore it when evaluting the A&P by Rule 1 
-	-	Chief complaint structure is correct for billable problems.
-	-	If there is any issue that affects billing or compliance, return a JSON object with corrections.
-	-	If the issue is purely stylistic and does not affect billing or compliance, ignore it.
+    -	Every billable assessment has a plan.
+    -	Every billable diagnosis chronicity matches HPI if it is part of the E/M code. 
+    -	Chief complaint structure is correct for billable problems.
+  - If there is no correction needed then return { "status": ":ok", "reason": "..." }
+  -	If there is any issue that affects billing or compliance, return a JSON object with corrections.
+  -	If the issue is purely stylistic and does not affect billing or compliance, ignore it.
 
 ⸻
 6. For follow ups the following are inharently chronic conditions: The following conditions are always chronic and do not need documentation on length of disease as long as the patient is older than a year and this is a follow up.

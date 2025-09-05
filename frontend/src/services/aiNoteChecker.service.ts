@@ -28,6 +28,7 @@ export interface AIAnalysisResult {
   issues?: AIAnalysisIssue[];
   status: 'ok' | 'corrections_needed';
   summary?: string;
+  reason?: string; // Reason when status is 'ok'
 }
 
 export interface NoteCheckResult {
