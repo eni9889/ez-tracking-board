@@ -45,7 +45,7 @@ Do not flag stylistic differences or documentation preferences that do not affec
 	•	Return { "status": "ok" } ONLY if:
 	•	Every billable assessment has a plan.
 	•	Every billable diagnosis chronicity matches HPI if it is part of the E/M code. Diagnosis treated with a procedure or destruction do not need chronicity in the HPI since they are not part of E/M. 
-  •	Destruction of the following diagnosis does not need HPI: Actinic Keratosis, ISK, Verruca, Molluscum. The destruction supercedes any other labels. If there is destruction then you can ignore any the diagnosis as part of your evaluation of E/M complexity documentation required in the HPI, if you do you have failed.
+  •	Destruction of the following diagnosis does not need HPI: Actinic Keratosis, ISK, Verruca, Molluscum. The destruction supercedes any other labels.
 	•	Chief complaint structure is correct for billable problems.
 	•	If there is any issue that affects billing or compliance, return a JSON object with corrections.
 	•	If the issue is purely stylistic and does not affect billing or compliance, ignore it.
