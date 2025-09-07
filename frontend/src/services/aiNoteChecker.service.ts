@@ -865,6 +865,42 @@ class AINoteCheckerService {
       throw new Error(error.response?.data?.error || 'Failed to sign off note');
     }
   }
+
+  // Modify HPI note section
+  async modifyHPI(encounterId: string, patientId: string, noteText: string): Promise<{ type: string; encounterId: string; note: string }> {
+    if (USE_MOCK_DATA) {
+      console.log('🔄 Mock: Modifying HPI', { encounterId, patientId, noteText });
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return {
+        type: 'HISTORY_OF_PRESENT_ILLNESS',
+        encounterId,
+        note: noteText
+      };
+    }
+
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/notes/modify-hpi`,
+        {
+          note: noteText,
+          encounterId,
+          type: 'HISTORY_OF_PRESENT_ILLNESS'
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${authService.getSessionToken()}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error modifying HPI:', error);
+      throw new Error(error.response?.data?.error || 'Failed to modify HPI');
+    }
+  }
 }
 
 const aiNoteCheckerService = new AINoteCheckerService();

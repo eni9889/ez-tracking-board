@@ -23,7 +23,8 @@ import {
   DialogActions,
   DialogContentText,
   FormControlLabel,
-  Checkbox
+  Checkbox,
+  TextField
 } from '@mui/material';
 import {
   ArrowBack,
@@ -47,7 +48,9 @@ import {
   Badge,
   MedicalServices,
   Block,
-  Edit
+  Edit,
+  Save,
+  Cancel
 } from '@mui/icons-material';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -100,6 +103,9 @@ const NoteDetail: React.FC = () => {
   const [currentUserProviderId, setCurrentUserProviderId] = useState<string | null>(null);
   const [noteSignedOff, setNoteSignedOff] = useState(false);
   const [signOffInfo, setSignOffInfo] = useState<string | null>(null);
+  const [editingHPI, setEditingHPI] = useState<{ sectionIndex: number; itemIndex: number } | null>(null);
+  const [hpiEditText, setHpiEditText] = useState('');
+  const [savingHPI, setSavingHPI] = useState(false);
 
   // Fetch current user's provider ID
   useEffect(() => {
@@ -511,6 +517,42 @@ const NoteDetail: React.FC = () => {
     }
   };
 
+  // Handle HPI editing
+  const handleEditHPI = (sectionIndex: number, itemIndex: number, currentText: string) => {
+    setEditingHPI({ sectionIndex, itemIndex });
+    setHpiEditText(currentText);
+  };
+
+  const handleCancelHPIEdit = () => {
+    setEditingHPI(null);
+    setHpiEditText('');
+  };
+
+  const handleSaveHPI = async () => {
+    if (!currentNote || !editingHPI) return;
+    
+    setSavingHPI(true);
+    try {
+      await aiNoteCheckerService.modifyHPI(currentNote.encounterId, currentNote.patientId, hpiEditText);
+      
+      // Refresh the note data to show the updated HPI
+      refreshNoteData();
+      
+      // Clear editing state
+      setEditingHPI(null);
+      setHpiEditText('');
+      setError(null);
+      
+      console.log('✅ HPI updated successfully');
+      
+    } catch (err: any) {
+      console.error('Error updating HPI:', err);
+      setError(err.message || 'Failed to update HPI');
+    } finally {
+      setSavingHPI(false);
+    }
+  };
+
   // Render individual issues with invalid marking functionality
   const renderIssuesDetails = (issues: AIAnalysisIssue[], checkId: number) => {
     const issueTypeMap: { [key: string]: string } = {
@@ -856,19 +898,101 @@ const NoteDetail: React.FC = () => {
                                 p: 2, 
                                 bgcolor: 'background.paper',
                                 border: '1px solid',
-                                borderColor: 'primary.main'
+                                borderColor: 'primary.main',
+                                position: 'relative'
                               }}
                             >
-                              <Typography 
-                                variant="body1" 
-                                sx={{ 
-                                  lineHeight: 1.8,
-                                  whiteSpace: 'pre-wrap',
-                                  fontFamily: 'system-ui, -apple-system, sans-serif'
-                                }}
-                              >
-                                {item.note}
-                              </Typography>
+                              {/* Edit button for HPI sections */}
+                              {item.elementType === 'HISTORY_OF_PRESENT_ILLNESS' && !noteSignedOff && (
+                                <Box sx={{ 
+                                  position: 'absolute', 
+                                  top: 8, 
+                                  right: 8,
+                                  zIndex: 10,
+                                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                                  borderRadius: 1,
+                                  p: 0.5
+                                }}>
+                                  {editingHPI?.sectionIndex === index && editingHPI?.itemIndex === itemIndex ? (
+                                    <Stack direction="row" spacing={1}>
+                                      <Tooltip title="Save changes">
+                                        <IconButton
+                                          size="small"
+                                          onClick={handleSaveHPI}
+                                          disabled={savingHPI}
+                                          sx={{
+                                            backgroundColor: '#10b981',
+                                            color: 'white',
+                                            '&:hover': { backgroundColor: '#059669' },
+                                            '&:disabled': { backgroundColor: '#64748b' }
+                                          }}
+                                        >
+                                          {savingHPI ? <CircularProgress size={16} color="inherit" /> : <Save sx={{ fontSize: '1rem' }} />}
+                                        </IconButton>
+                                      </Tooltip>
+                                      <Tooltip title="Cancel editing">
+                                        <IconButton
+                                          size="small"
+                                          onClick={handleCancelHPIEdit}
+                                          disabled={savingHPI}
+                                          sx={{
+                                            backgroundColor: '#ef4444',
+                                            color: 'white',
+                                            '&:hover': { backgroundColor: '#dc2626' }
+                                          }}
+                                        >
+                                          <Cancel sx={{ fontSize: '1rem' }} />
+                                        </IconButton>
+                                      </Tooltip>
+                                    </Stack>
+                                  ) : (
+                                    <Tooltip title="Edit HPI">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleEditHPI(index, itemIndex, item.note)}
+                                        sx={{
+                                          backgroundColor: '#3b82f6',
+                                          color: 'white',
+                                          '&:hover': { backgroundColor: '#2563eb' }
+                                        }}
+                                      >
+                                        <Edit sx={{ fontSize: '1rem' }} />
+                                      </IconButton>
+                                    </Tooltip>
+                                  )}
+                                </Box>
+                              )}
+                              
+                              {/* Show textarea when editing, otherwise show text */}
+                              {editingHPI?.sectionIndex === index && editingHPI?.itemIndex === itemIndex ? (
+                                <TextField
+                                  multiline
+                                  rows={8}
+                                  fullWidth
+                                  value={hpiEditText}
+                                  onChange={(e) => setHpiEditText(e.target.value)}
+                                  disabled={savingHPI}
+                                  sx={{
+                                    '& .MuiOutlinedInput-root': {
+                                      fontFamily: 'system-ui, -apple-system, sans-serif',
+                                      lineHeight: 1.8
+                                    }
+                                  }}
+                                  placeholder="Enter HPI text..."
+                                />
+                              ) : (
+                                <Typography 
+                                  variant="body1" 
+                                  sx={{ 
+                                    lineHeight: 1.8,
+                                    whiteSpace: 'pre-wrap',
+                                    fontFamily: 'system-ui, -apple-system, sans-serif',
+                                    pr: item.elementType === 'HISTORY_OF_PRESENT_ILLNESS' && !noteSignedOff ? 6 : 0
+                                  }}
+                                >
+                                  {item.note}
+                                </Typography>
+                              )}
                             </Paper>
                           )}
                         </Box>

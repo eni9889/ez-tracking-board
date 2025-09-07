@@ -1429,6 +1429,89 @@ app.post('/notes/sign-off', validateSession, async (req: Request, res: Response)
   }
 });
 
+// Modify HPI note section
+app.post('/notes/modify-hpi', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const username = (req as any).user.username;
+    const { note, encounterId, type } = req.body;
+    
+    if (!encounterId || !note || type !== 'HISTORY_OF_PRESENT_ILLNESS') {
+      res.status(400).json({ error: 'Encounter ID, note text, and type (HISTORY_OF_PRESENT_ILLNESS) are required' });
+      return;
+    }
+    
+    // Get valid tokens
+    const userTokens = await getValidTokens(username);
+    if (!userTokens) {
+      res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      return;
+    }
+    
+    console.log(`📝 Modifying HPI for encounter ${encounterId} by user ${username}`);
+    
+    // Get patient ID from the encounter (we need this for the EZDerm API)
+    // First, get the encounter details to find the patient ID
+    const encounterResponse = await axios.post(
+      `${userTokens.serverUrl}ezderm-webservice/rest/encounter/getEncounters`,
+      {
+        encounterIds: [encounterId],
+        includePatientInfo: true
+      },
+      {
+        headers: {
+          'Host': 'srvprod.ezinfra.net',
+          'accept': 'application/json',
+          'content-type': 'application/json',
+          'authorization': `Bearer ${userTokens.accessToken}`,
+          'user-agent': 'ezDerm/4.28.1 (build:133.1; macOS(Catalyst) 15.6.1)',
+          'accept-language': 'en-US;q=1.0'
+        }
+      }
+    );
+    
+    const encounters = encounterResponse.data;
+    if (!encounters || encounters.length === 0) {
+      res.status(404).json({ error: 'Encounter not found' });
+      return;
+    }
+    
+    const patientId = encounters[0].patientId;
+    
+    // Prepare HPI modification data based on the modifyHPI.md example
+    const hpiData = {
+      note: note,
+      encounterId: encounterId,
+      type: 'HISTORY_OF_PRESENT_ILLNESS'
+    };
+    
+    // Make request to EZDerm HPI modification API
+    const response = await axios.post(
+      `${userTokens.serverUrl}ezderm-webservice/rest/progressnote/setPNInfo`,
+      hpiData,
+      {
+        headers: {
+          'Host': 'srvprod.ezinfra.net',
+          'accept': 'application/json',
+          'content-type': 'application/json',
+          'authorization': `Bearer ${userTokens.accessToken}`,
+          'encounterid': encounterId,
+          'patientid': patientId,
+          'user-agent': 'ezDerm/4.28.1 (build:133.1; macOS(Catalyst) 15.6.1)',
+          'accept-language': 'en-US;q=1.0'
+        }
+      }
+    );
+    
+    console.log(`✅ HPI modified successfully for encounter ${encounterId}`);
+    
+    res.json(response.data);
+  } catch (error: any) {
+    console.error('Error modifying HPI:', error);
+    const errorMessage = error.response?.data?.error || error.message || 'Failed to modify HPI';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
 // Token refresh function
 async function refreshEZDermToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string } | null> {
   try {
