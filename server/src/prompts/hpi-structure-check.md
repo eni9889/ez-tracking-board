@@ -48,5 +48,60 @@ Return valid JSON only:
   "summary": "Chief complaint structure needs improvement for billing clarity."
 }
 ```
-
+Your JSON response must match the following JSON schema. IF it does not you have failed.
+```
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+         "status": {
+           "enum": ["ok"]
+         }
+      },
+      "required": ["status"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "assessment": { "type": "string" },
+               "issue": {
+                 "type": "string",
+                 "enum": [
+                   "chief_complaint_structure"
+                 ]
+               },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "HPI": { "type": "string" },
+                  "A&P": { "type": "string" },
+                  "correction": { "type": "string" }
+                },
+                "required": ["HPI", "A&P", "correction"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["assessment", "issue", "details"],
+            "additionalProperties": false
+          }
+        },
+        "status": {
+          "enum": ["corrections_needed"]
+        },
+        "summary": { "type": "string" }
+      },
+      "required": ["issues", "status", "summary"],
+      "additionalProperties": false
+    }
+  ]
+}
+```
 Focus ONLY on HPI structure issues. Do not check for other problems.
