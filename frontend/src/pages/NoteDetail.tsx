@@ -783,6 +783,20 @@ const NoteDetail: React.FC = () => {
     );
   };
 
+  // Custom section ordering: Subjective -> Assessment & Plan -> Objective -> Others
+  const getSectionOrder = (sectionType: string): number => {
+    switch (sectionType) {
+      case 'SUBJECTIVE':
+        return 1;
+      case 'ASSESSMENT_AND_PLAN':
+        return 2;
+      case 'OBJECTIVE':
+        return 3;
+      default:
+        return 999; // Put any other sections at the end
+    }
+  };
+
   const renderProgressNote = (progressNote: any) => {
     if (!progressNote) {
       return (
@@ -799,9 +813,9 @@ const NoteDetail: React.FC = () => {
     const noteData = progressNote.data || progressNote;
     
     // The backend returns progressNotes array
-    const sections = noteData.progressNotes || [];
+    const rawSections = noteData.progressNotes || [];
 
-    if (sections.length === 0) {
+    if (rawSections.length === 0) {
       return (
         <Box sx={{ p: 4, textAlign: 'center' }}>
           <Description sx={{ fontSize: '3rem', color: 'text.secondary', mb: 2 }} />
@@ -811,6 +825,13 @@ const NoteDetail: React.FC = () => {
         </Box>
       );
     }
+
+    // Sort sections according to our custom order: Subjective -> Assessment & Plan -> Objective -> Others
+    const sections = [...rawSections].sort((a, b) => {
+      const orderA = getSectionOrder(a.sectionType);
+      const orderB = getSectionOrder(b.sectionType);
+      return orderA - orderB;
+    });
 
     return (
       <Stack spacing={2} sx={{ p: 2 }}>
