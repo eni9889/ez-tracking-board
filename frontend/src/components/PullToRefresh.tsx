@@ -24,6 +24,13 @@ const PullToRefresh: React.FC<PullToRefreshProps> = ({
   const startY = useRef<number>(0);
   const currentY = useRef<number>(0);
 
+  // Reset states when refresh completes
+  useEffect(() => {
+    if (!isRefreshing && !isPulling) {
+      setPullDistance(0);
+    }
+  }, [isRefreshing, isPulling]);
+
   // Only enable on mobile devices
   if (!isMobile || disabled) {
     return <>{children}</>;
@@ -71,13 +78,6 @@ const PullToRefresh: React.FC<PullToRefreshProps> = ({
       setPullDistance(0);
     }
   };
-
-  // Reset states when refresh completes
-  useEffect(() => {
-    if (!isRefreshing && !isPulling) {
-      setPullDistance(0);
-    }
-  }, [isRefreshing, isPulling]);
 
   const getRefreshIndicatorOpacity = () => {
     if (isRefreshing) return 1;

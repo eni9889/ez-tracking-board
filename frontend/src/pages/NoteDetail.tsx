@@ -780,7 +780,6 @@ const NoteDetail: React.FC = () => {
           </Box>
         </Box>
         </Box>
-      )}
         ))}
       </Stack>
     );
@@ -1596,6 +1595,7 @@ const NoteDetail: React.FC = () => {
           </Tooltip>
         </Box>
       </Box>
+      )}
 
       {/* Error Alert */}
       {error && (

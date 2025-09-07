@@ -127,15 +127,18 @@ const MobileFAB: React.FC<MobileFABProps> = ({
           <SpeedDialAction
             key={action.name}
             icon={action.icon}
-            tooltipTitle={action.name}
+            tooltipTitle={action.disabled ? `${action.name} (disabled)` : action.name}
             onClick={() => {
-              setOpen(false);
-              action.onClick?.();
+              if (!action.disabled) {
+                setOpen(false);
+                action.onClick?.();
+              }
             }}
-            disabled={action.disabled}
             sx={{
-              '&:disabled': {
-                opacity: 0.5
+              opacity: action.disabled ? 0.5 : 1,
+              pointerEvents: action.disabled ? 'none' : 'auto',
+              '&:hover': {
+                backgroundColor: action.disabled ? 'transparent' : undefined
               }
             }}
           />
