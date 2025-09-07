@@ -35,6 +35,7 @@ import MobileHeader from '../components/MobileHeader';
 import MobileFilters from '../components/MobileFilters';
 import PullToRefresh from '../components/PullToRefresh';
 import MobileFAB from '../components/MobileFAB';
+import NoteCardList from '../components/NoteCardList';
 import useResponsive from '../hooks/useResponsive';
 
 interface IncompleteNote {
@@ -888,7 +889,22 @@ const AINoteChecker: React.FC = () => {
             }}
             disabled={loading || autoRefreshing}
           >
-          <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
+            {/* Mobile Card List */}
+            {isMobile ? (
+              <NoteCardList
+                notes={filteredNotes}
+                selectedNotes={selectedNotes}
+                checkingNotes={checking}
+                onSelectNote={handleSelectNote}
+                onSelectAll={handleSelectAll}
+                onCheckNote={handleCheckNote}
+                onViewNote={handleViewNote}
+                bulkProcessing={bulkProcessing}
+                currentFilter={currentFilter}
+              />
+            ) : (
+              /* Desktop Table */
+              <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
             <Table stickyHeader size={isMobile ? "medium" : "small"} sx={{ 
               tableLayout: isMobile ? 'auto' : 'fixed',
               minWidth: isMobile ? 'unset' : '1200px'
@@ -1134,29 +1150,30 @@ const AINoteChecker: React.FC = () => {
                 ))}
               </TableBody>
             </Table>
+            
+            {filteredNotes.length === 0 && !loading && (
+              <Box sx={{ p: 4, textAlign: 'center' }}>
+                <Assignment sx={{ fontSize: '3rem', color: 'text.secondary', mb: 2 }} />
+                <Typography variant="h6" color="text.secondary">
+                  {incompleteNotes.length === 0 
+                    ? 'No incomplete notes found'
+                    : `No ${currentFilter === 'all' ? '' : 
+                        currentFilter === 'clean' ? 'clean ' :
+                        currentFilter === 'issues' ? 'notes with issues ' :
+                        currentFilter === 'issues-no-todos' ? 'notes with issues without ToDos ' :
+                        'unchecked '}notes found`
+                  }
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {incompleteNotes.length === 0 
+                    ? 'All notes have been completed, signed, or are less than 2 hours old'
+                    : currentFilter !== 'all' ? `Try switching to another filter to see more notes.` : ''
+                  }
+                </Typography>
+              </Box>
+            )}
           </TableContainer>
-          
-          {filteredNotes.length === 0 && !loading && (
-            <Box sx={{ p: 4, textAlign: 'center' }}>
-              <Assignment sx={{ fontSize: '3rem', color: 'text.secondary', mb: 2 }} />
-              <Typography variant="h6" color="text.secondary">
-                {incompleteNotes.length === 0 
-                  ? 'No incomplete notes found'
-                  : `No ${currentFilter === 'all' ? '' : 
-                      currentFilter === 'clean' ? 'clean ' :
-                      currentFilter === 'issues' ? 'notes with issues ' :
-                      currentFilter === 'issues-no-todos' ? 'notes with issues without ToDos ' :
-                      'unchecked '}notes found`
-                }
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {incompleteNotes.length === 0 
-                  ? 'All notes have been completed, signed, or are less than 2 hours old'
-                  : currentFilter !== 'all' ? `Try switching to another filter to see more notes.` : ''
-                }
-              </Typography>
-            </Box>
-          )}
+            )}
           </PullToRefresh>
         </Paper>
       </Box>
