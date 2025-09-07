@@ -1501,10 +1501,10 @@ const NoteDetail: React.FC = () => {
           <Box sx={{ 
             p: 3, 
             borderBottom: '2px solid #f1f5f9',
-            background: 'linear-gradient(135deg, #fef3f2 0%, #fee2e2 100%)'
+            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)'
           }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-              <Psychology sx={{ fontSize: '1.5rem', color: '#ef4444' }} />
+              <Psychology sx={{ fontSize: '1.5rem', color: '#10b981' }} />
               <Typography variant="h6" sx={{ 
                 fontWeight: 800,
                 color: '#1e293b',
