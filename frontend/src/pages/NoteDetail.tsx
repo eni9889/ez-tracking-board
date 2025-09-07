@@ -978,7 +978,18 @@ const NoteDetail: React.FC = () => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'flex-start' }}>
           <IconButton
             color="inherit"
-            onClick={() => navigate('/ai-note-checker')}
+            onClick={() => {
+              // Get the current filter context to preserve it when going back
+              const navigationState = location.state as { currentFilter?: string; filteredNotes?: any[] } | null;
+              const currentFilter = navigationState?.currentFilter;
+              
+              // Navigate back with the filter context preserved
+              navigate('/ai-note-checker', {
+                state: { 
+                  returnToFilter: currentFilter || 'all' 
+                }
+              });
+            }}
           >
             <ArrowBack />
           </IconButton>

@@ -29,7 +29,7 @@ import {
 
   PlayArrow
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useEncounters } from '../contexts/EncountersContext';
 import aiNoteCheckerService from '../services/aiNoteChecker.service';
@@ -62,6 +62,7 @@ const AINoteChecker: React.FC = () => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { 
     encounters: incompleteNotes, 
     loading, 
@@ -87,6 +88,18 @@ const AINoteChecker: React.FC = () => {
     
     return () => clearInterval(refreshInterval);
   }, [loadEncounters, refreshEncounters]);
+
+  // Check for returnToFilter state when component mounts (from back navigation)
+  useEffect(() => {
+    const navigationState = location.state as { returnToFilter?: FilterType } | null;
+    if (navigationState?.returnToFilter) {
+      console.log('🔄 Restoring filter from back navigation:', navigationState.returnToFilter);
+      setCurrentFilter(navigationState.returnToFilter);
+      
+      // Clear the navigation state to prevent it from persisting
+      navigate('/ai-note-checker', { replace: true, state: null });
+    }
+  }, [location.state, navigate]);
 
   // Filter notes based on current filter
   const getFilteredNotes = (): IncompleteNote[] => {
