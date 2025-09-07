@@ -56,6 +56,11 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useEncounters } from '../contexts/EncountersContext';
 import aiNoteCheckerService, { NoteCheckResult, AIAnalysisIssue, CareTeamMember, CreatedToDo, InvalidIssue } from '../services/aiNoteChecker.service';
+import MobileNoteDetailHeader from '../components/MobileNoteDetailHeader';
+import MobileNoteContent from '../components/MobileNoteContent';
+import MobileToDoDialog from '../components/MobileToDoDialog';
+import MobileSignOffDialog from '../components/MobileSignOffDialog';
+import useResponsive from '../hooks/useResponsive';
 
 interface NoteData {
   encounterId: string;
@@ -84,6 +89,7 @@ const NoteDetail: React.FC = () => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { user } = useAuth();
   const { encounters: allEncounters, loading: encountersLoading } = useEncounters();
+  const { isMobile, isDesktop } = useResponsive();
 
   // Simplified state management with data cache
   const [notes, setNotes] = useState<NoteData[]>([]);
@@ -305,9 +311,6 @@ const NoteDetail: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentIndex, notes.length, handleNextNote, handlePreviousNote]);
 
-
-
-
   // Refresh current note data
   const refreshNoteData = () => {
     if (currentNote) {
@@ -495,7 +498,7 @@ const NoteDetail: React.FC = () => {
   };
 
   // Handle sign-off
-  const handleSignOff = async () => {
+  const handleSignOffNote = async () => {
     if (!currentNote) return;
     
     setSigningOff(true);
@@ -651,7 +654,6 @@ const NoteDetail: React.FC = () => {
     );
   };
 
-
   const toggleSection = (sectionType: string) => {
     setCollapsedSections(prev => {
       const newSet = new Set(prev);
@@ -773,12 +775,26 @@ const NoteDetail: React.FC = () => {
                   color={getRoleColor(member.encounterRoleType) as any}
                   sx={{ fontSize: '0.7rem', height: '20px' }}
                 />
-              </Box>
-            </Box>
           </Box>
+        </Box>
+        </Box>
         ))}
       </Stack>
     );
+  };
+
+  // Custom section ordering: Subjective -> Assessment & Plan -> Objective -> Others
+  const getSectionOrder = (sectionType: string): number => {
+    switch (sectionType) {
+      case 'SUBJECTIVE':
+        return 1;
+      case 'ASSESSMENT_AND_PLAN':
+        return 2;
+      case 'OBJECTIVE':
+        return 3;
+      default:
+        return 999; // Put any other sections at the end
+    }
   };
 
   const renderProgressNote = (progressNote: any) => {
@@ -797,9 +813,9 @@ const NoteDetail: React.FC = () => {
     const noteData = progressNote.data || progressNote;
     
     // The backend returns progressNotes array
-    const sections = noteData.progressNotes || [];
+    const rawSections = noteData.progressNotes || [];
 
-    if (sections.length === 0) {
+    if (rawSections.length === 0) {
       return (
         <Box sx={{ p: 4, textAlign: 'center' }}>
           <Description sx={{ fontSize: '3rem', color: 'text.secondary', mb: 2 }} />
@@ -809,6 +825,13 @@ const NoteDetail: React.FC = () => {
         </Box>
       );
     }
+
+    // Sort sections according to our custom order: Subjective -> Assessment & Plan -> Objective -> Others
+    const sections = [...rawSections].sort((a, b) => {
+      const orderA = getSectionOrder(a.sectionType);
+      const orderB = getSectionOrder(b.sectionType);
+      return orderA - orderB;
+    });
 
     return (
       <Stack spacing={2} sx={{ p: 2 }}>
@@ -1070,38 +1093,16 @@ const NoteDetail: React.FC = () => {
       year: 'numeric'
     });
 
-    const subject = `Note Deficiencies - ${formattedDate}`;
-    
-    const issuesList = validIssues.map((issue, index) => {
-      const issueTypeMap = {
-        'no_explicit_plan': 'Missing Explicit Plan',
-        'chronicity_mismatch': 'Chronicity Mismatch',
-        'unclear_documentation': 'Unclear Documentation',
-        'chief_complaint_structure': 'Chief Complaint Structure'
-      };
-      
-      return `${index + 1}. ${issueTypeMap[issue.issue] || issue.issue}: ${issue.assessment}\n   ${issue.details.correction}`;
-    }).join('\n\n');
-
-    const description = `The following deficiencies were identified in the progress note:\n\n${issuesList}`;
-
-    // Determine assignee and watchers
-    const assignee = careTeam.find(member => member.encounterRoleType === 'SECONDARY_PROVIDER') ||
-                    careTeam.find(member => member.encounterRoleType === 'STAFF') ||
-                    careTeam.find(member => member.encounterRoleType === 'PROVIDER');
-    
-    const watchers = careTeam.filter(member => member.id !== assignee?.id);
-
     return {
-      subject,
-      description,
-      assignee,
-      watchers,
-      encounterInfo: {
-        encounterId: currentNote.encounterId,
-        patientName: currentNote.patientName,
-        dateOfService: formattedDate
-      }
+      patientName: currentNote.patientName,
+      dateOfService: formattedDate,
+      assignedToName: careTeam.find(member => member.encounterRoleType === 'SECONDARY_PROVIDER')?.firstName + ' ' + 
+                      careTeam.find(member => member.encounterRoleType === 'SECONDARY_PROVIDER')?.lastName ||
+                      careTeam.find(member => member.encounterRoleType === 'STAFF')?.firstName + ' ' +
+                      careTeam.find(member => member.encounterRoleType === 'STAFF')?.lastName ||
+                      careTeam.find(member => member.encounterRoleType === 'PROVIDER')?.firstName + ' ' +
+                      careTeam.find(member => member.encounterRoleType === 'PROVIDER')?.lastName || 'Unknown',
+      issues: validIssues
     };
   };
 
@@ -1154,8 +1155,6 @@ const NoteDetail: React.FC = () => {
     }
   };
 
-
-
   const getStatusIcon = (result: NoteCheckResult) => {
     if (result.status === 'error') {
       return <ErrorIcon color="error" />;
@@ -1165,9 +1164,6 @@ const NoteDetail: React.FC = () => {
     }
     return <CheckCircle color="success" />;
   };
-
-
-
 
   // Show loading if we don't have notes loaded yet or no current note
   if (encountersLoading || notes.length === 0 || !currentNote) {
@@ -1192,20 +1188,62 @@ const NoteDetail: React.FC = () => {
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc' }}>
-      {/* Modern Dark Header */}
-      <Box sx={{ 
-        background: 'linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%)',
-        color: '#f8fafc',
-        px: 4, 
-        py: 3,
-        display: 'grid',
-        gridTemplateColumns: '1fr auto 1fr',
-        alignItems: 'center',
-        gap: 3,
-        minHeight: '100px',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-        borderBottom: '1px solid #2a2a2a'
-      }}>
+      {/* Mobile Header */}
+      <MobileNoteDetailHeader
+        patientName={currentNote.patientName}
+        chiefComplaint={currentNote.chiefComplaint}
+        dateOfService={currentNote.dateOfService}
+        noteSignedOff={noteSignedOff}
+        signOffInfo={signOffInfo}
+        currentIndex={currentIndex}
+        totalNotes={notes.length}
+        filterContext={(location.state as any)?.currentFilter}
+        onBack={() => {
+          const navigationState = location.state as { currentFilter?: string; filteredNotes?: any[] } | null;
+          const currentFilter = navigationState?.currentFilter;
+          
+          navigate('/ai-note-checker', {
+            state: { 
+              returnToFilter: currentFilter || 'all' 
+            }
+          });
+        }}
+        onPrevious={handlePreviousNote}
+        onNext={handleNextNote}
+        onRunCheck={handleCheckNote}
+        onCreateToDo={() => {
+          setShowToDoModal(true);
+          setModalState('preview');
+          setModalError(null);
+          setModalSuccess(null);
+        }}
+        onSignOff={() => setShowSignOffModal(true)}
+        onRefresh={refreshNoteData}
+        checking={checking}
+        loading={loading}
+        forceNewCheck={forceNewCheck}
+        onForceNewCheckChange={setForceNewCheck}
+        todoCreated={createdTodos.length > 0}
+        todoCount={createdTodos.length}
+        canSignOff={canSignOffNote()}
+        canCreateToDo={checkHistory.some(check => check.issuesFound) && createdTodos.length === 0}
+      />
+
+      {/* Desktop Header - only show on desktop */}
+      {isDesktop && (
+        <Box sx={{ 
+          background: 'linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%)',
+          color: '#f8fafc',
+          px: 4, 
+          py: 3,
+          display: 'grid',
+          gridTemplateColumns: '1fr auto 1fr',
+          alignItems: 'center',
+          gap: 3,
+          minHeight: '100px',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+          borderBottom: '1px solid #2a2a2a'
+        }}>
         {/* Left section - Back button and title */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'flex-start' }}>
           <Tooltip title="Back to AI Note Checker">
@@ -1549,6 +1587,7 @@ const NoteDetail: React.FC = () => {
           </Tooltip>
         </Box>
       </Box>
+      )}
 
       {/* Error Alert */}
       {error && (
@@ -1583,9 +1622,29 @@ const NoteDetail: React.FC = () => {
         </Box>
       )}
 
-
-      {/* Main Content with modern styling */}
-      <Box sx={{ flex: 1, display: 'flex', p: 4, gap: 4, overflow: 'hidden' }}>
+      {/* Mobile Content */}
+      {isMobile ? (
+        <MobileNoteContent
+          progressNoteData={progressNoteData}
+          careTeam={careTeam}
+          checkHistory={checkHistory}
+          createdTodos={createdTodos}
+          invalidIssues={invalidIssues}
+          loading={loading}
+          noteSignedOff={noteSignedOff}
+          editingHPI={editingHPI}
+          hpiEditText={hpiEditText}
+          savingHPI={savingHPI}
+          onEditHPI={handleEditHPI}
+          onSaveHPI={handleSaveHPI}
+          onCancelHPIEdit={handleCancelHPIEdit}
+          onHPITextChange={setHpiEditText}
+          onMarkIssueInvalid={markIssueAsInvalid}
+          onUnmarkIssueInvalid={unmarkIssueAsInvalid}
+        />
+      ) : (
+        /* Desktop Content */
+        <Box sx={{ flex: 1, display: 'flex', p: 4, gap: 4, overflow: 'hidden' }}>
         {/* Left Panel - Note Content with modern card design */}
         <Paper sx={{ 
           flex: 1, 
@@ -1984,337 +2043,39 @@ const NoteDetail: React.FC = () => {
           </Box>
           </Paper>
         </Box>
-      </Box>
+        </Box>
+      )}
 
       {/* ToDo Confirmation Modal */}
-      <Dialog
+      <MobileToDoDialog
         open={showToDoModal}
         onClose={() => {
-          // Prevent closing during loading
-          if (modalState !== 'loading') {
-            setShowToDoModal(false);
-            setModalState('preview'); // Reset state
-            setModalError(null);
-            setModalSuccess(null);
-          }
+          setShowToDoModal(false);
+          setModalState('preview'); // Reset state
+          setModalError(null);
+          setModalSuccess(null);
         }}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: { borderRadius: 2 }
+        modalState={modalState}
+        modalError={modalError}
+        modalSuccess={modalSuccess}
+        previewData={getToDoPreviewData()}
+        onCreateToDo={handleCreateToDo}
+        onRetry={() => {
+          setModalState('preview');
+          setModalError(null);
         }}
-        // Disable escape key during loading
-        disableEscapeKeyDown={modalState === 'loading'}
-      >
-        {/* Dynamic content based on modal state */}
-        {modalState === 'preview' && (
-          <>
-            <DialogTitle sx={{ pb: 1 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Assignment color="warning" />
-                <Typography variant="h6" component="span">
-                  Confirm ToDo Creation
-                </Typography>
-              </Box>
-            </DialogTitle>
-            
-            <DialogContent>
-              <DialogContentText sx={{ mb: 2 }}>
-                You are about to create a ToDo in EZDerm for the note deficiencies found. Please review the details below:
-              </DialogContentText>
-
-              {(() => {
-                const previewData = getToDoPreviewData();
-                if (!previewData) return null;
-
-                return (
-                  <Stack spacing={2}>
-                    {/* Encounter Info */}
-                    <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                        Encounter Information
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>Patient:</strong> {previewData.encounterInfo.patientName}
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>Encounter ID:</strong> {previewData.encounterInfo.encounterId}
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>Date of Service:</strong> {previewData.encounterInfo.dateOfService}
-                      </Typography>
-                    </Paper>
-
-                    {/* ToDo Details */}
-                    <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                        ToDo Subject
-                      </Typography>
-                      <Typography variant="body2" sx={{ mb: 2 }}>
-                        {previewData.subject}
-                      </Typography>
-
-                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                        Description
-                      </Typography>
-                      <Paper sx={{ p: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
-                        <Typography variant="body2" sx={{ whiteSpace: 'pre-line', fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                          {previewData.description}
-                        </Typography>
-                      </Paper>
-                    </Paper>
-
-                    {/* Assignment */}
-                    <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                        Assignment
-                      </Typography>
-                      {previewData.assignee ? (
-                        <Box sx={{ mb: 2 }}>
-                          <Typography variant="body2">
-                            <strong>Assigned to:</strong> {previewData.assignee.firstName} {previewData.assignee.lastName}
-                            {previewData.assignee.title && ` (${previewData.assignee.title})`}
-                            <Chip 
-                              label={previewData.assignee.encounterRoleType.replace('_', ' ')} 
-                              size="small" 
-                              sx={{ ml: 1 }}
-                            />
-                          </Typography>
-                        </Box>
-                      ) : (
-                        <Typography variant="body2" color="warning.main" sx={{ mb: 2 }}>
-                          ⚠️ No care team member found to assign to
-                        </Typography>
-                      )}
-
-                      {previewData.watchers.length > 0 && (
-                        <Box>
-                          <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                            CC'd to ({previewData.watchers.length}):
-                          </Typography>
-                          <Stack direction="row" spacing={1} flexWrap="wrap">
-                            {previewData.watchers.map((watcher, index) => (
-                              <Chip
-                                key={watcher.id}
-                                label={`${watcher.firstName} ${watcher.lastName}${watcher.title ? ` (${watcher.title})` : ''}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ))}
-                          </Stack>
-                        </Box>
-                      )}
-                    </Paper>
-                  </Stack>
-                );
-              })()}
-            </DialogContent>
-            
-            <DialogActions sx={{ p: 2, gap: 1 }}>
-              <Button
-                onClick={() => {
-                  setShowToDoModal(false);
-                  setModalState('preview');
-                  setModalError(null);
-                  setModalSuccess(null);
-                }}
-                color="inherit"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleCreateToDo}
-                variant="contained"
-                color="warning"
-                startIcon={<Assignment />}
-                disabled={!getToDoPreviewData()}
-              >
-                Create ToDo
-              </Button>
-            </DialogActions>
-          </>
-        )}
-
-        {modalState === 'loading' && (
-          <>
-            <DialogTitle>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <CircularProgress size={24} />
-                <Typography variant="h6" component="span">
-                  Creating ToDo...
-                </Typography>
-              </Box>
-            </DialogTitle>
-            
-            <DialogContent sx={{ textAlign: 'center', py: 4 }}>
-              <CircularProgress size={48} sx={{ mb: 2 }} />
-              <Typography variant="body1" color="text.secondary">
-                Please wait while we create the ToDo in EZDerm...
-              </Typography>
-            </DialogContent>
-          </>
-        )}
-
-        {modalState === 'success' && (
-          <>
-            <DialogTitle>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <CheckCircleOutline color="success" />
-                <Typography variant="h6" component="span">
-                  ToDo Created Successfully!
-                </Typography>
-              </Box>
-            </DialogTitle>
-            
-            <DialogContent sx={{ textAlign: 'center', py: 4 }}>
-              <CheckCircleOutline color="success" sx={{ fontSize: '4rem', mb: 2 }} />
-              <Typography variant="h6" sx={{ mb: 1, color: 'success.main' }}>
-                Success!
-              </Typography>
-              {modalSuccess && (
-                <Typography variant="body1" color="text.secondary">
-                  {modalSuccess}
-                </Typography>
-              )}
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                This window will close automatically in a moment.
-              </Typography>
-            </DialogContent>
-          </>
-        )}
-
-        {modalState === 'error' && (
-          <>
-            <DialogTitle>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <ErrorOutline color="error" />
-                <Typography variant="h6" component="span">
-                  Failed to Create ToDo
-                </Typography>
-              </Box>
-            </DialogTitle>
-            
-            <DialogContent sx={{ textAlign: 'center', py: 4 }}>
-              <ErrorOutline color="error" sx={{ fontSize: '4rem', mb: 2 }} />
-              <Typography variant="h6" sx={{ mb: 1, color: 'error.main' }}>
-                Error
-              </Typography>
-              {modalError && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  {modalError}
-                </Alert>
-              )}
-              <Typography variant="body2" color="text.secondary">
-                Please try again or contact support if the issue persists.
-              </Typography>
-            </DialogContent>
-            
-            <DialogActions sx={{ p: 2, gap: 1 }}>
-              <Button
-                onClick={() => {
-                  setModalState('preview');
-                  setModalError(null);
-                }}
-                color="inherit"
-              >
-                Try Again
-              </Button>
-              <Button
-                onClick={() => {
-                  setShowToDoModal(false);
-                  setModalState('preview');
-                  setModalError(null);
-                  setModalSuccess(null);
-                }}
-                variant="contained"
-                color="primary"
-              >
-                Close
-              </Button>
-            </DialogActions>
-          </>
-        )}
-      </Dialog>
+        loading={modalState === 'loading'}
+      />
 
       {/* Sign Off Confirmation Modal */}
-      <Dialog
+      <MobileSignOffDialog
         open={showSignOffModal}
-        onClose={() => !signingOff && setShowSignOffModal(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ 
-          backgroundColor: '#f8fafc', 
-          borderBottom: '1px solid #e2e8f0',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 2
-        }}>
-          <Edit sx={{ color: '#10b981' }} />
-          Sign Off Note
-        </DialogTitle>
-        
-        <DialogContent sx={{ pt: 3 }}>
-          <DialogContentText sx={{ mb: 2 }}>
-            Are you sure you want to sign off this note?
-          </DialogContentText>
-          
-          <Box sx={{ 
-            backgroundColor: '#f0fdf4', 
-            border: '1px solid #bbf7d0',
-            borderRadius: 2,
-            p: 2,
-            mb: 2
-          }}>
-            <Typography variant="body2" sx={{ fontWeight: 600, color: '#166534', mb: 1 }}>
-              Note Details:
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              <strong>Patient:</strong> {currentNote?.patientName}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              <strong>Chief Complaint:</strong> {currentNote?.chiefComplaint}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              <strong>Date of Service:</strong> {currentNote && aiNoteCheckerService.formatTimeAgo(currentNote.dateOfService)}
-            </Typography>
-          </Box>
-          
-          <Alert severity="info" sx={{ mb: 2 }}>
-            This action will mark the note as signed off in the EZDerm system. This cannot be undone.
-          </Alert>
-        </DialogContent>
-        
-        <DialogActions sx={{ p: 3, gap: 2 }}>
-          <Button
-            onClick={() => setShowSignOffModal(false)}
-            disabled={signingOff}
-            sx={{ 
-              color: '#64748b',
-              '&:hover': { backgroundColor: '#f1f5f9' }
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSignOff}
-            disabled={signingOff}
-            variant="contained"
-            startIcon={signingOff ? <CircularProgress size={16} color="inherit" /> : <Edit />}
-            sx={{
-              backgroundColor: '#10b981',
-              color: 'white',
-              '&:hover': { backgroundColor: '#059669' },
-              '&:disabled': { 
-                backgroundColor: '#64748b',
-                color: '#e2e8f0'
-              }
-            }}
-          >
-            {signingOff ? 'Signing Off...' : 'Sign Off Note'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onClose={() => setShowSignOffModal(false)}
+        onConfirm={handleSignOffNote}
+        patientName={currentNote.patientName}
+        dateOfService={currentNote.dateOfService}
+        signingOff={signingOff}
+      />
     </Box>
   );
 };
