@@ -1278,40 +1278,99 @@ const NoteDetail: React.FC = () => {
       )}
 
 
-      {/* Main Content */}
-      <Box sx={{ flex: 1, display: 'flex', p: 3, gap: 3, overflow: 'hidden' }}>
-        {/* Left Panel - Note Content */}
-        <Paper sx={{ flex: 1, display: 'flex', flexDirection: 'column', maxHeight: '100%' }}>
-          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-              <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                Progress Note
-              </Typography>
+      {/* Main Content with modern styling */}
+      <Box sx={{ flex: 1, display: 'flex', p: 4, gap: 4, overflow: 'hidden' }}>
+        {/* Left Panel - Note Content with modern card design */}
+        <Paper sx={{ 
+          flex: 1, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          maxHeight: '100%',
+          backgroundColor: 'white',
+          borderRadius: 3,
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+          border: '1px solid #e2e8f0',
+          overflow: 'hidden'
+        }}>
+          <Box sx={{ 
+            p: 3, 
+            borderBottom: '2px solid #f1f5f9',
+            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)'
+          }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Description sx={{ fontSize: '1.75rem', color: '#3b82f6' }} />
+                <Typography variant="h5" sx={{ 
+                  fontWeight: 800,
+                  color: '#1e293b',
+                  fontSize: '1.25rem'
+                }}>
+                  Progress Note
+                </Typography>
+              </Box>
               <Stack direction="row" spacing={1}>
                 <Tooltip title="Expand all sections">
-                  <IconButton size="small" onClick={() => setCollapsedSections(new Set())}>
-                    <Visibility />
+                  <IconButton 
+                    size="small" 
+                    onClick={() => setCollapsedSections(new Set())}
+                    sx={{
+                      backgroundColor: '#f1f5f9',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 2,
+                      '&:hover': {
+                        backgroundColor: '#e2e8f0',
+                        borderColor: '#cbd5e1'
+                      }
+                    }}
+                  >
+                    <Visibility sx={{ fontSize: '1.1rem', color: '#64748b' }} />
                   </IconButton>
                 </Tooltip>
                 <Tooltip title="Collapse all sections">
-                  <IconButton size="small" onClick={() => {
-                    // Use the same data structure handling as renderProgressNote
-                    const noteData = progressNoteData?.data || progressNoteData;
-                    const sections = noteData?.progressNotes || [];
-                    const allSections = sections.map((s: any) => s.sectionType || s.label || `Section ${sections.indexOf(s) + 1}`);
-                    setCollapsedSections(new Set(allSections));
-                  }}>
-                    <VisibilityOff />
+                  <IconButton 
+                    size="small" 
+                    onClick={() => {
+                      const noteData = progressNoteData?.data || progressNoteData;
+                      const sections = noteData?.progressNotes || [];
+                      const allSections = sections.map((s: any) => s.sectionType || s.label || `Section ${sections.indexOf(s) + 1}`);
+                      setCollapsedSections(new Set(allSections));
+                    }}
+                    sx={{
+                      backgroundColor: '#f1f5f9',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 2,
+                      '&:hover': {
+                        backgroundColor: '#e2e8f0',
+                        borderColor: '#cbd5e1'
+                      }
+                    }}
+                  >
+                    <VisibilityOff sx={{ fontSize: '1.1rem', color: '#64748b' }} />
                   </IconButton>
                 </Tooltip>
               </Stack>
             </Box>
-            <Typography variant="body2" color="text.secondary">
-              Status: {currentNote.status} • {(() => {
-                const noteData = progressNoteData?.data || progressNoteData;
-                return noteData?.progressNotes?.length || 0;
-              })()} sections
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <Chip
+                label={currentNote.status}
+                sx={{
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  fontWeight: 600,
+                  fontSize: '0.8rem'
+                }}
+              />
+              <Typography variant="body2" sx={{ 
+                color: '#64748b',
+                fontSize: '0.9rem',
+                fontWeight: 500
+              }}>
+                {(() => {
+                  const noteData = progressNoteData?.data || progressNoteData;
+                  return noteData?.progressNotes?.length || 0;
+                })()} sections
+              </Typography>
+            </Box>
           </Box>
           <Box sx={{ flex: 1, overflow: 'auto' }}>
             {loading ? (
@@ -1327,23 +1386,51 @@ const NoteDetail: React.FC = () => {
           </Box>
         </Paper>
 
-        {/* Right Panel - Care Team & AI Check History */}
-        <Paper sx={{ width: '400px', display: 'flex', flexDirection: 'column', maxHeight: '100%' }}>
+        {/* Right Panel - Care Team & AI Check History with modern styling */}
+        <Paper sx={{ 
+          width: '420px', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          maxHeight: '100%',
+          backgroundColor: 'white',
+          borderRadius: 3,
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+          border: '1px solid #e2e8f0',
+          overflow: 'hidden'
+        }}>
           {/* Care Team Section */}
-          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-            <Typography variant="h6" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Group />
-              Care Team ({careTeam.length})
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
+          <Box sx={{ 
+            p: 3, 
+            borderBottom: '2px solid #f1f5f9',
+            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+              <Group sx={{ fontSize: '1.5rem', color: '#10b981' }} />
+              <Typography variant="h6" sx={{ 
+                fontWeight: 800,
+                color: '#1e293b',
+                fontSize: '1.1rem'
+              }}>
+                Care Team ({careTeam.length})
+              </Typography>
+            </Box>
+            <Typography variant="body2" sx={{ 
+              color: '#64748b',
+              fontSize: '0.85rem',
+              fontWeight: 500
+            }}>
               Providers and staff for this encounter
             </Typography>
           </Box>
-          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+          <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9' }}>
             {loading ? (
-              <Box sx={{ py: 2, textAlign: 'center' }}>
-                <CircularProgress size={24} />
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              <Box sx={{ py: 3, textAlign: 'center' }}>
+                <CircularProgress size={24} sx={{ color: '#3b82f6' }} />
+                <Typography variant="body2" sx={{ 
+                  mt: 2,
+                  color: '#64748b',
+                  fontSize: '0.85rem'
+                }}>
                   Loading Data...
                 </Typography>
               </Box>
@@ -1355,16 +1442,30 @@ const NoteDetail: React.FC = () => {
           {/* Created ToDos Section */}
           {(!loading && createdTodos.length > 0) && (
             <>
-              <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Assignment color="success" />
-                  Created ToDos ({createdTodos.length})
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
+              <Box sx={{ 
+                p: 3, 
+                borderBottom: '2px solid #f1f5f9',
+                background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)'
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                  <Assignment sx={{ fontSize: '1.5rem', color: '#10b981' }} />
+                  <Typography variant="h6" sx={{ 
+                    fontWeight: 800,
+                    color: '#1e293b',
+                    fontSize: '1.1rem'
+                  }}>
+                    Created ToDos ({createdTodos.length})
+                  </Typography>
+                </Box>
+                <Typography variant="body2" sx={{ 
+                  color: '#64748b',
+                  fontSize: '0.85rem',
+                  fontWeight: 500
+                }}>
                   ToDos created for note deficiencies
                 </Typography>
               </Box>
-              <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+              <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9' }}>
                 <Stack spacing={1}>
                   {createdTodos.map((todo, index) => (
                     <Paper key={todo.id} sx={{ p: 2, bgcolor: 'success.50' }}>
@@ -1397,29 +1498,55 @@ const NoteDetail: React.FC = () => {
           )}
 
           {/* AI Check History Section */}
-          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-              AI Check History ({checkHistory.length})
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
+          <Box sx={{ 
+            p: 3, 
+            borderBottom: '2px solid #f1f5f9',
+            background: 'linear-gradient(135deg, #fef3f2 0%, #fee2e2 100%)'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+              <Psychology sx={{ fontSize: '1.5rem', color: '#ef4444' }} />
+              <Typography variant="h6" sx={{ 
+                fontWeight: 800,
+                color: '#1e293b',
+                fontSize: '1.1rem'
+              }}>
+                AI Check History ({checkHistory.length})
+              </Typography>
+            </Box>
+            <Typography variant="body2" sx={{ 
+              color: '#64748b',
+              fontSize: '0.85rem',
+              fontWeight: 500
+            }}>
               Recent AI analysis results
             </Typography>
           </Box>
           <Box sx={{ flex: 1, overflow: 'auto' }}>
             {loading ? (
-              <Box sx={{ p: 3, textAlign: 'center' }}>
-                <CircularProgress size={32} />
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+              <Box sx={{ p: 4, textAlign: 'center' }}>
+                <CircularProgress size={32} sx={{ color: '#3b82f6' }} />
+                <Typography variant="body2" sx={{ 
+                  mt: 2,
+                  color: '#64748b',
+                  fontSize: '0.85rem'
+                }}>
                   Loading Data...
                 </Typography>
               </Box>
             ) : checkHistory.length === 0 ? (
-              <Box sx={{ p: 3, textAlign: 'center' }}>
-                <Psychology sx={{ fontSize: '3rem', color: 'text.secondary', mb: 2 }} />
-                <Typography variant="h6" color="text.secondary">
+              <Box sx={{ p: 4, textAlign: 'center' }}>
+                <Psychology sx={{ fontSize: '3rem', color: '#cbd5e1', mb: 2 }} />
+                <Typography variant="h6" sx={{ 
+                  color: '#64748b',
+                  fontWeight: 600,
+                  mb: 1
+                }}>
                   No checks yet
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{ 
+                  color: '#94a3b8',
+                  fontSize: '0.85rem'
+                }}>
                   Run an AI check to see analysis results
                 </Typography>
               </Box>
