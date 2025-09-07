@@ -11,6 +11,9 @@ interface IncompleteNote {
   lastCheckStatus?: string | null;
   lastCheckDate?: string | null;
   issuesFound?: boolean;
+  todoCreated?: boolean;
+  todoCount?: number;
+  hasValidIssues?: boolean;
 }
 
 interface EncountersContextType {
@@ -69,13 +72,18 @@ export const EncountersProvider: React.FC<EncountersProviderProps> = ({ children
         checkResults.map(result => [result.encounterId, result])
       );
       
-      // Combine the data
-      const notesWithStatus = uniqueNotes.map(note => ({
-        ...note,
-        lastCheckStatus: checkResultsMap.get(note.encounterId)?.status || null,
-        lastCheckDate: checkResultsMap.get(note.encounterId)?.checkedAt || null,
-        issuesFound: checkResultsMap.get(note.encounterId)?.issuesFound || false
-      }));
+      // Combine the data - ToDo status is now included in the backend response
+      const notesWithStatus = uniqueNotes.map(note => {
+        return {
+          ...note,
+          lastCheckStatus: checkResultsMap.get(note.encounterId)?.status || null,
+          lastCheckDate: checkResultsMap.get(note.encounterId)?.checkedAt || null,
+          issuesFound: checkResultsMap.get(note.encounterId)?.issuesFound || false,
+          // ToDo status is now included directly from the backend
+          todoCreated: note.todoCreated || false,
+          todoCount: note.todoCount || 0
+        };
+      });
       
       // Sort by date of service (newest first)
       const sortedNotes = notesWithStatus.sort((a, b) => {

@@ -1144,6 +1144,47 @@ class VitalSignsDatabase {
     return result.rows.length > 0;
   }
 
+  /**
+   * Check if an encounter has any valid (non-invalid) issues
+   */
+  async hasValidIssues(encounterId: string): Promise<boolean> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    // Get the latest check result for this encounter that found issues
+    const checkQuery = `
+      SELECT id, ai_analysis, issues_found
+      FROM note_checks 
+      WHERE encounter_id = $1 AND issues_found = true
+      ORDER BY checked_at DESC 
+      LIMIT 1
+    `;
+
+    const checkResult = await this.pool.query(checkQuery, [encounterId]);
+    
+    if (checkResult.rows.length === 0) {
+      return false; // No issues found at all
+    }
+
+    const check = checkResult.rows[0];
+    const aiAnalysis = check.ai_analysis;
+    
+    if (!aiAnalysis || !aiAnalysis.issues || aiAnalysis.issues.length === 0) {
+      return false; // No issues in the analysis
+    }
+
+    // Check each issue to see if any are still valid (not marked as invalid)
+    for (let issueIndex = 0; issueIndex < aiAnalysis.issues.length; issueIndex++) {
+      const isInvalid = await this.isIssueMarkedInvalid(encounterId, check.id, issueIndex);
+      if (!isInvalid) {
+        return true; // Found at least one valid issue
+      }
+    }
+
+    return false; // All issues have been marked as invalid
+  }
+
   async close(): Promise<void> {
     if (this.pool) {
       console.log('Closing PostgreSQL database connection pool');

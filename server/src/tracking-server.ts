@@ -117,7 +117,8 @@ const ACTIVE_STATUSES: EncounterStatus[] = [
   'IN_ROOM', 
   'WITH_PROVIDER',
   'WITH_STAFF',
-  'READY_FOR_STAFF'
+  'READY_FOR_STAFF',
+  'READY_FOR_PROVIDER'
 ];
 
 // Utility functions
@@ -768,8 +769,32 @@ app.post('/notes/incomplete', validateSession, async (req: Request, res: Respons
       }
     });
     
-    console.log(`📊 Processed ${encounters.length} eligible encounters from ${incompleteNotesData.length} batches (filtered by status and 2+ hour age requirement)`);
-    res.json({ success: true, encounters });
+    // Add ToDo status and valid issues information to each encounter
+    const encountersWithTodoStatus = await Promise.all(
+      encounters.map(async (encounter) => {
+        try {
+          const createdTodos = await vitalSignsDb.getCreatedToDosForEncounter(encounter.encounterId);
+          const hasValidIssues = await vitalSignsDb.hasValidIssues(encounter.encounterId);
+          return {
+            ...encounter,
+            todoCreated: createdTodos.length > 0,
+            todoCount: createdTodos.length,
+            hasValidIssues: hasValidIssues
+          };
+        } catch (error) {
+          console.error(`Error fetching ToDo status for encounter ${encounter.encounterId}:`, error);
+          return {
+            ...encounter,
+            todoCreated: false,
+            todoCount: 0,
+            hasValidIssues: false
+          };
+        }
+      })
+    );
+
+    console.log(`📊 Processed ${encountersWithTodoStatus.length} eligible encounters from ${incompleteNotesData.length} batches (filtered by status and 2+ hour age requirement)`);
+    res.json({ success: true, encounters: encountersWithTodoStatus });
   } catch (error: any) {
     console.error('Error fetching incomplete notes:', error);
     res.status(500).json({ error: 'Failed to fetch incomplete notes', details: error.message });
@@ -1300,6 +1325,162 @@ app.post('/notes/bulk-force-recheck', validateSession, async (req: Request, res:
   } catch (error: any) {
     console.error('Error processing bulk force re-check:', error);
     res.status(500).json({ error: 'Failed to process bulk force re-check', details: error.message });
+  }
+});
+
+// Get current user's provider info
+app.get('/user/provider-info', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const username = (req as any).user.username;
+    
+    // Get valid tokens
+    const userTokens = await getValidTokens(username);
+    if (!userTokens) {
+      res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      return;
+    }
+    
+    // Decode the JWT token to get provider ID
+    // The JWT token contains the provider ID in the 'u' field
+    try {
+      const tokenParts = userTokens.accessToken.split('.');
+      if (tokenParts.length !== 3 || !tokenParts[1]) {
+        throw new Error('Invalid JWT token format');
+      }
+      
+      const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
+      const providerId = payload.u; // Provider ID from JWT
+      
+      console.log(`🔍 Current user provider info - Username: ${username}, Provider ID: ${providerId}`);
+      
+      res.json({ 
+        username,
+        providerId,
+        success: true
+      });
+    } catch (jwtError) {
+      console.error('Error decoding JWT token:', jwtError);
+      res.status(500).json({ error: 'Failed to decode user token' });
+    }
+  } catch (error: any) {
+    console.error('Error getting user provider info:', error);
+    res.status(500).json({ error: 'Failed to get user provider info' });
+  }
+});
+
+// Sign off a note
+app.post('/notes/sign-off', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const username = (req as any).user.username;
+    const { encounterId, patientId, status } = req.body;
+    
+    if (!encounterId || !patientId) {
+      res.status(400).json({ error: 'Encounter ID and Patient ID are required' });
+      return;
+    }
+    
+    // Get valid tokens
+    const userTokens = await getValidTokens(username);
+    if (!userTokens) {
+      res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      return;
+    }
+    
+    console.log(`🖊️ Signing off note for encounter ${encounterId} by user ${username}`);
+    
+    // Prepare sign-off data based on the SignOff.md example
+    const signOffData = {
+      room: 0,
+      dateOfArrival: new Date().toISOString(),
+      status: status || 'SIGNED_OFF',
+      id: encounterId
+    };
+    
+    // Make request to EZDerm sign-off API
+    const response = await axios.post(
+      `${userTokens.serverUrl}ezderm-webservice/rest/encounter/signOff`,
+      signOffData,
+      {
+        headers: {
+          'Host': 'srvprod.ezinfra.net',
+          'accept': 'application/json',
+          'content-type': 'application/json',
+          'authorization': `Bearer ${userTokens.accessToken}`,
+          'encounterid': encounterId,
+          'patientid': patientId,
+          'user-agent': 'ezDerm/4.28.1 (build:133.1; macOS(Catalyst) 15.6.1)',
+          'accept-language': 'en-US;q=1.0'
+        }
+      }
+    );
+    
+    console.log(`✅ Note signed off successfully for encounter ${encounterId}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Note signed off successfully',
+      encounterId,
+      status: signOffData.status
+    });
+  } catch (error: any) {
+    console.error('Error signing off note:', error);
+    const errorMessage = error.response?.data?.error || error.message || 'Failed to sign off note';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Modify HPI note section
+app.post('/notes/modify-hpi', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const username = (req as any).user.username;
+    const { note, encounterId, patientId, type } = req.body;
+    
+    if (!encounterId || !patientId || !note || type !== 'HISTORY_OF_PRESENT_ILLNESS') {
+      res.status(400).json({ error: 'Encounter ID, Patient ID, note text, and type (HISTORY_OF_PRESENT_ILLNESS) are required' });
+      return;
+    }
+    
+    // Get valid tokens
+    const userTokens = await getValidTokens(username);
+    if (!userTokens) {
+      res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      return;
+    }
+    
+    console.log(`📝 Modifying HPI for encounter ${encounterId}, patient ${patientId} by user ${username}`);
+    
+    // Prepare HPI modification data exactly as shown in modifyHPI.md
+    const hpiData = {
+      note: note,
+      encounterId: encounterId,
+      type: 'HISTORY_OF_PRESENT_ILLNESS'
+    };
+    
+    // Make request to EZDerm HPI modification API exactly as shown in modifyHPI.md
+    const response = await axios.post(
+      `${userTokens.serverUrl}ezderm-webservice/rest/progressnote/setPNInfo`,
+      hpiData,
+      {
+        headers: {
+          'Host': 'srvprod.ezinfra.net',
+          'accept': 'application/json',
+          'content-type': 'application/json',
+          'authorization': `Bearer ${userTokens.accessToken}`,
+          'encounterid': encounterId,
+          'patientid': patientId,
+          'user-agent': 'ezDerm/4.28.1 (build:133.1; macOS(Catalyst) 15.6.1)',
+          'accept-language': 'en-US;q=1.0'
+        }
+      }
+    );
+    
+    console.log(`✅ HPI modified successfully for encounter ${encounterId}`);
+    
+    res.json(response.data);
+  } catch (error: any) {
+    console.error('Error modifying HPI:', error);
+    const errorMessage = error.response?.data?.error || error.message || 'Failed to modify HPI';
+    res.status(500).json({ error: errorMessage });
   }
 });
 

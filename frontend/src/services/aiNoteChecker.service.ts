@@ -12,6 +12,9 @@ export interface EligibleEncounter {
   chiefComplaint: string;
   dateOfService: string;
   status: string;
+  todoCreated?: boolean;
+  todoCount?: number;
+  hasValidIssues?: boolean;
 }
 
 export interface AIAnalysisIssue {
@@ -28,6 +31,7 @@ export interface AIAnalysisResult {
   issues?: AIAnalysisIssue[];
   status: 'ok' | 'corrections_needed';
   summary?: string;
+  reason?: string; // Reason when status is 'ok'
 }
 
 export interface NoteCheckResult {
@@ -609,6 +613,50 @@ class AINoteCheckerService {
   }
 
   /**
+   * Get ToDo status for multiple encounters
+   */
+  async getTodoStatusForEncounters(encounterIds: string[]): Promise<Map<string, { todoCreated: boolean; todoCount: number }>> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Returning mock ToDo status');
+      await new Promise(resolve => setTimeout(resolve, 200)); // Simulate API delay
+      
+      // Mock data - some encounters have ToDos created
+      const mockStatuses = new Map<string, { todoCreated: boolean; todoCount: number }>();
+      encounterIds.forEach((encounterId, index) => {
+        // Mock: every 3rd encounter has a ToDo
+        const hasTodo = index % 3 === 0;
+        mockStatuses.set(encounterId, {
+          todoCreated: hasTodo,
+          todoCount: hasTodo ? Math.floor(Math.random() * 3) + 1 : 0
+        });
+      });
+      return mockStatuses;
+    }
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}/notes/todos/bulk-status`, {
+        encounterIds
+      }, {
+        headers: this.headers()
+      });
+
+      const statusMap = new Map<string, { todoCreated: boolean; todoCount: number }>();
+      response.data.todoStatuses?.forEach((status: any) => {
+        statusMap.set(status.encounterId, {
+          todoCreated: status.todoCount > 0,
+          todoCount: status.todoCount
+        });
+      });
+
+      return statusMap;
+    } catch (error: any) {
+      console.error('Error fetching ToDo status:', error);
+      // Return empty map on error instead of throwing
+      return new Map();
+    }
+  }
+
+  /**
    * Get created ToDos for an encounter
    */
   async getCreatedToDos(encounterId: string): Promise<CreatedToDo[]> {
@@ -755,6 +803,103 @@ class AINoteCheckerService {
     } catch (error: any) {
       console.error('Error enqueuing bulk force re-check jobs:', error);
       throw new Error(error.response?.data?.error || 'Failed to enqueue bulk force re-check jobs');
+    }
+  }
+
+  // Get current user's provider info
+  async getCurrentUserProviderInfo(): Promise<{ username: string; providerId: string }> {
+    if (USE_MOCK_DATA) {
+      console.log('🔄 Mock: Getting current user provider info');
+      return {
+        username: 'mockuser',
+        providerId: 'dd0c986b-1b6d-4ade-89c8-f2b96d5958cc' // Mock provider ID from encounter.json
+      };
+    }
+
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/user/provider-info`,
+        {
+          headers: {
+            'Authorization': `Bearer ${authService.getSessionToken()}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting current user provider info:', error);
+      throw new Error(error.response?.data?.error || 'Failed to get current user provider info');
+    }
+  }
+
+  // Sign off a note
+  async signOffNote(encounterId: string, patientId: string): Promise<void> {
+    if (USE_MOCK_DATA) {
+      console.log('🔄 Mock: Signing off note', { encounterId, patientId });
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return;
+    }
+
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/notes/sign-off`,
+        {
+          encounterId,
+          patientId,
+          status: 'SIGNED_OFF'
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${authService.getSessionToken()}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error signing off note:', error);
+      throw new Error(error.response?.data?.error || 'Failed to sign off note');
+    }
+  }
+
+  // Modify HPI note section
+  async modifyHPI(encounterId: string, patientId: string, noteText: string): Promise<{ type: string; encounterId: string; note: string }> {
+    if (USE_MOCK_DATA) {
+      console.log('🔄 Mock: Modifying HPI', { encounterId, patientId, noteText });
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return {
+        type: 'HISTORY_OF_PRESENT_ILLNESS',
+        encounterId,
+        note: noteText
+      };
+    }
+
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/notes/modify-hpi`,
+        {
+          note: noteText,
+          encounterId,
+          patientId,
+          type: 'HISTORY_OF_PRESENT_ILLNESS'
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${authService.getSessionToken()}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error modifying HPI:', error);
+      throw new Error(error.response?.data?.error || 'Failed to modify HPI');
     }
   }
 }

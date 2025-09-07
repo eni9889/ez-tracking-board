@@ -11,7 +11,6 @@ import {
   Divider,
   List,
   ListItem,
-
   Card,
   CardContent,
   CardHeader,
@@ -24,13 +23,13 @@ import {
   DialogActions,
   DialogContentText,
   FormControlLabel,
-  Checkbox
+  Checkbox,
+  TextField
 } from '@mui/material';
 import {
   ArrowBack,
   Psychology,
   Refresh,
-
   CheckCircle,
   Warning,
   Error as ErrorIcon,
@@ -48,314 +47,242 @@ import {
   Group,
   Badge,
   MedicalServices,
-  Block
+  Block,
+  Edit,
+  Save,
+  Cancel
 } from '@mui/icons-material';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useEncounters } from '../contexts/EncountersContext';
 import aiNoteCheckerService, { NoteCheckResult, AIAnalysisIssue, CareTeamMember, CreatedToDo, InvalidIssue } from '../services/aiNoteChecker.service';
 
-interface NoteDetailProps {
+interface NoteData {
   encounterId: string;
   patientId: string;
   patientName: string;
   chiefComplaint: string;
   dateOfService: string;
   status: string;
-  progressNotes?: any[]; // Optional - may not be available from navigation state
+  lastCheckStatus?: string | null;
+  lastCheckDate?: string | null;
+  issuesFound?: boolean;
 }
 
-type FilterType = 'all' | 'clean' | 'issues' | 'unchecked';
-
-interface FilteredNavigationState {
-  note: NoteDetailProps;
-  currentFilter: FilterType;
-  filteredNotes: any[];
+interface CachedNoteData {
+  progressNoteData: any;
+  careTeam: CareTeamMember[];
+  checkHistory: NoteCheckResult[];
+  createdTodos: CreatedToDo[];
+  invalidIssues: InvalidIssue[];
 }
 
 const NoteDetail: React.FC = () => {
   const { encounterId } = useParams<{ encounterId: string }>();
-  const location = useLocation();
   const navigate = useNavigate();
+  const location = useLocation();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { user } = useAuth();
+  const { encounters: allEncounters, loading: encountersLoading } = useEncounters();
 
-  const [noteData, setNoteData] = useState<NoteDetailProps | null>(null);
-  const [progressNoteData, setProgressNoteData] = useState<any>(null);
-  const [careTeam, setCareTeam] = useState<CareTeamMember[]>([]);
-  const [checkHistory, setCheckHistory] = useState<NoteCheckResult[]>([]);
-  const [createdTodos, setCreatedTodos] = useState<CreatedToDo[]>([]);
-  const [invalidIssues, setInvalidIssues] = useState<InvalidIssue[]>([]);
+  // Simplified state management with data cache
+  const [notes, setNotes] = useState<NoteData[]>([]);
+  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [noteDataCache, setNoteDataCache] = useState<Map<string, CachedNoteData>>(new Map());
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [todoSuccess, setTodoSuccess] = useState<string | null>(null);
   const [showToDoModal, setShowToDoModal] = useState(false);
   const [modalState, setModalState] = useState<'preview' | 'loading' | 'success' | 'error'>('preview');
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalSuccess, setModalSuccess] = useState<string | null>(null);
   const [forceNewCheck, setForceNewCheck] = useState(false);
-  const [navigationLoading, setNavigationLoading] = useState(false);
-  const [currentEncounterId, setCurrentEncounterId] = useState<string | null>(null);
-  const [filteredNavigationData, setFilteredNavigationData] = useState<FilteredNavigationState | null>(null);
-  
-  // Use encounters context for navigation
-  const { 
-    encounters: encountersList, 
-    getCurrentIndex, 
-    getPreviousEncounter, 
-    getNextEncounter 
-  } = useEncounters();
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const [showSignOffModal, setShowSignOffModal] = useState(false);
+  const [signingOff, setSigningOff] = useState(false);
+  const [currentUserProviderId, setCurrentUserProviderId] = useState<string | null>(null);
+  const [noteSignedOff, setNoteSignedOff] = useState(false);
+  const [signOffInfo, setSignOffInfo] = useState<string | null>(null);
+  const [editingHPI, setEditingHPI] = useState<{ sectionIndex: number; itemIndex: number } | null>(null);
+  const [hpiEditText, setHpiEditText] = useState('');
+  const [savingHPI, setSavingHPI] = useState(false);
 
+  // Fetch current user's provider ID
   useEffect(() => {
-    if (encounterId) {
-      // Set the current encounter ID
-      setCurrentEncounterId(encounterId);
-      
-      // Get note data from navigation state if available, otherwise we'll fetch what we need
-      const stateNote = location.state?.note;
-      if (stateNote) {
-        setNoteData(stateNote);
+    const fetchUserProviderInfo = async () => {
+      if (user) {
+        try {
+          const providerInfo = await aiNoteCheckerService.getCurrentUserProviderInfo();
+          setCurrentUserProviderId(providerInfo.providerId);
+          console.log('✅ Current user provider ID:', providerInfo.providerId);
+        } catch (error) {
+          console.error('Failed to get current user provider info:', error);
+        }
       }
+    };
+
+    fetchUserProviderInfo();
+  }, [user]);
+
+  // Initialize notes array from encounters context - filter based on navigation context
+  useEffect(() => {
+    if (!encountersLoading && allEncounters.length > 0) {
+      let filteredNotes = allEncounters;
       
-      // Check if we have filtered navigation data
-      if (location.state?.currentFilter && location.state?.filteredNotes) {
-        setFilteredNavigationData({
-          note: stateNote,
-          currentFilter: location.state.currentFilter,
-          filteredNotes: location.state.filteredNotes
-        });
-        console.log('🔍 Using filtered navigation:', {
-          filter: location.state.currentFilter,
-          filteredCount: location.state.filteredNotes.length
-        });
-      } else {
-        setFilteredNavigationData(null);
-        console.log('📋 Using full encounter list navigation');
+      // Get filter context from navigation state
+      const navigationState = location.state as { currentFilter?: string; filteredNotes?: NoteData[] } | null;
+      const currentFilter = navigationState?.currentFilter;
+      
+      console.log('🔍 NoteDetail filtering:', {
+        currentFilter,
+        allEncountersCount: allEncounters.length,
+        encounterId,
+        navigationState
+      });
+      
+      // Filter notes based on the tab the user came from
+      if (currentFilter === 'issues') {
+        filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && note.hasValidIssues === true);
+      } else if (currentFilter === 'clean') {
+        filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && !note.issuesFound);
+      } else if (currentFilter === 'unchecked') {
+        filteredNotes = allEncounters.filter(note => !note.lastCheckStatus || note.lastCheckStatus === 'pending');
+      } else if (currentFilter === 'issues-no-todos') {
+        filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && note.hasValidIssues === true && !note.todoCreated);
       }
+      // For 'all' or no filter context, use all encounters
       
-      // Always fetch note details - we can get everything from the encounterId
-      fetchNoteDetails();
+      console.log('🔍 Filtered results:', {
+        currentFilter,
+        filteredCount: filteredNotes.length,
+        sampleNotes: filteredNotes.slice(0, 3).map(n => ({
+          encounterId: n.encounterId,
+          lastCheckStatus: n.lastCheckStatus,
+          issuesFound: n.issuesFound
+        }))
+      });
+      
+      setNotes(filteredNotes);
+      
+      // Find current note index in the filtered array
+      if (encounterId) {
+        const index = filteredNotes.findIndex(note => note.encounterId === encounterId);
+        if (index !== -1) {
+          setCurrentIndex(index);
+        } else {
+          // If current note is not in filtered results, start with the first one
+          setCurrentIndex(0);
+        }
+      }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [encounterId, location.state]);
+  }, [allEncounters, encountersLoading, encounterId, location.state]);
 
-  // Calculate current index from context
-  const currentIndex = currentEncounterId ? getCurrentIndex(currentEncounterId) : -1;
+  // Get current note
+  const currentNote = notes[currentIndex];
+  
+  // Get current note data from cache or defaults
+  const currentNoteData = currentNote ? noteDataCache.get(currentNote.encounterId) : null;
+  const progressNoteData = currentNoteData?.progressNoteData || null;
+  const careTeam = currentNoteData?.careTeam || [];
+  const checkHistory = currentNoteData?.checkHistory || [];
+  const createdTodos = currentNoteData?.createdTodos || [];
+  const invalidIssues = currentNoteData?.invalidIssues || [];
 
-  // Parameterized versions for navigation (defined first)
-  const fetchNoteContentForEncounter = useCallback(async (targetEncounterId: string): Promise<any> => {
+  // Load data for a specific encounter
+  const loadNoteData = useCallback(async (encounterId: string, patientId: string) => {
     try {
-      // Try to find the encounter data to get patientId for optimization, but it's optional
-      const encounterData = encountersList.find(enc => enc.encounterId === targetEncounterId);
-      const patientId = encounterData?.patientId;
-      
-      // Backend will fetch patientId automatically if not provided
-      const progressNote = await aiNoteCheckerService.getProgressNote(
-        targetEncounterId,
-        patientId // Can be undefined - backend handles it
-      );
-      
-      return progressNote;
-    } catch (err) {
-      console.error('Error fetching note content:', err);
-      throw new Error(`Unable to load note content: ${err}`);
+      const [noteResponse, history, todos, invalid] = await Promise.all([
+        aiNoteCheckerService.getProgressNote(encounterId, patientId),
+        fetchCheckHistory(encounterId),
+        fetchCreatedTodos(encounterId),
+        fetchInvalidIssues(encounterId)
+      ]);
+
+      // Check if note is already signed off
+      checkIfNoteSignedOff(noteResponse.progressNote);
+
+      // Cache the data
+      setNoteDataCache(prev => new Map(prev).set(encounterId, {
+        progressNoteData: noteResponse.progressNote,
+        careTeam: noteResponse.careTeam,
+        checkHistory: history,
+        createdTodos: todos,
+        invalidIssues: invalid
+      }));
+
+    } catch (err: any) {
+      console.error('Error loading note data:', err);
+      setError(err.message || 'Failed to load note data');
     }
-  }, [encountersList]);
+  }, []);
 
-  const fetchCheckHistoryForEncounter = useCallback(async (targetEncounterId: string): Promise<NoteCheckResult[]> => {
+  // Load data for current note when index changes
+  useEffect(() => {
+    if (currentNote && !noteDataCache.has(currentNote.encounterId)) {
+      setLoading(true);
+      loadNoteData(currentNote.encounterId, currentNote.patientId).finally(() => {
+        setLoading(false);
+      });
+    } else if (currentNote) {
+      setLoading(false); // Data is already cached
+    }
+  }, [currentNote, noteDataCache, loadNoteData]);
+
+  // Helper functions to fetch data for a specific encounter
+  const fetchCheckHistory = async (encounterId: string): Promise<NoteCheckResult[]> => {
     try {
-      // Get all check results and filter for this encounter
       const allResults = await aiNoteCheckerService.getNoteCheckResults(100, 0);
-      return allResults.filter(result => result.encounterId === targetEncounterId);
+      return allResults.filter(result => result.encounterId === encounterId);
     } catch (err) {
       console.error('Error fetching check history:', err);
       return [];
     }
-  }, []);
+  };
 
-  const fetchCreatedTodosForEncounter = useCallback(async (targetEncounterId: string): Promise<CreatedToDo[]> => {
+  const fetchCreatedTodos = async (encounterId: string): Promise<CreatedToDo[]> => {
     try {
-      const todos = await aiNoteCheckerService.getCreatedToDos(targetEncounterId);
-      return todos;
+      return await aiNoteCheckerService.getCreatedToDos(encounterId);
     } catch (err: any) {
       console.error('Error fetching created ToDos:', err);
       return [];
     }
-  }, []);
+  };
 
-  const fetchInvalidIssuesForEncounter = useCallback(async (targetEncounterId: string): Promise<InvalidIssue[]> => {
+  const fetchInvalidIssues = async (encounterId: string): Promise<InvalidIssue[]> => {
     try {
-      const invalid = await aiNoteCheckerService.getInvalidIssues(targetEncounterId);
-      return invalid;
+      return await aiNoteCheckerService.getInvalidIssues(encounterId);
     } catch (err: any) {
       console.error('Error fetching invalid issues:', err);
       return [];
     }
-  }, []);
+  };
 
-  // Load note details for navigation (no full page loading state)
-  const loadNoteDetailsForEncounter = useCallback(async (targetEncounterId: string) => {
-    try {
-      // Fetch note content, check history, created ToDos, and invalid issues for the target encounter
-      const [noteResponse, history, todos, invalid] = await Promise.all([
-        fetchNoteContentForEncounter(targetEncounterId),
-        fetchCheckHistoryForEncounter(targetEncounterId),
-        fetchCreatedTodosForEncounter(targetEncounterId),
-        fetchInvalidIssuesForEncounter(targetEncounterId)
-      ]);
-
-      setProgressNoteData(noteResponse.progressNote);
-      setCareTeam(noteResponse.careTeam);
-      setCheckHistory(history);
-      setCreatedTodos(todos);
-      setInvalidIssues(invalid);
-    } catch (err: any) {
-      throw new Error(err.message || 'Failed to fetch note details');
-    }
-  }, [fetchNoteContentForEncounter, fetchCheckHistoryForEncounter, fetchCreatedTodosForEncounter, fetchInvalidIssuesForEncounter]);
-
-  // Navigation functions (defined before keyboard handler)
-  const navigateToEncounter = useCallback(async (encounter: any) => {
-    console.log('🚀 Navigating to encounter:', {
-      from: currentEncounterId,
-      to: encounter.encounterId,
-      toPatient: encounter.patientName
-    });
-    
-    setNavigationLoading(true);
-    setError(null);
-    setTodoSuccess(null);
-    
-    try {
-      // Update note data immediately
-      setNoteData(encounter);
-      
-      // Update current encounter ID (this will trigger the useEffect to update currentIndex)
-      setCurrentEncounterId(encounter.encounterId);
-      console.log('✅ Updated currentEncounterId to:', encounter.encounterId);
-      
-      // Update URL for browser history (but keep using our internal state for logic)
-      window.history.pushState({}, '', `/ai-note-checker/${encounter.encounterId}`);
-      console.log('✅ Updated URL to:', `/ai-note-checker/${encounter.encounterId}`);
-      
-      // Fetch fresh note details for this encounter
-      await loadNoteDetailsForEncounter(encounter.encounterId);
-      console.log('✅ Loaded note details for:', encounter.encounterId);
-      
-    } catch (err: any) {
-      console.error('❌ Navigation error:', err);
-      setError(err.message || 'Failed to load note details');
-    } finally {
-      setNavigationLoading(false);
-      console.log('🏁 Navigation completed for:', encounter.encounterId);
-    }
-  }, [loadNoteDetailsForEncounter, currentEncounterId]);
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handlePreviousEncounter = useCallback(() => {
-    if (currentEncounterId) {
-      const prevEncounter = getPreviousEncounter(currentEncounterId);
-      if (prevEncounter) {
-        navigateToEncounter(prevEncounter);
-      }
-    }
-  }, [currentEncounterId, getPreviousEncounter, navigateToEncounter]);
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleNextEncounter = useCallback(() => {
-    console.log('🔄 Next Encounter Debug:', {
-      currentEncounterId,
-      currentIndex,
-      encountersListLength: encountersList.length,
-      firstFewEncounters: encountersList.slice(0, 5).map(e => ({ id: e.encounterId, name: e.patientName }))
-    });
-    
-    if (currentEncounterId) {
-      const nextEncounter = getNextEncounter(currentEncounterId);
-      console.log('🎯 Next encounter found:', nextEncounter ? { id: nextEncounter.encounterId, name: nextEncounter.patientName } : 'null');
-      
-      if (nextEncounter) {
-        navigateToEncounter(nextEncounter);
-      } else {
-        console.log('❌ No next encounter available');
-      }
-    } else {
-      console.log('❌ No currentEncounterId set');
-    }
-  }, [currentEncounterId, getNextEncounter, navigateToEncounter, currentIndex, encountersList]);
-
-  // Filtered navigation functions
-  const getFilteredCurrentIndex = useCallback((encounterId: string): number => {
-    if (!filteredNavigationData) return -1;
-    return filteredNavigationData.filteredNotes.findIndex(note => note.encounterId === encounterId);
-  }, [filteredNavigationData]);
-
-  const getFilteredPreviousEncounter = useCallback((encounterId: string) => {
-    if (!filteredNavigationData) return null;
-    const currentIndex = getFilteredCurrentIndex(encounterId);
+  // Simple navigation functions
+  const handlePreviousNote = useCallback(() => {
     if (currentIndex > 0) {
-      return filteredNavigationData.filteredNotes[currentIndex - 1];
+      const newIndex = currentIndex - 1;
+      setCurrentIndex(newIndex);
+      const newNote = notes[newIndex];
+      // Preserve the location state context when navigating
+      navigate(`/ai-note-checker/${newNote.encounterId}`, { 
+        replace: true,
+        state: location.state // Preserve the filter context
+      });
     }
-    return null;
-  }, [filteredNavigationData, getFilteredCurrentIndex]);
+  }, [currentIndex, notes, navigate, location.state]);
 
-  const getFilteredNextEncounter = useCallback((encounterId: string) => {
-    if (!filteredNavigationData) return null;
-    const currentIndex = getFilteredCurrentIndex(encounterId);
-    const hasNext = currentIndex >= 0 && currentIndex < filteredNavigationData.filteredNotes.length - 1;
-    if (hasNext) {
-      return filteredNavigationData.filteredNotes[currentIndex + 1];
+  const handleNextNote = useCallback(() => {
+    if (currentIndex < notes.length - 1) {
+      const newIndex = currentIndex + 1;
+      setCurrentIndex(newIndex);
+      const newNote = notes[newIndex];
+      // Preserve the location state context when navigating
+      navigate(`/ai-note-checker/${newNote.encounterId}`, { 
+        replace: true,
+        state: location.state // Preserve the filter context
+      });
     }
-    return null;
-  }, [filteredNavigationData, getFilteredCurrentIndex]);
-
-  // Smart navigation that uses filtered navigation when available
-  const handleSmartPreviousEncounter = useCallback(() => {
-    if (currentEncounterId) {
-      const prevEncounter = filteredNavigationData 
-        ? getFilteredPreviousEncounter(currentEncounterId)
-        : getPreviousEncounter(currentEncounterId);
-      
-      if (prevEncounter) {
-        // Preserve filter state when navigating through filtered results
-        if (filteredNavigationData) {
-          navigate(`/ai-note-checker/${prevEncounter.encounterId}`, {
-            state: {
-              note: prevEncounter,
-              currentFilter: filteredNavigationData.currentFilter,
-              filteredNotes: filteredNavigationData.filteredNotes
-            }
-          });
-        } else {
-          navigateToEncounter(prevEncounter);
-        }
-      }
-    }
-  }, [currentEncounterId, filteredNavigationData, getFilteredPreviousEncounter, getPreviousEncounter, navigateToEncounter, navigate]);
-
-  const handleSmartNextEncounter = useCallback(() => {
-    if (currentEncounterId) {
-      const nextEncounter = filteredNavigationData 
-        ? getFilteredNextEncounter(currentEncounterId)
-        : getNextEncounter(currentEncounterId);
-      
-      if (nextEncounter) {
-        // Preserve filter state when navigating through filtered results
-        if (filteredNavigationData) {
-          navigate(`/ai-note-checker/${nextEncounter.encounterId}`, {
-            state: {
-              note: nextEncounter,
-              currentFilter: filteredNavigationData.currentFilter,
-              filteredNotes: filteredNavigationData.filteredNotes
-            }
-          });
-        } else {
-          navigateToEncounter(nextEncounter);
-        }
-      }
-    }
-  }, [currentEncounterId, filteredNavigationData, getFilteredNextEncounter, getNextEncounter, navigateToEncounter, navigate]);
+  }, [currentIndex, notes, navigate, location.state]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -367,74 +294,33 @@ const NoteDetail: React.FC = () => {
       
       if (event.key === 'ArrowLeft') {
         event.preventDefault();
-        handleSmartPreviousEncounter();
+        handlePreviousNote();
       } else if (event.key === 'ArrowRight') {
         event.preventDefault();
-        handleSmartNextEncounter();
+        handleNextNote();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleSmartPreviousEncounter, handleSmartNextEncounter]);
+  }, [currentIndex, notes.length, handleNextNote, handlePreviousNote]);
 
 
 
-  const fetchNoteDetails = async () => {
-    const targetEncounterId = currentEncounterId || encounterId;
-    if (!targetEncounterId) return;
 
-    setLoading(true);
-    setError(null);
-
-    try {
-      await loadNoteDetailsForEncounter(targetEncounterId);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch note details');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-
-
-  const fetchCheckHistory = async (): Promise<NoteCheckResult[]> => {
-    const targetEncounterId = currentEncounterId || encounterId;
-    if (!targetEncounterId) return [];
-    
-    try {
-      // Get all check results and filter for this encounter
-      const allResults = await aiNoteCheckerService.getNoteCheckResults(100, 0);
-      return allResults.filter(result => result.encounterId === targetEncounterId);
-    } catch (err) {
-      console.error('Error fetching check history:', err);
-      return [];
-    }
-  };
-
-  const fetchCreatedTodos = async (): Promise<CreatedToDo[]> => {
-    const targetEncounterId = currentEncounterId || encounterId;
-    if (!targetEncounterId) return [];
-    
-    try {
-      const todos = await aiNoteCheckerService.getCreatedToDos(targetEncounterId);
-      return todos;
-    } catch (err: any) {
-      console.error('Error fetching created ToDos:', err);
-      return [];
-    }
-  };
-
-  const fetchInvalidIssues = async (): Promise<InvalidIssue[]> => {
-    const targetEncounterId = currentEncounterId || encounterId;
-    if (!targetEncounterId) return [];
-    
-    try {
-      const invalid = await aiNoteCheckerService.getInvalidIssues(targetEncounterId);
-      return invalid;
-    } catch (err: any) {
-      console.error('Error fetching invalid issues:', err);
-      return [];
+  // Refresh current note data
+  const refreshNoteData = () => {
+    if (currentNote) {
+      setLoading(true);
+      // Remove from cache to force reload
+      setNoteDataCache(prev => {
+        const newCache = new Map(prev);
+        newCache.delete(currentNote.encounterId);
+        return newCache;
+      });
+      loadNoteData(currentNote.encounterId, currentNote.patientId).finally(() => {
+        setLoading(false);
+      });
     }
   };
 
@@ -443,6 +329,63 @@ const NoteDetail: React.FC = () => {
     return invalidIssues.some(invalid => 
       invalid.checkId === checkId && invalid.issueIndex === issueIndex
     );
+  };
+
+  // Check if the current user is the attending provider for this note
+  const isAttendingProvider = (): boolean => {
+    if (!currentUserProviderId || !careTeam.length) return false;
+    
+    // Find the attending provider in the care team
+    const attendingProvider = careTeam.find(member => 
+      member.encounterRoleType === 'PROVIDER' && member.active
+    );
+    
+    if (!attendingProvider) return false;
+    
+    // Check if the current user's provider ID matches the attending provider's ID
+    return currentUserProviderId === attendingProvider.providerId;
+  };
+
+  // Check if note is already signed off by looking for POST_SIGNOFF_INFO section
+  const checkIfNoteSignedOff = (progressNoteData: any) => {
+    if (!progressNoteData?.progressNotes) return;
+
+    const signOffSection = progressNoteData.progressNotes.find(
+      (section: any) => section.sectionType === 'POST_SIGNOFF_INFO'
+    );
+
+    if (signOffSection) {
+      const signOffItem = signOffSection.items?.find(
+        (item: any) => item.elementType === 'SIGNOFF_NOTE'
+      );
+      
+      if (signOffItem?.text) {
+        setNoteSignedOff(true);
+        setSignOffInfo(signOffItem.text);
+      }
+    }
+  };
+
+  // Check if the note can be signed off (no valid issues and user is attending provider)
+  const canSignOffNote = (): boolean => {
+    if (!isAttendingProvider()) return false;
+    
+    // Check if there are any valid issues in the latest check
+    const latestCheck = checkHistory.find(check => check.status === 'completed');
+    if (!latestCheck) return false; // Must have at least one completed check
+    
+    // If there are no issues found, or all issues are marked invalid, can sign off
+    if (!latestCheck.issuesFound) return true;
+    
+    // Check if all issues are marked as invalid
+    if (latestCheck.aiAnalysis?.issues) {
+      const allIssuesInvalid = latestCheck.aiAnalysis.issues.every((_, index) => 
+        isIssueMarkedInvalid(latestCheck.id, index)
+      );
+      return allIssuesInvalid;
+    }
+    
+    return false;
   };
 
   const getValidIssues = (result: NoteCheckResult): AIAnalysisIssue[] => {
@@ -457,23 +400,42 @@ const NoteDetail: React.FC = () => {
     return getValidIssues(result).length > 0;
   };
 
-  const markIssueAsInvalid = async (checkId: number, issueIndex: number, issue: AIAnalysisIssue, reason?: string) => {
-    try {
-      const targetEncounterId = currentEncounterId || encounterId;
-      if (!targetEncounterId) return;
-
-      // Create a hash for the issue
-      const issueHash = await crypto.subtle.digest('SHA-256', 
-        new TextEncoder().encode(issue.assessment + issue.issue + JSON.stringify(issue.details))
-      ).then(hashBuffer => 
-        Array.from(new Uint8Array(hashBuffer))
+  // Helper function to create a hash for issues
+  const createIssueHash = async (issue: AIAnalysisIssue): Promise<string> => {
+    const content = issue.assessment + issue.issue + JSON.stringify(issue.details);
+    
+    // Try to use crypto.subtle if available (secure contexts only)
+    if (typeof crypto !== 'undefined' && crypto.subtle) {
+      try {
+        const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(content));
+        return Array.from(new Uint8Array(hashBuffer))
           .map(b => b.toString(16).padStart(2, '0'))
           .join('')
-          .substring(0, 16) // First 16 chars for brevity
-      );
+          .substring(0, 16); // First 16 chars for brevity
+      } catch (error) {
+        console.warn('crypto.subtle failed, using fallback hash:', error);
+      }
+    }
+    
+    // Fallback: simple hash using string manipulation (works everywhere)
+    let hash = 0;
+    for (let i = 0; i < content.length; i++) {
+      const char = content.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(16).substring(0, 16);
+  };
+
+  const markIssueAsInvalid = async (checkId: number, issueIndex: number, issue: AIAnalysisIssue, reason?: string) => {
+    try {
+      if (!currentNote) return;
+
+      // Create a hash for the issue
+      const issueHash = await createIssueHash(issue);
 
       await aiNoteCheckerService.markIssueAsInvalid(
-        targetEncounterId,
+        currentNote.encounterId,
         checkId,
         issueIndex,
         issue.issue,
@@ -482,9 +444,22 @@ const NoteDetail: React.FC = () => {
         reason
       );
 
-      // Refresh invalid issues
-      const newInvalid = await fetchInvalidIssues();
-      setInvalidIssues(newInvalid);
+      // Refresh invalid issues and update cache
+      const newInvalid = await fetchInvalidIssues(currentNote.encounterId);
+      setNoteDataCache(prev => {
+        const newCache = new Map(prev);
+        const existing = newCache.get(currentNote.encounterId) as CachedNoteData | undefined;
+        if (existing) {
+          newCache.set(currentNote.encounterId, {
+            progressNoteData: existing.progressNoteData,
+            careTeam: existing.careTeam,
+            checkHistory: existing.checkHistory,
+            createdTodos: existing.createdTodos,
+            invalidIssues: newInvalid
+          });
+        }
+        return newCache;
+      });
     } catch (err: any) {
       console.error('Error marking issue as invalid:', err);
       setError(err.message || 'Failed to mark issue as invalid');
@@ -493,17 +468,88 @@ const NoteDetail: React.FC = () => {
 
   const unmarkIssueAsInvalid = async (checkId: number, issueIndex: number) => {
     try {
-      const targetEncounterId = currentEncounterId || encounterId;
-      if (!targetEncounterId) return;
+      if (!currentNote) return;
 
-      await aiNoteCheckerService.unmarkIssueAsInvalid(targetEncounterId, checkId, issueIndex);
+      await aiNoteCheckerService.unmarkIssueAsInvalid(currentNote.encounterId, checkId, issueIndex);
 
-      // Refresh invalid issues
-      const newInvalid = await fetchInvalidIssues();
-      setInvalidIssues(newInvalid);
+      // Refresh invalid issues and update cache
+      const newInvalid = await fetchInvalidIssues(currentNote.encounterId);
+      setNoteDataCache(prev => {
+        const newCache = new Map(prev);
+        const existing = newCache.get(currentNote.encounterId) as CachedNoteData | undefined;
+        if (existing) {
+          newCache.set(currentNote.encounterId, {
+            progressNoteData: existing.progressNoteData,
+            careTeam: existing.careTeam,
+            checkHistory: existing.checkHistory,
+            createdTodos: existing.createdTodos,
+            invalidIssues: newInvalid
+          });
+        }
+        return newCache;
+      });
     } catch (err: any) {
       console.error('Error unmarking issue as invalid:', err);
       setError(err.message || 'Failed to unmark issue as invalid');
+    }
+  };
+
+  // Handle sign-off
+  const handleSignOff = async () => {
+    if (!currentNote) return;
+    
+    setSigningOff(true);
+    try {
+      await aiNoteCheckerService.signOffNote(currentNote.encounterId, currentNote.patientId);
+      
+      // Update the UI to show signed-off status
+      setNoteSignedOff(true);
+      setError(null);
+      setShowSignOffModal(false);
+      
+      console.log('✅ Note signed off successfully');
+      
+    } catch (err: any) {
+      console.error('Error signing off note:', err);
+      setError(err.message || 'Failed to sign off note');
+    } finally {
+      setSigningOff(false);
+    }
+  };
+
+  // Handle HPI editing
+  const handleEditHPI = (sectionIndex: number, itemIndex: number, currentText: string) => {
+    setEditingHPI({ sectionIndex, itemIndex });
+    setHpiEditText(currentText);
+  };
+
+  const handleCancelHPIEdit = () => {
+    setEditingHPI(null);
+    setHpiEditText('');
+  };
+
+  const handleSaveHPI = async () => {
+    if (!currentNote || !editingHPI) return;
+    
+    setSavingHPI(true);
+    try {
+      await aiNoteCheckerService.modifyHPI(currentNote.encounterId, currentNote.patientId, hpiEditText);
+      
+      // Refresh the note data to show the updated HPI
+      refreshNoteData();
+      
+      // Clear editing state
+      setEditingHPI(null);
+      setHpiEditText('');
+      setError(null);
+      
+      console.log('✅ HPI updated successfully');
+      
+    } catch (err: any) {
+      console.error('Error updating HPI:', err);
+      setError(err.message || 'Failed to update HPI');
+    } finally {
+      setSavingHPI(false);
     }
   };
 
@@ -605,9 +651,6 @@ const NoteDetail: React.FC = () => {
     );
   };
 
-
-
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
   const toggleSection = (sectionType: string) => {
     setCollapsedSections(prev => {
@@ -855,19 +898,101 @@ const NoteDetail: React.FC = () => {
                                 p: 2, 
                                 bgcolor: 'background.paper',
                                 border: '1px solid',
-                                borderColor: 'primary.main'
+                                borderColor: 'primary.main',
+                                position: 'relative'
                               }}
                             >
-                              <Typography 
-                                variant="body1" 
-                                sx={{ 
-                                  lineHeight: 1.8,
-                                  whiteSpace: 'pre-wrap',
-                                  fontFamily: 'system-ui, -apple-system, sans-serif'
-                                }}
-                              >
-                                {item.note}
-                              </Typography>
+                              {/* Edit button for HPI sections */}
+                              {item.elementType === 'HISTORY_OF_PRESENT_ILLNESS' && !noteSignedOff && (
+                                <Box sx={{ 
+                                  position: 'absolute', 
+                                  top: 8, 
+                                  right: 8,
+                                  zIndex: 10,
+                                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                                  borderRadius: 1,
+                                  p: 0.5
+                                }}>
+                                  {editingHPI?.sectionIndex === index && editingHPI?.itemIndex === itemIndex ? (
+                                    <Stack direction="row" spacing={1}>
+                                      <Tooltip title="Save changes">
+                                        <IconButton
+                                          size="small"
+                                          onClick={handleSaveHPI}
+                                          disabled={savingHPI}
+                                          sx={{
+                                            backgroundColor: '#10b981',
+                                            color: 'white',
+                                            '&:hover': { backgroundColor: '#059669' },
+                                            '&:disabled': { backgroundColor: '#64748b' }
+                                          }}
+                                        >
+                                          {savingHPI ? <CircularProgress size={16} color="inherit" /> : <Save sx={{ fontSize: '1rem' }} />}
+                                        </IconButton>
+                                      </Tooltip>
+                                      <Tooltip title="Cancel editing">
+                                        <IconButton
+                                          size="small"
+                                          onClick={handleCancelHPIEdit}
+                                          disabled={savingHPI}
+                                          sx={{
+                                            backgroundColor: '#ef4444',
+                                            color: 'white',
+                                            '&:hover': { backgroundColor: '#dc2626' }
+                                          }}
+                                        >
+                                          <Cancel sx={{ fontSize: '1rem' }} />
+                                        </IconButton>
+                                      </Tooltip>
+                                    </Stack>
+                                  ) : (
+                                    <Tooltip title="Edit HPI">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleEditHPI(index, itemIndex, item.note)}
+                                        sx={{
+                                          backgroundColor: '#3b82f6',
+                                          color: 'white',
+                                          '&:hover': { backgroundColor: '#2563eb' }
+                                        }}
+                                      >
+                                        <Edit sx={{ fontSize: '1rem' }} />
+                                      </IconButton>
+                                    </Tooltip>
+                                  )}
+                                </Box>
+                              )}
+                              
+                              {/* Show textarea when editing, otherwise show text */}
+                              {editingHPI?.sectionIndex === index && editingHPI?.itemIndex === itemIndex ? (
+                                <TextField
+                                  multiline
+                                  rows={8}
+                                  fullWidth
+                                  value={hpiEditText}
+                                  onChange={(e) => setHpiEditText(e.target.value)}
+                                  disabled={savingHPI}
+                                  sx={{
+                                    '& .MuiOutlinedInput-root': {
+                                      fontFamily: 'system-ui, -apple-system, sans-serif',
+                                      lineHeight: 1.8
+                                    }
+                                  }}
+                                  placeholder="Enter HPI text..."
+                                />
+                              ) : (
+                                <Typography 
+                                  variant="body1" 
+                                  sx={{ 
+                                    lineHeight: 1.8,
+                                    whiteSpace: 'pre-wrap',
+                                    fontFamily: 'system-ui, -apple-system, sans-serif',
+                                    pr: item.elementType === 'HISTORY_OF_PRESENT_ILLNESS' && !noteSignedOff ? 6 : 0
+                                  }}
+                                >
+                                  {item.note}
+                                </Typography>
+                              )}
                             </Paper>
                           )}
                         </Box>
@@ -888,47 +1013,37 @@ const NoteDetail: React.FC = () => {
   };
 
   const handleCheckNote = async () => {
-    // Use currentEncounterId (internal state) instead of URL params for navigation
-    const targetEncounterId = currentEncounterId || encounterId;
-    if (!targetEncounterId) return;
-
-    console.log('🤖 Running AI check for encounter:', targetEncounterId, '(currentEncounterId:', currentEncounterId, ', URL encounterId:', encounterId, ')');
+    if (!currentNote) return;
 
     setChecking(true);
     setError(null);
 
     try {
-      // If we don't have note data, we'll need to get basic info first
-      let patientId = displayData?.patientId;
-      let patientName = displayData?.patientName || 'Unknown Patient';
-      let chiefComplaint = displayData?.chiefComplaint || 'Unknown';
-      let dateOfService = displayData?.dateOfService || new Date().toISOString();
-
-      // If we don't have patient info, try to get it from a progress note call
-      if (!patientId) {
-        try {
-          const noteResponse = await aiNoteCheckerService.getProgressNote(targetEncounterId);
-          // The backend should return patientId in the response
-          patientId = (noteResponse.progressNote as any).patientId;
-        } catch (err) {
-          setError('Unable to determine patient information for AI check');
-          setChecking(false);
-          return;
-        }
-      }
-
       await aiNoteCheckerService.checkSingleNote(
-        targetEncounterId,
-        patientId!,
-        patientName,
-        chiefComplaint,
-        dateOfService,
+        currentNote.encounterId,
+        currentNote.patientId,
+        currentNote.patientName,
+        currentNote.chiefComplaint,
+        currentNote.dateOfService,
         forceNewCheck
       );
 
-      // Refresh check history
-      const newHistory = await fetchCheckHistory();
-      setCheckHistory(newHistory);
+      // Refresh check history and update cache
+      const newHistory = await fetchCheckHistory(currentNote.encounterId);
+      setNoteDataCache(prev => {
+        const newCache = new Map(prev);
+        const existing = newCache.get(currentNote.encounterId) as CachedNoteData | undefined;
+        if (existing) {
+          newCache.set(currentNote.encounterId, {
+            progressNoteData: existing.progressNoteData,
+            careTeam: existing.careTeam,
+            checkHistory: newHistory,
+            createdTodos: existing.createdTodos,
+            invalidIssues: existing.invalidIssues
+          });
+        }
+        return newCache;
+      });
       
       // Reset force checkbox after successful check
       setForceNewCheck(false);
@@ -941,14 +1056,15 @@ const NoteDetail: React.FC = () => {
 
   // Helper functions for ToDo preview
   const getToDoPreviewData = () => {
+    if (!currentNote) return null;
+    
     const latestCheck = checkHistory.find(check => hasValidIssues(check));
     if (!latestCheck) return null;
     
     const validIssues = getValidIssues(latestCheck);
     if (validIssues.length === 0) return null;
 
-    const dateOfService = displayData?.dateOfService || new Date().toISOString();
-    const formattedDate = new Date(dateOfService).toLocaleDateString('en-US', {
+    const formattedDate = new Date(currentNote.dateOfService).toLocaleDateString('en-US', {
       month: '2-digit',
       day: '2-digit', 
       year: 'numeric'
@@ -982,19 +1098,15 @@ const NoteDetail: React.FC = () => {
       assignee,
       watchers,
       encounterInfo: {
-        encounterId,
-        patientName: displayData?.patientName || 'Unknown Patient',
+        encounterId: currentNote.encounterId,
+        patientName: currentNote.patientName,
         dateOfService: formattedDate
       }
     };
   };
 
   const handleCreateToDo = async () => {
-    // Use currentEncounterId (internal state) instead of URL params for navigation
-    const targetEncounterId = currentEncounterId || encounterId;
-    if (!targetEncounterId) return;
-
-    console.log('🎯 Creating ToDo for encounter:', targetEncounterId, '(currentEncounterId:', currentEncounterId, ', URL encounterId:', encounterId, ')');
+    if (!currentNote) return;
 
     // Set modal to loading state
     setModalState('loading');
@@ -1002,20 +1114,32 @@ const NoteDetail: React.FC = () => {
     setModalSuccess(null);
 
     try {
-      const result = await aiNoteCheckerService.createToDo(targetEncounterId);
+      const result = await aiNoteCheckerService.createToDo(currentNote.encounterId);
       
       if (result.success) {
         // Set modal to success state
         setModalState('success');
         setModalSuccess(`ToDo created successfully! (ID: ${result.todoId})`);
         
-        // Refresh the check history and created ToDos in background
+        // Refresh the check history and created ToDos in background and update cache
         const [newHistory, newTodos] = await Promise.all([
-          fetchCheckHistory(),
-          fetchCreatedTodos()
+          fetchCheckHistory(currentNote.encounterId),
+          fetchCreatedTodos(currentNote.encounterId)
         ]);
-        setCheckHistory(newHistory);
-        setCreatedTodos(newTodos);
+        setNoteDataCache(prev => {
+          const newCache = new Map(prev);
+          const existing = newCache.get(currentNote.encounterId) as CachedNoteData | undefined;
+          if (existing) {
+            newCache.set(currentNote.encounterId, {
+              progressNoteData: existing.progressNoteData,
+              careTeam: existing.careTeam,
+              checkHistory: newHistory,
+              createdTodos: newTodos,
+              invalidIssues: existing.invalidIssues
+            });
+          }
+          return newCache;
+        });
         
         // Auto-close modal after 2 seconds on success
         setTimeout(() => {
@@ -1042,216 +1166,388 @@ const NoteDetail: React.FC = () => {
     return <CheckCircle color="success" />;
   };
 
-  const getStatusColor = (result: NoteCheckResult) => {
-    if (result.status === 'error') return 'error';
-    if (result.issuesFound) return 'warning';
-    return 'success';
-  };
 
 
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  // Derive display data from either navigation state or fetched data
-  const displayData = noteData || (progressNoteData ? {
-    encounterId: encounterId!,
-    patientId: progressNoteData.patientId || 'unknown',
-    patientName: 'Loading...', // Will be updated when care team loads
-    chiefComplaint: 'Loading...',
-    dateOfService: new Date().toISOString(),
-    status: 'Loading...',
-    progressNotes: progressNoteData.progressNotes
-  } : null);
-
-  // If we don't have displayData at all, show loading
-  if (!displayData) {
+  // Show loading if we don't have notes loaded yet or no current note
+  if (encountersLoading || notes.length === 0 || !currentNote) {
+    console.log('🔍 Loading state:', {
+      encountersLoading,
+      notesLength: notes.length,
+      currentNote: !!currentNote,
+      allEncountersLength: allEncounters.length
+    });
+    
     return (
       <Box sx={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <CircularProgress />
-        <Typography sx={{ ml: 2 }}>Loading note details...</Typography>
+        <Typography sx={{ ml: 2 }}>
+          {encountersLoading ? 'Loading encounters...' : 
+           notes.length === 0 ? 'No notes found for this filter...' :
+           'Loading note data...'}
+        </Typography>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f5f5f5' }}>
-      {/* Header */}
+    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc' }}>
+      {/* Modern Dark Header */}
       <Box sx={{ 
-        backgroundColor: '#1976d2', 
-        color: 'white', 
-        px: 3, 
-        py: 1.5,
-        display: 'flex',
+        background: 'linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%)',
+        color: '#f8fafc',
+        px: 4, 
+        py: 3,
+        display: 'grid',
+        gridTemplateColumns: '1fr auto 1fr',
         alignItems: 'center',
-        gap: 2
+        gap: 3,
+        minHeight: '100px',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        borderBottom: '1px solid #2a2a2a'
       }}>
-        <IconButton
-          color="inherit"
-          onClick={() => navigate('/ai-note-checker')}
-          sx={{ mr: 1 }}
-        >
-          <ArrowBack />
-        </IconButton>
-        <Assignment sx={{ fontSize: '1.5rem' }} />
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-            Note Detail - {displayData?.patientName || 'Loading...'}
-          </Typography>
-          <Typography variant="body2" sx={{ opacity: 0.9 }}>
-            {displayData?.chiefComplaint || 'Loading...'} • {displayData?.dateOfService ? aiNoteCheckerService.formatTimeAgo(displayData.dateOfService) : 'Loading...'}
-          </Typography>
+        {/* Left section - Back button and title */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'flex-start' }}>
+          <Tooltip title="Back to AI Note Checker">
+            <IconButton
+              onClick={() => {
+                // Get the current filter context to preserve it when going back
+                const navigationState = location.state as { currentFilter?: string; filteredNotes?: any[] } | null;
+                const currentFilter = navigationState?.currentFilter;
+                
+                // Navigate back with the filter context preserved
+                navigate('/ai-note-checker', {
+                  state: { 
+                    returnToFilter: currentFilter || 'all' 
+                  }
+                });
+              }}
+              sx={{ 
+                color: '#f8fafc',
+                backgroundColor: '#2a2a2a',
+                border: '1px solid #3a3a3a',
+                borderRadius: 2,
+                p: 1.5,
+                '&:hover': {
+                  backgroundColor: '#3a3a3a',
+                  borderColor: '#4a4a4a'
+                }
+              }}
+            >
+              <ArrowBack sx={{ fontSize: '1.25rem' }} />
+            </IconButton>
+          </Tooltip>
+          <Psychology sx={{ fontSize: '2rem', color: '#3b82f6' }} />
+          <Box>
+            <Typography variant="h5" sx={{ 
+              fontWeight: 800, 
+              lineHeight: 1.2,
+              color: '#f8fafc',
+              fontSize: '1.5rem'
+            }}>
+              AI Note Analysis
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Typography variant="body1" sx={{ 
+                opacity: 0.8,
+                color: '#e2e8f0',
+                fontSize: '0.95rem',
+                fontWeight: 500
+              }}>
+                {currentNote.patientName} • {currentNote.chiefComplaint}
+              </Typography>
+              {noteSignedOff && (
+                <Tooltip title={signOffInfo || 'Note has been signed off'}>
+                  <Chip
+                    icon={<CheckCircle />}
+                    label="SIGNED OFF"
+                    sx={{
+                      backgroundColor: '#10b981',
+                      color: 'white',
+                      fontWeight: 700,
+                      fontSize: '0.75rem',
+                      '& .MuiChip-icon': {
+                        color: 'white'
+                      }
+                    }}
+                  />
+                </Tooltip>
+              )}
+            </Box>
+            <Typography variant="body2" sx={{ 
+              opacity: 0.6,
+              color: '#94a3b8',
+              fontSize: '0.8rem',
+              fontWeight: 400
+            }}>
+              {aiNoteCheckerService.formatTimeAgo(currentNote.dateOfService)}
+            </Typography>
+          </Box>
         </Box>
         
-        {/* Navigation buttons - only show if encounters list is available */}
-        {(() => {
-          console.log('🎛️ Navigation UI Debug:', {
-            encountersListLength: encountersList.length,
-            currentIndex,
-            currentEncounterId,
-            shouldShowNav: encountersList.length > 0 && currentIndex >= 0,
-            isNextDisabled: currentIndex >= encountersList.length - 1 || navigationLoading
-          });
-          return encountersList.length > 0 && currentIndex >= 0;
-        })() && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 2 }}>
-            {(() => {
-              // Calculate navigation info based on filtered vs unfiltered mode
-              const isFiltered = !!filteredNavigationData;
-              const notesList = isFiltered ? filteredNavigationData!.filteredNotes : encountersList;
-              const activeIndex = isFiltered ? getFilteredCurrentIndex(currentEncounterId!) : currentIndex;
-              const hasPrevious = isFiltered 
-                ? !!getFilteredPreviousEncounter(currentEncounterId!) 
-                : currentIndex > 0;
-              const hasNext = isFiltered 
-                ? !!getFilteredNextEncounter(currentEncounterId!) 
-                : currentIndex < encountersList.length - 1;
-              
-              return (
-                <>
-                  <Tooltip title={`Previous encounter${isFiltered ? ` (filtered: ${filteredNavigationData!.currentFilter})` : ''}`}>
-                    <IconButton
-                      color="inherit"
-                      onClick={handleSmartPreviousEncounter}
-                      disabled={!hasPrevious || navigationLoading}
-                      size="small"
-                      sx={{ 
-                        opacity: !hasPrevious ? 0.5 : 1,
-                        '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' }
-                      }}
-                    >
-                      <NavigateBefore />
-                    </IconButton>
-                  </Tooltip>
-                  
-                  <Typography variant="body2" sx={{ minWidth: '60px', textAlign: 'center', fontSize: '0.8rem' }}>
-                    {activeIndex >= 0 ? `${activeIndex + 1} / ${notesList.length}` : '- / -'}
-                    {isFiltered && (
-                      <Typography variant="caption" sx={{ display: 'block', fontSize: '0.6rem', color: 'rgba(255,255,255,0.7)' }}>
-                        {filteredNavigationData!.currentFilter}
-                      </Typography>
-                    )}
-                  </Typography>
-                  
-                  <Tooltip title={`Next encounter${isFiltered ? ` (filtered: ${filteredNavigationData!.currentFilter})` : ''}`}>
-                    <IconButton
-                      color="inherit"
-                      onClick={handleSmartNextEncounter}
-                      disabled={!hasNext || navigationLoading}
-                      size="small"
-                      sx={{ 
-                        opacity: !hasNext ? 0.5 : 1,
-                        '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' }
-                      }}
-                    >
-                      <NavigateNext />
-                    </IconButton>
-                  </Tooltip>
-                </>
-              );
-            })()}
+        {/* Center section - Navigation arrows with modern styling */}
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 2,
+          justifyContent: 'center',
+          minWidth: '200px',
+          backgroundColor: '#1a1a1a',
+          border: '1px solid #2a2a2a',
+          borderRadius: 3,
+          px: 3,
+          py: 1.5
+        }}>
+          <Tooltip title="Previous note (Arrow Left)">
+            <IconButton
+              onClick={handlePreviousNote}
+              disabled={currentIndex <= 0}
+              sx={{ 
+                color: currentIndex <= 0 ? '#64748b' : '#f8fafc',
+                backgroundColor: currentIndex <= 0 ? 'transparent' : '#2a2a2a',
+                border: '1px solid #3a3a3a',
+                borderRadius: 2,
+                p: 1,
+                '&:hover': { 
+                  backgroundColor: currentIndex <= 0 ? 'transparent' : '#3a3a3a',
+                  borderColor: currentIndex <= 0 ? '#3a3a3a' : '#4a4a4a'
+                },
+                '&:disabled': {
+                  color: '#64748b',
+                  backgroundColor: 'transparent',
+                  borderColor: '#2a2a2a'
+                }
+              }}
+            >
+              <NavigateBefore sx={{ fontSize: '1.25rem' }} />
+            </IconButton>
+          </Tooltip>
+          
+          <Box sx={{ 
+            textAlign: 'center',
+            px: 2,
+            py: 0.5,
+            backgroundColor: '#0f0f0f',
+            border: '1px solid #2a2a2a',
+            borderRadius: 2
+          }}>
+            <Typography variant="body2" sx={{ 
+              color: '#f8fafc',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              lineHeight: 1.2
+            }}>
+              {(() => {
+                const navigationState = location.state as { currentFilter?: string } | null;
+                const currentFilter = navigationState?.currentFilter;
+                const suffix = currentFilter === 'issues' ? ' with issues' :
+                             currentFilter === 'clean' ? ' clean' :
+                             currentFilter === 'unchecked' ? ' unchecked' :
+                             currentFilter === 'issues-no-todos' ? ' with issues (no ToDos)' : '';
+                return `${currentIndex + 1} / ${notes.length}${suffix}`;
+              })()}
+            </Typography>
           </Box>
-        )}
+          
+          <Tooltip title="Next note (Arrow Right)">
+            <IconButton
+              onClick={handleNextNote}
+              disabled={currentIndex >= notes.length - 1}
+              sx={{ 
+                color: currentIndex >= notes.length - 1 ? '#64748b' : '#f8fafc',
+                backgroundColor: currentIndex >= notes.length - 1 ? 'transparent' : '#2a2a2a',
+                border: '1px solid #3a3a3a',
+                borderRadius: 2,
+                p: 1,
+                '&:hover': { 
+                  backgroundColor: currentIndex >= notes.length - 1 ? 'transparent' : '#3a3a3a',
+                  borderColor: currentIndex >= notes.length - 1 ? '#3a3a3a' : '#4a4a4a'
+                },
+                '&:disabled': {
+                  color: '#64748b',
+                  backgroundColor: 'transparent',
+                  borderColor: '#2a2a2a'
+                }
+              }}
+            >
+              <NavigateNext sx={{ fontSize: '1.25rem' }} />
+            </IconButton>
+          </Tooltip>
+        </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Button
-            variant="outlined"
-            color="inherit"
-            startIcon={checking ? <CircularProgress size={16} color="inherit" /> : <Psychology />}
-            onClick={handleCheckNote}
-            disabled={checking}
-            size="small"
-          >
-            {checking 
-              ? 'Checking...' 
-              : forceNewCheck 
-                ? 'Force New AI Check' 
-                : 'Run AI Check'
-            }
-          </Button>
-          <Tooltip title="Bypass MD5 duplicate detection and run a fresh AI analysis even if this note was already checked">
+        {/* Right section - Action buttons with modern styling */}
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 2, 
+          justifyContent: 'flex-end',
+          minWidth: '450px'
+        }}>
+          <Tooltip title="Run AI analysis on this note">
+            <Button
+              variant="contained"
+              startIcon={checking ? <CircularProgress size={16} color="inherit" /> : <Psychology />}
+              onClick={handleCheckNote}
+              disabled={checking}
+              sx={{
+                backgroundColor: '#3b82f6',
+                color: 'white',
+                border: '1px solid #2563eb',
+                borderRadius: 2,
+                px: 3,
+                py: 1,
+                fontWeight: 600,
+                fontSize: '0.875rem',
+                '&:hover': {
+                  backgroundColor: '#2563eb',
+                  borderColor: '#1d4ed8'
+                },
+                '&:disabled': {
+                  backgroundColor: '#64748b',
+                  borderColor: '#475569',
+                  color: '#e2e8f0'
+                }
+              }}
+            >
+              {checking 
+                ? 'Analyzing...' 
+                : forceNewCheck 
+                  ? 'Force New Check' 
+                  : 'Run AI Check'
+              }
+            </Button>
+          </Tooltip>
+          
+          <Tooltip title="Bypass duplicate detection and run fresh analysis">
             <FormControlLabel
               control={
                 <Checkbox
                   checked={forceNewCheck}
                   onChange={(e) => setForceNewCheck(e.target.checked)}
                   size="small"
-                  sx={{ color: 'white', '&.Mui-checked': { color: 'white' } }}
+                  sx={{ 
+                    color: '#94a3b8', 
+                    '&.Mui-checked': { color: '#3b82f6' },
+                    '&:hover': { backgroundColor: 'rgba(59, 130, 246, 0.1)' }
+                  }}
                 />
               }
               label="Force New"
               sx={{ 
-                color: 'white', 
-                fontSize: '0.8rem',
-                '& .MuiFormControlLabel-label': { fontSize: '0.8rem' }
+                color: '#e2e8f0', 
+                fontSize: '0.85rem',
+                fontWeight: 500,
+                '& .MuiFormControlLabel-label': { fontSize: '0.85rem' }
               }}
             />
           </Tooltip>
-        </Box>
-        {checkHistory.some(check => check.issuesFound) && (
-          createdTodos.length > 0 ? (
-            <Chip
-              icon={<CheckCircle />}
-              label={`ToDo Created (${createdTodos.length})`}
-              color="success"
-              size="medium"
-              sx={{ fontWeight: 'bold' }}
-            />
-          ) : (
-            <Button
-              variant="contained"
-              color="warning"
-              startIcon={<Assignment />}
-                                onClick={() => {
+          
+          {checkHistory.some(check => check.issuesFound) && (
+            createdTodos.length > 0 ? (
+              <Chip
+                icon={<CheckCircle />}
+                label={`ToDo Created (${createdTodos.length})`}
+                sx={{ 
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  fontWeight: 700,
+                  fontSize: '0.8rem',
+                  border: '1px solid #059669',
+                  '& .MuiChip-icon': {
+                    color: 'white'
+                  }
+                }}
+              />
+            ) : (
+              <Tooltip title="Create a ToDo for the identified issues">
+                <Button
+                  variant="contained"
+                  startIcon={<Assignment />}
+                  onClick={() => {
                     setShowToDoModal(true);
-                    setModalState('preview'); // Reset modal state
+                    setModalState('preview');
                     setModalError(null);
                     setModalSuccess(null);
                   }}
-              size="small"
+                  sx={{ 
+                    backgroundColor: '#f59e0b',
+                    color: 'white',
+                    border: '1px solid #d97706',
+                    borderRadius: 2,
+                    px: 3,
+                    py: 1,
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
+                    '&:hover': {
+                      backgroundColor: '#d97706',
+                      borderColor: '#b45309'
+                    }
+                  }}
+                >
+                  Create ToDo
+                </Button>
+              </Tooltip>
+            )
+          )}
+          
+          {/* Sign Off Button - only show if user can sign off and note isn't already signed off */}
+          {canSignOffNote() && !noteSignedOff && (
+            <Tooltip title="Sign off this note">
+              <Button
+                variant="contained"
+                startIcon={<Edit />}
+                onClick={() => setShowSignOffModal(true)}
+                disabled={signingOff}
+                sx={{ 
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  border: '1px solid #059669',
+                  borderRadius: 2,
+                  px: 3,
+                  py: 1,
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  '&:hover': {
+                    backgroundColor: '#059669',
+                    borderColor: '#047857'
+                  },
+                  '&:disabled': {
+                    backgroundColor: '#64748b',
+                    borderColor: '#475569',
+                    color: '#e2e8f0'
+                  }
+                }}
+              >
+                {signingOff ? 'Signing Off...' : 'Sign Off Note'}
+              </Button>
+            </Tooltip>
+          )}
+          
+          <Tooltip title="Refresh note data">
+            <IconButton
+              onClick={refreshNoteData}
+              disabled={loading}
               sx={{ 
-                backgroundColor: 'warning.main',
+                color: '#f8fafc',
+                backgroundColor: '#2a2a2a',
+                border: '1px solid #3a3a3a',
+                borderRadius: 2,
+                p: 1.5,
                 '&:hover': {
-                  backgroundColor: 'warning.dark'
+                  backgroundColor: '#3a3a3a',
+                  borderColor: '#4a4a4a'
+                },
+                '&:disabled': {
+                  color: '#64748b',
+                  backgroundColor: '#1a1a1a',
+                  borderColor: '#2a2a2a'
                 }
               }}
             >
-              Create ToDo for Issues
-            </Button>
-          )
-        )}
-        <IconButton
-          color="inherit"
-          onClick={fetchNoteDetails}
-          disabled={loading}
-        >
-          <Refresh />
-        </IconButton>
+              {loading ? <CircularProgress size={20} sx={{ color: '#64748b' }} /> : <Refresh sx={{ fontSize: '1.25rem' }} />}
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Box>
 
       {/* Error Alert */}
@@ -1263,52 +1559,127 @@ const NoteDetail: React.FC = () => {
         </Box>
       )}
 
-      {/* Success Alert */}
-      {todoSuccess && (
+      {/* Success Alert for Sign Off */}
+      {noteSignedOff && (
         <Box sx={{ px: 3, pt: 2 }}>
-          <Alert severity="success" onClose={() => setTodoSuccess(null)}>
-            {todoSuccess}
+          <Alert 
+            severity="success" 
+            onClose={() => setNoteSignedOff(false)}
+            sx={{
+              backgroundColor: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              '& .MuiAlert-icon': {
+                color: '#10b981'
+              }
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <CheckCircle sx={{ fontSize: '1.2rem' }} />
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                Note successfully signed off! The note status has been updated in the EZDerm system.
+              </Typography>
+            </Box>
           </Alert>
         </Box>
       )}
 
-      {/* Main Content */}
-      <Box sx={{ flex: 1, display: 'flex', p: 3, gap: 3, overflow: 'hidden' }}>
-        {/* Left Panel - Note Content */}
-        <Paper sx={{ flex: 1, display: 'flex', flexDirection: 'column', maxHeight: '100%' }}>
-          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-              <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                Progress Note
-              </Typography>
+
+      {/* Main Content with modern styling */}
+      <Box sx={{ flex: 1, display: 'flex', p: 4, gap: 4, overflow: 'hidden' }}>
+        {/* Left Panel - Note Content with modern card design */}
+        <Paper sx={{ 
+          flex: 1, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          maxHeight: '100%',
+          backgroundColor: 'white',
+          borderRadius: 3,
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+          border: '1px solid #e2e8f0',
+          overflow: 'hidden'
+        }}>
+          <Box sx={{ 
+            p: 3, 
+            borderBottom: '2px solid #f1f5f9',
+            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)'
+          }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Description sx={{ fontSize: '1.75rem', color: '#3b82f6' }} />
+                <Typography variant="h5" sx={{ 
+                  fontWeight: 800,
+                  color: '#1e293b',
+                  fontSize: '1.25rem'
+                }}>
+                  Progress Note
+                </Typography>
+              </Box>
               <Stack direction="row" spacing={1}>
                 <Tooltip title="Expand all sections">
-                  <IconButton size="small" onClick={() => setCollapsedSections(new Set())}>
-                    <Visibility />
+                  <IconButton 
+                    size="small" 
+                    onClick={() => setCollapsedSections(new Set())}
+                    sx={{
+                      backgroundColor: '#f1f5f9',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 2,
+                      '&:hover': {
+                        backgroundColor: '#e2e8f0',
+                        borderColor: '#cbd5e1'
+                      }
+                    }}
+                  >
+                    <Visibility sx={{ fontSize: '1.1rem', color: '#64748b' }} />
                   </IconButton>
                 </Tooltip>
                 <Tooltip title="Collapse all sections">
-                  <IconButton size="small" onClick={() => {
-                    // Use the same data structure handling as renderProgressNote
-                    const noteData = progressNoteData?.data || progressNoteData;
-                    const allSections = displayData?.progressNotes?.map((s: any) => s.sectionType) || [];
-                    console.log('🔧 Collapsing all sections:', allSections);
-                    setCollapsedSections(new Set(allSections));
-                  }}>
-                    <VisibilityOff />
+                  <IconButton 
+                    size="small" 
+                    onClick={() => {
+                      const noteData = progressNoteData?.data || progressNoteData;
+                      const sections = noteData?.progressNotes || [];
+                      const allSections = sections.map((s: any) => s.sectionType || s.label || `Section ${sections.indexOf(s) + 1}`);
+                      setCollapsedSections(new Set(allSections));
+                    }}
+                    sx={{
+                      backgroundColor: '#f1f5f9',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 2,
+                      '&:hover': {
+                        backgroundColor: '#e2e8f0',
+                        borderColor: '#cbd5e1'
+                      }
+                    }}
+                  >
+                    <VisibilityOff sx={{ fontSize: '1.1rem', color: '#64748b' }} />
                   </IconButton>
                 </Tooltip>
               </Stack>
             </Box>
-            <Typography variant="body2" color="text.secondary">
-              Status: {displayData?.status || 'Unknown'} • {(() => {
-                const noteData = progressNoteData?.data || progressNoteData;
-                return noteData?.progressNotes?.length || 0;
-              })()} sections
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <Chip
+                label={currentNote.status}
+                sx={{
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  fontWeight: 600,
+                  fontSize: '0.8rem'
+                }}
+              />
+              <Typography variant="body2" sx={{ 
+                color: '#64748b',
+                fontSize: '0.9rem',
+                fontWeight: 500
+              }}>
+                {(() => {
+                  const noteData = progressNoteData?.data || progressNoteData;
+                  return noteData?.progressNotes?.length || 0;
+                })()} sections
+              </Typography>
+            </Box>
           </Box>
           <Box sx={{ flex: 1, overflow: 'auto' }}>
-            {(loading || navigationLoading) ? (
+            {loading ? (
               <Box sx={{ p: 4, textAlign: 'center' }}>
                 <CircularProgress />
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
@@ -1321,23 +1692,99 @@ const NoteDetail: React.FC = () => {
           </Box>
         </Paper>
 
-        {/* Right Panel - Care Team & AI Check History */}
-        <Paper sx={{ width: '400px', display: 'flex', flexDirection: 'column', maxHeight: '100%' }}>
-          {/* Care Team Section */}
-          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-            <Typography variant="h6" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Group />
-              Care Team ({careTeam.length})
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
+        {/* Right Panel - Care Team & AI Check History with modern styling */}
+        <Box sx={{ width: '420px', display: 'flex', flexDirection: 'column', gap: 3, maxHeight: '100%' }}>
+          {/* Sign-off Information Section - only show if note is signed off */}
+          {noteSignedOff && signOffInfo && (
+            <Paper
+              elevation={0}
+              sx={{
+                border: '1px solid #10b981',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                backgroundColor: '#f0fdf4'
+              }}
+            >
+              {/* Header */}
+              <Box sx={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                p: 2,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}>
+                <CheckCircle sx={{ color: 'white', fontSize: '1.4rem' }} />
+                <Typography variant="h6" sx={{ 
+                  color: 'white', 
+                  fontWeight: 600,
+                  fontSize: '1rem'
+                }}>
+                  Note Signed Off
+                </Typography>
+              </Box>
+              
+              {/* Content */}
+              <Box sx={{ p: 2 }}>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: '#065f46',
+                    lineHeight: 1.5,
+                    whiteSpace: 'pre-line',
+                    fontFamily: 'monospace',
+                    fontSize: '0.85rem'
+                  }}
+                >
+                  {signOffInfo}
+                </Typography>
+              </Box>
+            </Paper>
+          )}
+
+          {/* Main Panel */}
+          <Paper sx={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            flex: 1,
+            backgroundColor: 'white',
+            borderRadius: 3,
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            border: '1px solid #e2e8f0',
+            overflow: 'hidden'
+          }}>
+            {/* Care Team Section */}
+          <Box sx={{ 
+            p: 3, 
+            borderBottom: '2px solid #f1f5f9',
+            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+              <Group sx={{ fontSize: '1.5rem', color: '#10b981' }} />
+              <Typography variant="h6" sx={{ 
+                fontWeight: 800,
+                color: '#1e293b',
+                fontSize: '1.1rem'
+              }}>
+                Care Team ({careTeam.length})
+              </Typography>
+            </Box>
+            <Typography variant="body2" sx={{ 
+              color: '#64748b',
+              fontSize: '0.85rem',
+              fontWeight: 500
+            }}>
               Providers and staff for this encounter
             </Typography>
           </Box>
-          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-            {(loading || navigationLoading) ? (
-              <Box sx={{ py: 2, textAlign: 'center' }}>
-                <CircularProgress size={24} />
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9' }}>
+            {loading ? (
+              <Box sx={{ py: 3, textAlign: 'center' }}>
+                <CircularProgress size={24} sx={{ color: '#3b82f6' }} />
+                <Typography variant="body2" sx={{ 
+                  mt: 2,
+                  color: '#64748b',
+                  fontSize: '0.85rem'
+                }}>
                   Loading Data...
                 </Typography>
               </Box>
@@ -1347,18 +1794,32 @@ const NoteDetail: React.FC = () => {
           </Box>
 
           {/* Created ToDos Section */}
-          {(!loading && !navigationLoading && createdTodos.length > 0) && (
+          {(!loading && createdTodos.length > 0) && (
             <>
-              <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Assignment color="success" />
-                  Created ToDos ({createdTodos.length})
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
+              <Box sx={{ 
+                p: 3, 
+                borderBottom: '2px solid #f1f5f9',
+                background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)'
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                  <Assignment sx={{ fontSize: '1.5rem', color: '#10b981' }} />
+                  <Typography variant="h6" sx={{ 
+                    fontWeight: 800,
+                    color: '#1e293b',
+                    fontSize: '1.1rem'
+                  }}>
+                    Created ToDos ({createdTodos.length})
+                  </Typography>
+                </Box>
+                <Typography variant="body2" sx={{ 
+                  color: '#64748b',
+                  fontSize: '0.85rem',
+                  fontWeight: 500
+                }}>
                   ToDos created for note deficiencies
                 </Typography>
               </Box>
-              <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+              <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9' }}>
                 <Stack spacing={1}>
                   {createdTodos.map((todo, index) => (
                     <Paper key={todo.id} sx={{ p: 2, bgcolor: 'success.50' }}>
@@ -1391,29 +1852,55 @@ const NoteDetail: React.FC = () => {
           )}
 
           {/* AI Check History Section */}
-          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-              AI Check History ({checkHistory.length})
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
+          <Box sx={{ 
+            p: 3, 
+            borderBottom: '2px solid #f1f5f9',
+            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+              <Psychology sx={{ fontSize: '1.5rem', color: '#10b981' }} />
+              <Typography variant="h6" sx={{ 
+                fontWeight: 800,
+                color: '#1e293b',
+                fontSize: '1.1rem'
+              }}>
+                AI Check History ({checkHistory.length})
+              </Typography>
+            </Box>
+            <Typography variant="body2" sx={{ 
+              color: '#64748b',
+              fontSize: '0.85rem',
+              fontWeight: 500
+            }}>
               Recent AI analysis results
             </Typography>
           </Box>
           <Box sx={{ flex: 1, overflow: 'auto' }}>
-            {(loading || navigationLoading) ? (
-              <Box sx={{ p: 3, textAlign: 'center' }}>
-                <CircularProgress size={32} />
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            {loading ? (
+              <Box sx={{ p: 4, textAlign: 'center' }}>
+                <CircularProgress size={32} sx={{ color: '#3b82f6' }} />
+                <Typography variant="body2" sx={{ 
+                  mt: 2,
+                  color: '#64748b',
+                  fontSize: '0.85rem'
+                }}>
                   Loading Data...
                 </Typography>
               </Box>
             ) : checkHistory.length === 0 ? (
-              <Box sx={{ p: 3, textAlign: 'center' }}>
-                <Psychology sx={{ fontSize: '3rem', color: 'text.secondary', mb: 2 }} />
-                <Typography variant="h6" color="text.secondary">
+              <Box sx={{ p: 4, textAlign: 'center' }}>
+                <Psychology sx={{ fontSize: '3rem', color: '#cbd5e1', mb: 2 }} />
+                <Typography variant="h6" sx={{ 
+                  color: '#64748b',
+                  fontWeight: 600,
+                  mb: 1
+                }}>
                   No checks yet
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{ 
+                  color: '#94a3b8',
+                  fontSize: '0.85rem'
+                }}>
                   Run an AI check to see analysis results
                 </Typography>
               </Box>
@@ -1459,7 +1946,30 @@ const NoteDetail: React.FC = () => {
                             <Alert severity="success" sx={{ fontSize: '0.75rem' }}>
                               {result.aiAnalysis?.issues && result.aiAnalysis.issues.length > 0 
                                 ? '✅ All issues marked as invalid - note now meets coding requirements'
-                                : '✅ All checks passed - note meets coding requirements'
+                                : (
+                                  <Box>
+                                    <Box sx={{ fontWeight: 'bold', mb: result.aiAnalysis?.reason ? 1 : 0 }}>
+                                      ✅ All checks passed - note meets coding requirements
+                                    </Box>
+                                    {result.aiAnalysis?.reason && (
+                                      <Box sx={{ 
+                                        mt: 1, 
+                                        p: 1, 
+                                        bgcolor: 'success.50', 
+                                        borderRadius: 1,
+                                        border: '1px solid',
+                                        borderColor: 'success.200'
+                                      }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 'medium', mb: 0.5 }}>
+                                          AI Assessment:
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+                                          "{result.aiAnalysis.reason}"
+                                        </Typography>
+                                      </Box>
+                                    )}
+                                  </Box>
+                                )
                               }
                             </Alert>
                           </Box>
@@ -1472,7 +1982,8 @@ const NoteDetail: React.FC = () => {
               </List>
             )}
           </Box>
-        </Paper>
+          </Paper>
+        </Box>
       </Box>
 
       {/* ToDo Confirmation Modal */}
@@ -1723,6 +2234,86 @@ const NoteDetail: React.FC = () => {
             </DialogActions>
           </>
         )}
+      </Dialog>
+
+      {/* Sign Off Confirmation Modal */}
+      <Dialog
+        open={showSignOffModal}
+        onClose={() => !signingOff && setShowSignOffModal(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ 
+          backgroundColor: '#f8fafc', 
+          borderBottom: '1px solid #e2e8f0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2
+        }}>
+          <Edit sx={{ color: '#10b981' }} />
+          Sign Off Note
+        </DialogTitle>
+        
+        <DialogContent sx={{ pt: 3 }}>
+          <DialogContentText sx={{ mb: 2 }}>
+            Are you sure you want to sign off this note?
+          </DialogContentText>
+          
+          <Box sx={{ 
+            backgroundColor: '#f0fdf4', 
+            border: '1px solid #bbf7d0',
+            borderRadius: 2,
+            p: 2,
+            mb: 2
+          }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, color: '#166534', mb: 1 }}>
+              Note Details:
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              <strong>Patient:</strong> {currentNote?.patientName}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              <strong>Chief Complaint:</strong> {currentNote?.chiefComplaint}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              <strong>Date of Service:</strong> {currentNote && aiNoteCheckerService.formatTimeAgo(currentNote.dateOfService)}
+            </Typography>
+          </Box>
+          
+          <Alert severity="info" sx={{ mb: 2 }}>
+            This action will mark the note as signed off in the EZDerm system. This cannot be undone.
+          </Alert>
+        </DialogContent>
+        
+        <DialogActions sx={{ p: 3, gap: 2 }}>
+          <Button
+            onClick={() => setShowSignOffModal(false)}
+            disabled={signingOff}
+            sx={{ 
+              color: '#64748b',
+              '&:hover': { backgroundColor: '#f1f5f9' }
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSignOff}
+            disabled={signingOff}
+            variant="contained"
+            startIcon={signingOff ? <CircularProgress size={16} color="inherit" /> : <Edit />}
+            sx={{
+              backgroundColor: '#10b981',
+              color: 'white',
+              '&:hover': { backgroundColor: '#059669' },
+              '&:disabled': { 
+                backgroundColor: '#64748b',
+                color: '#e2e8f0'
+              }
+            }}
+          >
+            {signingOff ? 'Signing Off...' : 'Sign Off Note'}
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );
