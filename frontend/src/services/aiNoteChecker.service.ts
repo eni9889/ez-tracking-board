@@ -885,6 +885,7 @@ class AINoteCheckerService {
         {
           note: noteText,
           encounterId,
+          patientId,
           type: 'HISTORY_OF_PRESENT_ILLNESS'
         },
         {

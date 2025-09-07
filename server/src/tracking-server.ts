@@ -1433,10 +1433,10 @@ app.post('/notes/sign-off', validateSession, async (req: Request, res: Response)
 app.post('/notes/modify-hpi', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const username = (req as any).user.username;
-    const { note, encounterId, type } = req.body;
+    const { note, encounterId, patientId, type } = req.body;
     
-    if (!encounterId || !note || type !== 'HISTORY_OF_PRESENT_ILLNESS') {
-      res.status(400).json({ error: 'Encounter ID, note text, and type (HISTORY_OF_PRESENT_ILLNESS) are required' });
+    if (!encounterId || !patientId || !note || type !== 'HISTORY_OF_PRESENT_ILLNESS') {
+      res.status(400).json({ error: 'Encounter ID, Patient ID, note text, and type (HISTORY_OF_PRESENT_ILLNESS) are required' });
       return;
     }
     
@@ -1447,44 +1447,16 @@ app.post('/notes/modify-hpi', validateSession, async (req: Request, res: Respons
       return;
     }
     
-    console.log(`📝 Modifying HPI for encounter ${encounterId} by user ${username}`);
+    console.log(`📝 Modifying HPI for encounter ${encounterId}, patient ${patientId} by user ${username}`);
     
-    // Get patient ID from the encounter (we need this for the EZDerm API)
-    // First, get the encounter details to find the patient ID
-    const encounterResponse = await axios.post(
-      `${userTokens.serverUrl}ezderm-webservice/rest/encounter/getEncounters`,
-      {
-        encounterIds: [encounterId],
-        includePatientInfo: true
-      },
-      {
-        headers: {
-          'Host': 'srvprod.ezinfra.net',
-          'accept': 'application/json',
-          'content-type': 'application/json',
-          'authorization': `Bearer ${userTokens.accessToken}`,
-          'user-agent': 'ezDerm/4.28.1 (build:133.1; macOS(Catalyst) 15.6.1)',
-          'accept-language': 'en-US;q=1.0'
-        }
-      }
-    );
-    
-    const encounters = encounterResponse.data;
-    if (!encounters || encounters.length === 0) {
-      res.status(404).json({ error: 'Encounter not found' });
-      return;
-    }
-    
-    const patientId = encounters[0].patientId;
-    
-    // Prepare HPI modification data based on the modifyHPI.md example
+    // Prepare HPI modification data exactly as shown in modifyHPI.md
     const hpiData = {
       note: note,
       encounterId: encounterId,
       type: 'HISTORY_OF_PRESENT_ILLNESS'
     };
     
-    // Make request to EZDerm HPI modification API
+    // Make request to EZDerm HPI modification API exactly as shown in modifyHPI.md
     const response = await axios.post(
       `${userTokens.serverUrl}ezderm-webservice/rest/progressnote/setPNInfo`,
       hpiData,
