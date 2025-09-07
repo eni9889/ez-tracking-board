@@ -118,6 +118,8 @@ const NoteDetail: React.FC = () => {
         filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && !note.issuesFound);
       } else if (currentFilter === 'unchecked') {
         filteredNotes = allEncounters.filter(note => !note.lastCheckStatus || note.lastCheckStatus === 'pending');
+      } else if (currentFilter === 'issues-no-todos') {
+        filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && note.issuesFound === true && !note.todoCreated);
       }
       // For 'all' or no filter context, use all encounters
       
@@ -1025,7 +1027,8 @@ const NoteDetail: React.FC = () => {
               const currentFilter = navigationState?.currentFilter;
               const suffix = currentFilter === 'issues' ? ' with issues' :
                            currentFilter === 'clean' ? ' clean' :
-                           currentFilter === 'unchecked' ? ' unchecked' : '';
+                           currentFilter === 'unchecked' ? ' unchecked' :
+                           currentFilter === 'issues-no-todos' ? ' with issues (no ToDos)' : '';
               return `${currentIndex + 1} / ${notes.length}${suffix}`;
             })()}
           </Typography>

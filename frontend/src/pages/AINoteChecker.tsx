@@ -48,7 +48,7 @@ interface IncompleteNote {
   todoCount?: number;
 }
 
-type FilterType = 'all' | 'clean' | 'issues' | 'unchecked';
+type FilterType = 'all' | 'clean' | 'issues' | 'unchecked' | 'issues-no-todos';
 
 const AINoteChecker: React.FC = () => {
   const [checking, setChecking] = useState<Set<string>>(new Set());
@@ -102,6 +102,10 @@ const AINoteChecker: React.FC = () => {
         return incompleteNotes.filter(note => 
           !note.lastCheckStatus || note.lastCheckStatus === 'pending'
         );
+      case 'issues-no-todos':
+        return incompleteNotes.filter(note => 
+          note.lastCheckStatus === 'completed' && note.issuesFound && !note.todoCreated
+        );
       case 'all':
       default:
         return incompleteNotes;
@@ -122,6 +126,9 @@ const AINoteChecker: React.FC = () => {
       ).length,
       unchecked: incompleteNotes.filter(note => 
         !note.lastCheckStatus || note.lastCheckStatus === 'pending'
+      ).length,
+      'issues-no-todos': incompleteNotes.filter(note => 
+        note.lastCheckStatus === 'completed' && note.issuesFound && !note.todoCreated
       ).length,
     };
   };
@@ -416,6 +423,14 @@ const AINoteChecker: React.FC = () => {
             } 
             value="unchecked" 
           />
+          <Tab 
+            label={
+              <Badge badgeContent={noteCounts['issues-no-todos']} color="error" max={999}>
+                Issues Without ToDos
+              </Badge>
+            } 
+            value="issues-no-todos" 
+          />
         </Tabs>
       </Box>
 
@@ -600,6 +615,7 @@ const AINoteChecker: React.FC = () => {
                   : `No ${currentFilter === 'all' ? '' : 
                       currentFilter === 'clean' ? 'clean ' :
                       currentFilter === 'issues' ? 'notes with issues ' :
+                      currentFilter === 'issues-no-todos' ? 'notes with issues without ToDos ' :
                       'unchecked '}notes found`
                 }
               </Typography>
