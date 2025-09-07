@@ -63,9 +63,12 @@ Your JSON response must match the following JSON schema. IF it does not you have
       "properties": {
          "status": {
            "enum": ["ok"]
+         },
+         "reason": {
+           "type": "string"
          }
       },
-      "required": ["status"],
+      "required": ["status", "reason"],
       "additionalProperties": false
     },
     {
