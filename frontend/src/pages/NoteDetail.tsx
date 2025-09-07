@@ -56,6 +56,9 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useEncounters } from '../contexts/EncountersContext';
 import aiNoteCheckerService, { NoteCheckResult, AIAnalysisIssue, CareTeamMember, CreatedToDo, InvalidIssue } from '../services/aiNoteChecker.service';
+import MobileNoteDetailHeader from '../components/MobileNoteDetailHeader';
+import MobileNoteContent from '../components/MobileNoteContent';
+import useResponsive from '../hooks/useResponsive';
 
 interface NoteData {
   encounterId: string;
@@ -84,6 +87,7 @@ const NoteDetail: React.FC = () => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { user } = useAuth();
   const { encounters: allEncounters, loading: encountersLoading } = useEncounters();
+  const { isMobile, isDesktop } = useResponsive();
 
   // Simplified state management with data cache
   const [notes, setNotes] = useState<NoteData[]>([]);
@@ -773,9 +777,10 @@ const NoteDetail: React.FC = () => {
                   color={getRoleColor(member.encounterRoleType) as any}
                   sx={{ fontSize: '0.7rem', height: '20px' }}
                 />
-              </Box>
-            </Box>
           </Box>
+        </Box>
+        </Box>
+      )}
         ))}
       </Stack>
     );
@@ -1192,20 +1197,62 @@ const NoteDetail: React.FC = () => {
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc' }}>
-      {/* Modern Dark Header */}
-      <Box sx={{ 
-        background: 'linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%)',
-        color: '#f8fafc',
-        px: 4, 
-        py: 3,
-        display: 'grid',
-        gridTemplateColumns: '1fr auto 1fr',
-        alignItems: 'center',
-        gap: 3,
-        minHeight: '100px',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-        borderBottom: '1px solid #2a2a2a'
-      }}>
+      {/* Mobile Header */}
+      <MobileNoteDetailHeader
+        patientName={currentNote.patientName}
+        chiefComplaint={currentNote.chiefComplaint}
+        dateOfService={currentNote.dateOfService}
+        noteSignedOff={noteSignedOff}
+        signOffInfo={signOffInfo}
+        currentIndex={currentIndex}
+        totalNotes={notes.length}
+        filterContext={(location.state as any)?.currentFilter}
+        onBack={() => {
+          const navigationState = location.state as { currentFilter?: string; filteredNotes?: any[] } | null;
+          const currentFilter = navigationState?.currentFilter;
+          
+          navigate('/ai-note-checker', {
+            state: { 
+              returnToFilter: currentFilter || 'all' 
+            }
+          });
+        }}
+        onPrevious={handlePreviousNote}
+        onNext={handleNextNote}
+        onRunCheck={handleCheckNote}
+        onCreateToDo={() => {
+          setShowToDoModal(true);
+          setModalState('preview');
+          setModalError(null);
+          setModalSuccess(null);
+        }}
+        onSignOff={() => setShowSignOffModal(true)}
+        onRefresh={refreshNoteData}
+        checking={checking}
+        loading={loading}
+        forceNewCheck={forceNewCheck}
+        onForceNewCheckChange={setForceNewCheck}
+        todoCreated={createdTodos.length > 0}
+        todoCount={createdTodos.length}
+        canSignOff={canSignOffNote()}
+        canCreateToDo={checkHistory.some(check => check.issuesFound) && createdTodos.length === 0}
+      />
+
+      {/* Desktop Header - only show on desktop */}
+      {isDesktop && (
+        <Box sx={{ 
+          background: 'linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%)',
+          color: '#f8fafc',
+          px: 4, 
+          py: 3,
+          display: 'grid',
+          gridTemplateColumns: '1fr auto 1fr',
+          alignItems: 'center',
+          gap: 3,
+          minHeight: '100px',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+          borderBottom: '1px solid #2a2a2a'
+        }}>
         {/* Left section - Back button and title */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'flex-start' }}>
           <Tooltip title="Back to AI Note Checker">
@@ -1584,8 +1631,29 @@ const NoteDetail: React.FC = () => {
       )}
 
 
-      {/* Main Content with modern styling */}
-      <Box sx={{ flex: 1, display: 'flex', p: 4, gap: 4, overflow: 'hidden' }}>
+      {/* Mobile Content */}
+      {isMobile ? (
+        <MobileNoteContent
+          progressNoteData={progressNoteData}
+          careTeam={careTeam}
+          checkHistory={checkHistory}
+          createdTodos={createdTodos}
+          invalidIssues={invalidIssues}
+          loading={loading}
+          noteSignedOff={noteSignedOff}
+          editingHPI={editingHPI}
+          hpiEditText={hpiEditText}
+          savingHPI={savingHPI}
+          onEditHPI={handleEditHPI}
+          onSaveHPI={handleSaveHPI}
+          onCancelHPIEdit={handleCancelHPIEdit}
+          onHPITextChange={setHpiEditText}
+          onMarkIssueInvalid={markIssueAsInvalid}
+          onUnmarkIssueInvalid={unmarkIssueAsInvalid}
+        />
+      ) : (
+        /* Desktop Content */
+        <Box sx={{ flex: 1, display: 'flex', p: 4, gap: 4, overflow: 'hidden' }}>
         {/* Left Panel - Note Content with modern card design */}
         <Paper sx={{ 
           flex: 1, 
@@ -1984,7 +2052,8 @@ const NoteDetail: React.FC = () => {
           </Box>
           </Paper>
         </Box>
-      </Box>
+        </Box>
+      )}
 
       {/* ToDo Confirmation Modal */}
       <Dialog
