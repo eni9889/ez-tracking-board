@@ -141,50 +141,53 @@ const MobileNoteDetailHeader: React.FC<MobileNoteDetailHeaderProps> = ({
       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
       borderBottom: '1px solid #1a1a1a'
     }}>
-      {/* Main Header */}
+      {/* Compact Main Header */}
       <Box sx={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         px: 2,
-        py: 1.5,
-        minHeight: '64px'
+        py: 1,
+        minHeight: '56px'
       }}>
         {/* Left Section - Back Button */}
         <Tooltip title="Back to Note List">
           <IconButton
             onClick={onBack}
+            size="small"
             sx={{ 
               color: '#f8fafc',
               backgroundColor: '#2a2a2a',
               border: '1px solid #3a3a3a',
               borderRadius: 2,
-              p: 1,
+              p: 0.75,
+              minWidth: '36px',
+              minHeight: '36px',
               '&:hover': {
                 backgroundColor: '#3a3a3a',
                 borderColor: '#4a4a4a'
               }
             }}
           >
-            <ArrowBack sx={{ fontSize: '1.1rem' }} />
+            <ArrowBack sx={{ fontSize: '1rem' }} />
           </IconButton>
         </Tooltip>
 
-        {/* Center Section - Patient Info */}
+        {/* Center Section - Compact Patient Info */}
         <Box sx={{ 
           flex: 1, 
-          mx: 2, 
+          mx: 1.5, 
           minWidth: 0,
           display: 'flex',
           alignItems: 'center',
-          gap: 1.5
+          gap: 1
         }}>
           <Avatar
             sx={{
-              width: 40,
-              height: 40,
+              width: 32,
+              height: 32,
               backgroundColor: '#3b82f6',
-              fontSize: '0.9rem',
+              fontSize: '0.8rem',
               fontWeight: 700
             }}
           >
@@ -192,19 +195,20 @@ const MobileNoteDetailHeader: React.FC<MobileNoteDetailHeaderProps> = ({
           </Avatar>
           
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="h6" sx={{ 
-              fontWeight: 700, 
-              lineHeight: 1.2,
-              color: '#f8fafc',
-              fontSize: isSmallMobile ? '1rem' : '1.1rem',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}>
-              {patientName}
-            </Typography>
-            
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="body1" sx={{ 
+                fontWeight: 700, 
+                lineHeight: 1.2,
+                color: '#f8fafc',
+                fontSize: '0.95rem',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                flex: 1
+              }}>
+                {patientName}
+              </Typography>
+              
               {noteSignedOff && (
                 <Chip
                   icon={<CheckCircle />}
@@ -214,134 +218,244 @@ const MobileNoteDetailHeader: React.FC<MobileNoteDetailHeaderProps> = ({
                     backgroundColor: '#10b981',
                     color: 'white',
                     fontWeight: 600,
-                    fontSize: '0.7rem',
-                    height: '20px',
+                    fontSize: '0.65rem',
+                    height: '18px',
                     '& .MuiChip-icon': {
                       color: 'white',
-                      fontSize: '0.8rem'
+                      fontSize: '0.7rem'
                     }
                   }}
                 />
               )}
-              
-              <Typography variant="caption" sx={{ 
-                color: '#94a3b8',
-                fontSize: '0.75rem'
-              }}>
-                {aiNoteCheckerService.formatTimeAgo(dateOfService)}
-              </Typography>
             </Box>
+            
+            <Typography variant="caption" sx={{ 
+              color: '#94a3b8',
+              fontSize: '0.7rem',
+              lineHeight: 1,
+              display: 'block',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
+            }}>
+              {chiefComplaint} • {aiNoteCheckerService.formatTimeAgo(dateOfService)}
+            </Typography>
           </Box>
         </Box>
 
-        {/* Right Section - Menu */}
-        <IconButton
-          onClick={handleMenuOpen}
-          sx={{ 
-            color: '#f8fafc',
+        {/* Filter Context Indicator */}
+        {filterContext && filterContext !== 'all' && (
+          <Box sx={{
             backgroundColor: '#2a2a2a',
             border: '1px solid #3a3a3a',
-            borderRadius: 2,
-            p: 1,
-            '&:hover': {
-              backgroundColor: '#3a3a3a',
-              borderColor: '#4a4a4a'
-            }
-          }}
-        >
-          <MoreVert sx={{ fontSize: '1.1rem' }} />
-        </IconButton>
+            borderRadius: 1,
+            px: 1,
+            py: 0.25,
+            mr: 1
+          }}>
+            <Typography variant="caption" sx={{ 
+              color: '#94a3b8',
+              fontSize: '0.65rem',
+              fontWeight: 600
+            }}>
+              {getFilterLabel()}
+            </Typography>
+          </Box>
+        )}
       </Box>
 
-      {/* Navigation Bar */}
+      {/* Compact Navigation & Actions Bar */}
       <Box sx={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'space-between',
         px: 2,
-        py: 1,
+        py: 1.5,
         backgroundColor: '#1a1a1a',
-        borderTop: '1px solid #2a2a2a'
+        borderTop: '1px solid #2a2a2a',
+        gap: 1
       }}>
+        {/* Navigation Controls */}
         <Box sx={{ 
           display: 'flex', 
           alignItems: 'center', 
-          gap: 2,
+          gap: 1,
           backgroundColor: '#0f0f0f',
           border: '1px solid #2a2a2a',
-          borderRadius: 3,
-          px: 3,
-          py: 1
+          borderRadius: 2,
+          px: 2,
+          py: 0.75
         }}>
           <Tooltip title="Previous note">
             <IconButton
               onClick={onPrevious}
               disabled={currentIndex <= 0}
+              size="small"
               sx={{ 
                 color: currentIndex <= 0 ? '#64748b' : '#f8fafc',
-                backgroundColor: currentIndex <= 0 ? 'transparent' : '#2a2a2a',
-                border: '1px solid #3a3a3a',
-                borderRadius: 2,
-                p: 0.75,
-                '&:hover': { 
-                  backgroundColor: currentIndex <= 0 ? 'transparent' : '#3a3a3a',
-                },
+                p: 0.5,
                 '&:disabled': {
                   color: '#64748b',
-                  backgroundColor: 'transparent',
                 }
               }}
             >
-              <NavigateBefore sx={{ fontSize: '1.1rem' }} />
+              <NavigateBefore sx={{ fontSize: '1rem' }} />
             </IconButton>
           </Tooltip>
           
           <Box sx={{ 
             textAlign: 'center',
-            px: 2,
-            py: 0.5,
+            px: 1,
+            minWidth: '60px'
           }}>
-            <Typography variant="body2" sx={{ 
+            <Typography variant="caption" sx={{ 
               color: '#f8fafc',
-              fontSize: '0.85rem',
+              fontSize: '0.8rem',
               fontWeight: 600,
-              lineHeight: 1.2
+              lineHeight: 1
             }}>
-              {currentIndex + 1} / {totalNotes}
+              {currentIndex + 1}/{totalNotes}
             </Typography>
-            {filterContext && filterContext !== 'all' && (
-              <Typography variant="caption" sx={{ 
-                color: '#94a3b8',
-                fontSize: '0.7rem',
-                display: 'block'
-              }}>
-                {getFilterLabel()} notes
-              </Typography>
-            )}
           </Box>
           
           <Tooltip title="Next note">
             <IconButton
               onClick={onNext}
               disabled={currentIndex >= totalNotes - 1}
+              size="small"
               sx={{ 
                 color: currentIndex >= totalNotes - 1 ? '#64748b' : '#f8fafc',
-                backgroundColor: currentIndex >= totalNotes - 1 ? 'transparent' : '#2a2a2a',
-                border: '1px solid #3a3a3a',
-                borderRadius: 2,
-                p: 0.75,
-                '&:hover': { 
-                  backgroundColor: currentIndex >= totalNotes - 1 ? 'transparent' : '#3a3a3a',
-                },
+                p: 0.5,
                 '&:disabled': {
                   color: '#64748b',
-                  backgroundColor: 'transparent',
                 }
               }}
             >
-              <NavigateNext sx={{ fontSize: '1.1rem' }} />
+              <NavigateNext sx={{ fontSize: '1rem' }} />
             </IconButton>
           </Tooltip>
+        </Box>
+
+        {/* Quick Actions */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {/* AI Check Button */}
+          <Tooltip title={checking ? 'Analyzing...' : 'Run AI Check'}>
+            <IconButton
+              onClick={onRunCheck}
+              disabled={checking}
+              size="small"
+              sx={{
+                backgroundColor: '#3b82f6',
+                color: 'white',
+                border: '1px solid #2563eb',
+                borderRadius: 2,
+                p: 0.75,
+                minWidth: '36px',
+                minHeight: '36px',
+                '&:hover': {
+                  backgroundColor: '#2563eb',
+                },
+                '&:disabled': {
+                  backgroundColor: '#64748b',
+                  borderColor: '#475569',
+                }
+              }}
+            >
+              {checking ? (
+                <CircularProgress size={16} sx={{ color: 'white' }} />
+              ) : (
+                <Psychology sx={{ fontSize: '1rem' }} />
+              )}
+            </IconButton>
+          </Tooltip>
+
+          {/* Create ToDo Button - only show if there are issues and no ToDo created */}
+          {canCreateToDo && !todoCreated && (
+            <Tooltip title="Create ToDo">
+              <IconButton
+                onClick={onCreateToDo}
+                size="small"
+                sx={{
+                  backgroundColor: '#f59e0b',
+                  color: 'white',
+                  border: '1px solid #d97706',
+                  borderRadius: 2,
+                  p: 0.75,
+                  minWidth: '36px',
+                  minHeight: '36px',
+                  '&:hover': {
+                    backgroundColor: '#d97706',
+                  }
+                }}
+              >
+                <Assignment sx={{ fontSize: '1rem' }} />
+              </IconButton>
+            </Tooltip>
+          )}
+
+          {/* ToDo Created Indicator */}
+          {todoCreated && (
+            <Tooltip title={`ToDo Created${todoCount > 1 ? ` (${todoCount})` : ''}`}>
+              <Box sx={{
+                backgroundColor: '#10b981',
+                color: 'white',
+                border: '1px solid #059669',
+                borderRadius: 2,
+                p: 0.75,
+                minWidth: '36px',
+                minHeight: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <CheckCircle sx={{ fontSize: '1rem' }} />
+              </Box>
+            </Tooltip>
+          )}
+
+          {/* Sign Off Button - only show if user can sign off and note isn't signed off */}
+          {canSignOff && !noteSignedOff && (
+            <Tooltip title="Sign Off Note">
+              <IconButton
+                onClick={onSignOff}
+                size="small"
+                sx={{
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  border: '1px solid #059669',
+                  borderRadius: 2,
+                  p: 0.75,
+                  minWidth: '36px',
+                  minHeight: '36px',
+                  '&:hover': {
+                    backgroundColor: '#059669',
+                  }
+                }}
+              >
+                <Edit sx={{ fontSize: '1rem' }} />
+              </IconButton>
+            </Tooltip>
+          )}
+
+          {/* Menu Button for overflow actions */}
+          <IconButton
+            onClick={handleMenuOpen}
+            size="small"
+            sx={{ 
+              color: '#f8fafc',
+              backgroundColor: '#2a2a2a',
+              border: '1px solid #3a3a3a',
+              borderRadius: 2,
+              p: 0.75,
+              minWidth: '36px',
+              minHeight: '36px',
+              '&:hover': {
+                backgroundColor: '#3a3a3a',
+              }
+            }}
+          >
+            <MoreVert sx={{ fontSize: '1rem' }} />
+          </IconButton>
         </Box>
       </Box>
 
@@ -398,7 +512,7 @@ const MobileNoteDetailHeader: React.FC<MobileNoteDetailHeaderProps> = ({
         </Collapse>
       </Box>
 
-      {/* Actions Menu */}
+      {/* Actions Menu - Secondary Actions Only */}
       <Menu
         anchorEl={menuAnchor}
         open={Boolean(menuAnchor)}
@@ -408,24 +522,10 @@ const MobileNoteDetailHeader: React.FC<MobileNoteDetailHeaderProps> = ({
             backgroundColor: '#1a1a1a',
             color: '#f8fafc',
             border: '1px solid #2a2a2a',
-            minWidth: 200
+            minWidth: 180
           }
         }}
       >
-        <MenuItem onClick={() => { onRunCheck(); handleMenuClose(); }}>
-          <ListItemIcon>
-            {checking ? (
-              <CircularProgress size={20} sx={{ color: '#3b82f6' }} />
-            ) : (
-              <Psychology sx={{ color: '#3b82f6' }} />
-            )}
-          </ListItemIcon>
-          <ListItemText 
-            primary={checking ? 'Analyzing...' : 'Run AI Check'}
-            secondary={forceNewCheck ? 'Force new check' : undefined}
-          />
-        </MenuItem>
-
         {onForceNewCheckChange && (
           <MenuItem>
             <FormControlLabel
@@ -450,38 +550,7 @@ const MobileNoteDetailHeader: React.FC<MobileNoteDetailHeaderProps> = ({
           </MenuItem>
         )}
 
-        <Divider sx={{ backgroundColor: '#2a2a2a' }} />
-
-        {canCreateToDo && !todoCreated && (
-          <MenuItem onClick={() => { onCreateToDo?.(); handleMenuClose(); }}>
-            <ListItemIcon>
-              <Assignment sx={{ color: '#f59e0b' }} />
-            </ListItemIcon>
-            <ListItemText primary="Create ToDo" />
-          </MenuItem>
-        )}
-
-        {todoCreated && (
-          <MenuItem disabled>
-            <ListItemIcon>
-              <CheckCircle sx={{ color: '#10b981' }} />
-            </ListItemIcon>
-            <ListItemText 
-              primary={`ToDo Created${todoCount > 1 ? ` (${todoCount})` : ''}`}
-            />
-          </MenuItem>
-        )}
-
-        {canSignOff && !noteSignedOff && (
-          <MenuItem onClick={() => { onSignOff?.(); handleMenuClose(); }}>
-            <ListItemIcon>
-              <Edit sx={{ color: '#10b981' }} />
-            </ListItemIcon>
-            <ListItemText primary="Sign Off Note" />
-          </MenuItem>
-        )}
-
-        <Divider sx={{ backgroundColor: '#2a2a2a' }} />
+        {onForceNewCheckChange && <Divider sx={{ backgroundColor: '#2a2a2a' }} />}
 
         <MenuItem onClick={() => { onRefresh(); handleMenuClose(); }}>
           <ListItemIcon>
