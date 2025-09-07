@@ -24,7 +24,15 @@ import {
 class AINoteChecker {
   private readonly EZDERM_API_BASE = 'https://srvprod.ezinfra.net';
   private openaiClient: OpenAI;
-  private promptTemplate: string = '';
+  private promptTemplates: Map<string, string> = new Map();
+
+  // Define the check types
+  private readonly CHECK_TYPES = {
+    CHRONICITY: 'chronicity-check',
+    HPI_STRUCTURE: 'hpi-structure-check', 
+    PLAN: 'plan-check',
+    ACCURACY: 'accuracy-check'
+  } as const;
 
   constructor() {
     const openaiApiKey = process.env.OPENAI_API_KEY || '';
@@ -36,25 +44,41 @@ class AINoteChecker {
       apiKey: openaiApiKey
     });
     
-    this.loadPromptTemplate();
+    this.loadAllPromptTemplates();
   }
 
-  private async loadPromptTemplate(): Promise<void> {
-    try {
-      const promptPath = path.join(__dirname, 'ai-prompt.md');
-      console.log('📝 Loading prompt from:', promptPath);
-      this.promptTemplate = await fs.readFile(promptPath, 'utf8');
-      const lines = this.promptTemplate.split('\n').length;
-      const chars = this.promptTemplate.length;
-      console.log(`📝 AI prompt template loaded successfully (${lines} lines, ${chars} characters)`);
-    } catch (error) {
-      console.error('❌ Failed to load AI prompt template:', error);
-      console.log('🔄 Using fallback prompt template');
-      this.promptTemplate = `You are a dermatology medical coder. I want you to strictly check two things:
-1. If the chronicity of every diagnosis in the A&P matches what is documented in the HPI.
-2. If every assessment in the A&P has a documented plan.
+  private async loadAllPromptTemplates(): Promise<void> {
+    const checkTypes = Object.values(this.CHECK_TYPES);
+    
+    for (const checkType of checkTypes) {
+      try {
+        const promptPath = path.join(__dirname, 'prompts', `${checkType}.md`);
+        console.log(`📝 Loading ${checkType} prompt from:`, promptPath);
+        const promptContent = await fs.readFile(promptPath, 'utf8');
+        this.promptTemplates.set(checkType, promptContent);
+        const lines = promptContent.split('\n').length;
+        const chars = promptContent.length;
+        console.log(`📝 ${checkType} prompt loaded successfully (${lines} lines, ${chars} characters)`);
+      } catch (error) {
+        console.error(`❌ Failed to load ${checkType} prompt template:`, error);
+        console.log(`🔄 Using fallback prompt for ${checkType}`);
+        this.promptTemplates.set(checkType, this.getFallbackPrompt(checkType));
+      }
+    }
+  }
 
-You must return {"status": ":ok", "reason": "..."} only if absolutely everything is correct. If even one issue is found, return a JSON object listing all issues, with details and corrections. Return JSON only.`;
+  private getFallbackPrompt(checkType: string): string {
+    switch (checkType) {
+      case this.CHECK_TYPES.CHRONICITY:
+        return `You are a dermatology medical coder. Check if the chronicity of every diagnosis in the A&P matches what is documented in the HPI. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
+      case this.CHECK_TYPES.HPI_STRUCTURE:
+        return `You are a dermatology medical coder. Check if the HPI structure is correct for billing. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
+      case this.CHECK_TYPES.PLAN:
+        return `You are a dermatology medical coder. Check if every assessment in the A&P has a documented plan. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
+      case this.CHECK_TYPES.ACCURACY:
+        return `You are a dermatology medical coder. Check if the A&P aligns with the HPI. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
+      default:
+        return `You are a dermatology medical coder. Analyze the note for issues. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
     }
   }
 
@@ -283,36 +307,35 @@ You must return {"status": ":ok", "reason": "..."} only if absolutely everything
   }
 
   /**
-   * Analyze progress note using OpenAI GPT-5
+   * Perform a single AI check with specific prompt
    */
-  async analyzeProgressNote(progressNote: ProgressNoteResponse): Promise<AIAnalysisResult> {
+  private async performSingleCheck(
+    checkType: string, 
+    noteText: string
+  ): Promise<AIAnalysisResult> {
     if (!this.openaiClient.apiKey) {
       throw new Error('OpenAI API key not configured');
     }
 
+    const prompt = this.promptTemplates.get(checkType);
+    if (!prompt) {
+      throw new Error(`Prompt template not found for check type: ${checkType}`);
+    }
+
     try {
-      console.log('🤖 Analyzing progress note with OpenAI GPT-5...');
-      
-      // In development mode, reload the prompt template every time
-      if (process.env.NODE_ENV === 'development') {
-        console.log('🔄 Development mode: Reloading AI prompt template from ai-prompt.md...');
-        await this.loadPromptTemplate();
-        console.log('✅ AI prompt template reloaded successfully');
-      }
-      
-      const noteText = this.formatProgressNoteForAnalysis(progressNote);
+      console.log(`🤖 Performing ${checkType} check with OpenAI GPT-5...`);
 
       const response = await this.openaiClient.responses.create({
-        model: 'gpt-5-mini',
-        input: `${this.promptTemplate}\n\nProgress Note to analyze:\n${noteText}`
+        model: 'gpt-5',
+        input: `${prompt}\n\nProgress Note to analyze:\n${noteText}`
       });
 
       const aiResponse = response.output_text;
       if (!aiResponse) {
-        throw new Error('No response content received from OpenAI');
+        throw new Error(`No response content received from OpenAI for ${checkType}`);
       }
       
-      console.log('📝 Raw AI response:', aiResponse);
+      console.log(`📝 Raw AI response for ${checkType}:`, aiResponse);
 
       // Parse the JSON response from OpenAI
       let analysisResult: AIAnalysisResult;
@@ -324,35 +347,110 @@ You must return {"status": ":ok", "reason": "..."} only if absolutely everything
         jsonText = this.fixCommonJSONIssues(jsonText);
         
         const parsedResponse = JSON.parse(jsonText);
-        console.log('🔍 Parsed AI response:', JSON.stringify(parsedResponse, null, 2));
+        console.log(`🔍 Parsed AI response for ${checkType}:`, JSON.stringify(parsedResponse, null, 2));
         
         analysisResult = this.normalizeAIResponse(parsedResponse);
-        console.log('🔧 Normalized result:', JSON.stringify(analysisResult, null, 2));
+        console.log(`🔧 Normalized result for ${checkType}:`, JSON.stringify(analysisResult, null, 2));
       } catch (parseError) {
-        console.error('❌ Failed to parse AI response as JSON:', parseError);
+        console.error(`❌ Failed to parse AI response as JSON for ${checkType}:`, parseError);
         console.error('Raw response:', aiResponse);
         
         // Fallback response
         analysisResult = {
           status: 'corrections_needed',
-          summary: 'AI analysis failed to parse response properly',
+          summary: `${checkType} analysis failed to parse response properly`,
           issues: [{
             assessment: 'Analysis Error',
-            issue: 'no_explicit_plan',
+            issue: 'unclear_documentation',
             details: {
-              'A&P': 'Could not parse AI response',
+              'A&P': `Could not parse AI response for ${checkType}`,
               correction: 'Manual review required'
             }
           }]
         };
       }
 
-      console.log('✅ AI analysis completed');
+      console.log(`✅ ${checkType} check completed`);
       return analysisResult;
+    } catch (error: any) {
+      console.error(`❌ Error performing ${checkType} check:`, error.response?.data || error.message);
+      throw new Error(`${checkType} check failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Analyze progress note using multiple specialized AI checks
+   */
+  async analyzeProgressNote(progressNote: ProgressNoteResponse): Promise<AIAnalysisResult> {
+    if (!this.openaiClient.apiKey) {
+      throw new Error('OpenAI API key not configured');
+    }
+
+    try {
+      console.log('🤖 Starting comprehensive AI note analysis with multiple checks...');
+      
+      // In development mode, reload all prompt templates
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔄 Development mode: Reloading all AI prompt templates...');
+        await this.loadAllPromptTemplates();
+        console.log('✅ All AI prompt templates reloaded successfully');
+      }
+      
+      const noteText = this.formatProgressNoteForAnalysis(progressNote);
+
+      // Perform all checks in parallel for better performance
+      const checkPromises = Object.values(this.CHECK_TYPES).map(checkType => 
+        this.performSingleCheck(checkType, noteText)
+      );
+
+      console.log(`🔄 Running ${checkPromises.length} AI checks in parallel...`);
+      const checkResults = await Promise.all(checkPromises);
+
+      // Combine all results into a single analysis result
+      const combinedResult = this.combineCheckResults(checkResults);
+      
+      console.log('✅ Comprehensive AI analysis completed');
+      console.log('📊 Combined analysis result:', JSON.stringify(combinedResult, null, 2));
+      
+      return combinedResult;
     } catch (error: any) {
       console.error('❌ Error analyzing progress note with AI:', error.response?.data || error.message);
       throw new Error(`AI analysis failed: ${error.message}`);
     }
+  }
+
+  /**
+   * Combine results from multiple AI checks into a single result
+   */
+  private combineCheckResults(checkResults: AIAnalysisResult[]): AIAnalysisResult {
+    const allIssues: AIAnalysisIssue[] = [];
+    let hasIssues = false;
+
+    // Collect all issues from all checks
+    for (const result of checkResults) {
+      if (result.status === 'corrections_needed' && result.issues) {
+        allIssues.push(...result.issues);
+        hasIssues = true;
+      }
+    }
+
+    // If no issues found across all checks
+    if (!hasIssues) {
+      return {
+        status: 'ok',
+        reason: 'All checks passed: chronicity, HPI structure, plan documentation, and accuracy validation completed successfully'
+      };
+    }
+
+    // If issues found, combine them
+    const issueTypes = [...new Set(allIssues.map(issue => issue.issue))];
+    const issueCount = allIssues.length;
+    
+    return {
+      status: 'corrections_needed',
+      summary: `Found ${issueCount} issue${issueCount > 1 ? 's' : ''} across multiple checks: ${issueTypes.join(', ')}`,
+      issues: allIssues
+    };
   }
 
   /**

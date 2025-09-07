@@ -35,24 +35,23 @@ Do not flag stylistic differences or documentation preferences that do not affec
 
 ⸻
 
-4. Error Handling
+4. HPI & A&P Alignment Check
+	-	The A&P Section needs to align and be consistent with the HPI. For example, a condition cannot be improved in the A&P but be noted as getting worse or not improved in the HPI
+
+⸻
+
+5. Error Handling
 	-	Do not assume or infer intent.
 	-	If documentation is unclear, incomplete, or ambiguous in a way that affects coding level determination, flag as "unclear_documentation".
 	-	Do not flag trivial ambiguity that has no effect on billing level.
 
 ⸻
 
-5. Reliability Requirement
+6. Reliability Requirement
 	-	Return { "status": ":ok", "reason": "..." } ONLY if:
     -	Every billable assessment has a plan.
     -	Every billable diagnosis chronicity matches HPI if it is part of the E/M code. 
     -	Chief complaint structure is correct for billable problems.
-
-⸻
-6. The following conditions are always chronic and do not need documentation on length of disease as long as the patient is older than a year
- - Hidradenitis suppurativa
- - Psoriasis Vulgaris
- - Lupus
 
 ⸻
 7. Vital Signs Check
