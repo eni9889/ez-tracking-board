@@ -53,6 +53,10 @@ Do not flag stylistic differences or documentation preferences that do not affec
  - Hidradenitis suppurativa
  - Psoriasis Vulgaris
  - Lupus
+
+⸻
+7. Vital Signs & Physical Exam Check
+ - Every note must include vital signs
 ⸻
 
 7. Output Rules
