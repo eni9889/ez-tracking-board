@@ -961,144 +961,234 @@ const NoteDetail: React.FC = () => {
   }
 
   return (
-    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f5f5f5' }}>
-      {/* Header with centered navigation */}
+    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc' }}>
+      {/* Modern Dark Header */}
       <Box sx={{ 
-        backgroundColor: '#1976d2', 
-        color: 'white', 
-        px: 3, 
-        py: 1.5,
+        background: 'linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%)',
+        color: '#f8fafc',
+        px: 4, 
+        py: 3,
         display: 'grid',
         gridTemplateColumns: '1fr auto 1fr',
         alignItems: 'center',
-        gap: 2,
-        minHeight: '80px' // Fixed height to prevent bouncing
+        gap: 3,
+        minHeight: '100px',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        borderBottom: '1px solid #2a2a2a'
       }}>
         {/* Left section - Back button and title */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'flex-start' }}>
-          <IconButton
-            color="inherit"
-            onClick={() => {
-              // Get the current filter context to preserve it when going back
-              const navigationState = location.state as { currentFilter?: string; filteredNotes?: any[] } | null;
-              const currentFilter = navigationState?.currentFilter;
-              
-              // Navigate back with the filter context preserved
-              navigate('/ai-note-checker', {
-                state: { 
-                  returnToFilter: currentFilter || 'all' 
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'flex-start' }}>
+          <Tooltip title="Back to AI Note Checker">
+            <IconButton
+              onClick={() => {
+                // Get the current filter context to preserve it when going back
+                const navigationState = location.state as { currentFilter?: string; filteredNotes?: any[] } | null;
+                const currentFilter = navigationState?.currentFilter;
+                
+                // Navigate back with the filter context preserved
+                navigate('/ai-note-checker', {
+                  state: { 
+                    returnToFilter: currentFilter || 'all' 
+                  }
+                });
+              }}
+              sx={{ 
+                color: '#f8fafc',
+                backgroundColor: '#2a2a2a',
+                border: '1px solid #3a3a3a',
+                borderRadius: 2,
+                p: 1.5,
+                '&:hover': {
+                  backgroundColor: '#3a3a3a',
+                  borderColor: '#4a4a4a'
                 }
-              });
-            }}
-          >
-            <ArrowBack />
-          </IconButton>
-          <Assignment sx={{ fontSize: '1.5rem' }} />
+              }}
+            >
+              <ArrowBack sx={{ fontSize: '1.25rem' }} />
+            </IconButton>
+          </Tooltip>
+          <Psychology sx={{ fontSize: '2rem', color: '#3b82f6' }} />
           <Box>
-            <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
-              Note Detail - {currentNote.patientName}
+            <Typography variant="h5" sx={{ 
+              fontWeight: 800, 
+              lineHeight: 1.2,
+              color: '#f8fafc',
+              fontSize: '1.5rem'
+            }}>
+              AI Note Analysis
             </Typography>
-            <Typography variant="body2" sx={{ opacity: 0.9, lineHeight: 1.2 }}>
-              {currentNote.chiefComplaint} • {aiNoteCheckerService.formatTimeAgo(currentNote.dateOfService)}
+            <Typography variant="body1" sx={{ 
+              opacity: 0.8,
+              color: '#e2e8f0',
+              fontSize: '0.95rem',
+              fontWeight: 500
+            }}>
+              {currentNote.patientName} • {currentNote.chiefComplaint}
+            </Typography>
+            <Typography variant="body2" sx={{ 
+              opacity: 0.6,
+              color: '#94a3b8',
+              fontSize: '0.8rem',
+              fontWeight: 400
+            }}>
+              {aiNoteCheckerService.formatTimeAgo(currentNote.dateOfService)}
             </Typography>
           </Box>
         </Box>
         
-        {/* Center section - Navigation arrows (fixed position) */}
+        {/* Center section - Navigation arrows with modern styling */}
         <Box sx={{ 
           display: 'flex', 
           alignItems: 'center', 
-          gap: 1,
+          gap: 2,
           justifyContent: 'center',
-          minWidth: '140px' // Fixed width to prevent bouncing
+          minWidth: '200px',
+          backgroundColor: '#1a1a1a',
+          border: '1px solid #2a2a2a',
+          borderRadius: 3,
+          px: 3,
+          py: 1.5
         }}>
           <Tooltip title="Previous note (Arrow Left)">
             <IconButton
-              color="inherit"
               onClick={handlePreviousNote}
               disabled={currentIndex <= 0}
-              size="small"
               sx={{ 
-                opacity: currentIndex <= 0 ? 0.5 : 1,
-                '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' }
+                color: currentIndex <= 0 ? '#64748b' : '#f8fafc',
+                backgroundColor: currentIndex <= 0 ? 'transparent' : '#2a2a2a',
+                border: '1px solid #3a3a3a',
+                borderRadius: 2,
+                p: 1,
+                '&:hover': { 
+                  backgroundColor: currentIndex <= 0 ? 'transparent' : '#3a3a3a',
+                  borderColor: currentIndex <= 0 ? '#3a3a3a' : '#4a4a4a'
+                },
+                '&:disabled': {
+                  color: '#64748b',
+                  backgroundColor: 'transparent',
+                  borderColor: '#2a2a2a'
+                }
               }}
             >
-              <NavigateBefore />
+              <NavigateBefore sx={{ fontSize: '1.25rem' }} />
             </IconButton>
           </Tooltip>
           
-          <Typography variant="body2" sx={{ 
-            minWidth: '120px', 
-            textAlign: 'center', 
-            fontSize: '0.8rem',
-            fontWeight: 'medium'
+          <Box sx={{ 
+            textAlign: 'center',
+            px: 2,
+            py: 0.5,
+            backgroundColor: '#0f0f0f',
+            border: '1px solid #2a2a2a',
+            borderRadius: 2
           }}>
-            {(() => {
-              const navigationState = location.state as { currentFilter?: string } | null;
-              const currentFilter = navigationState?.currentFilter;
-              const suffix = currentFilter === 'issues' ? ' with issues' :
-                           currentFilter === 'clean' ? ' clean' :
-                           currentFilter === 'unchecked' ? ' unchecked' :
-                           currentFilter === 'issues-no-todos' ? ' with issues (no ToDos)' : '';
-              return `${currentIndex + 1} / ${notes.length}${suffix}`;
-            })()}
-          </Typography>
+            <Typography variant="body2" sx={{ 
+              color: '#f8fafc',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              lineHeight: 1.2
+            }}>
+              {(() => {
+                const navigationState = location.state as { currentFilter?: string } | null;
+                const currentFilter = navigationState?.currentFilter;
+                const suffix = currentFilter === 'issues' ? ' with issues' :
+                             currentFilter === 'clean' ? ' clean' :
+                             currentFilter === 'unchecked' ? ' unchecked' :
+                             currentFilter === 'issues-no-todos' ? ' with issues (no ToDos)' : '';
+                return `${currentIndex + 1} / ${notes.length}${suffix}`;
+              })()}
+            </Typography>
+          </Box>
           
           <Tooltip title="Next note (Arrow Right)">
             <IconButton
-              color="inherit"
               onClick={handleNextNote}
               disabled={currentIndex >= notes.length - 1}
-              size="small"
               sx={{ 
-                opacity: currentIndex >= notes.length - 1 ? 0.5 : 1,
-                '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' }
+                color: currentIndex >= notes.length - 1 ? '#64748b' : '#f8fafc',
+                backgroundColor: currentIndex >= notes.length - 1 ? 'transparent' : '#2a2a2a',
+                border: '1px solid #3a3a3a',
+                borderRadius: 2,
+                p: 1,
+                '&:hover': { 
+                  backgroundColor: currentIndex >= notes.length - 1 ? 'transparent' : '#3a3a3a',
+                  borderColor: currentIndex >= notes.length - 1 ? '#3a3a3a' : '#4a4a4a'
+                },
+                '&:disabled': {
+                  color: '#64748b',
+                  backgroundColor: 'transparent',
+                  borderColor: '#2a2a2a'
+                }
               }}
             >
-              <NavigateNext />
+              <NavigateNext sx={{ fontSize: '1.25rem' }} />
             </IconButton>
           </Tooltip>
         </Box>
 
-        {/* Right section - Action buttons (fixed width container) */}
+        {/* Right section - Action buttons with modern styling */}
         <Box sx={{ 
           display: 'flex', 
           alignItems: 'center', 
-          gap: 1, 
+          gap: 2, 
           justifyContent: 'flex-end',
-          minWidth: '400px' // Fixed width to prevent bouncing when buttons change
+          minWidth: '450px'
         }}>
-          <Button
-            variant="outlined"
-            color="inherit"
-            startIcon={checking ? <CircularProgress size={16} color="inherit" /> : <Psychology />}
-            onClick={handleCheckNote}
-            disabled={checking}
-            size="small"
-          >
-            {checking 
-              ? 'Checking...' 
-              : forceNewCheck 
-                ? 'Force New AI Check' 
-                : 'Run AI Check'
-            }
-          </Button>
+          <Tooltip title="Run AI analysis on this note">
+            <Button
+              variant="contained"
+              startIcon={checking ? <CircularProgress size={16} color="inherit" /> : <Psychology />}
+              onClick={handleCheckNote}
+              disabled={checking}
+              sx={{
+                backgroundColor: '#3b82f6',
+                color: 'white',
+                border: '1px solid #2563eb',
+                borderRadius: 2,
+                px: 3,
+                py: 1,
+                fontWeight: 600,
+                fontSize: '0.875rem',
+                '&:hover': {
+                  backgroundColor: '#2563eb',
+                  borderColor: '#1d4ed8'
+                },
+                '&:disabled': {
+                  backgroundColor: '#64748b',
+                  borderColor: '#475569',
+                  color: '#e2e8f0'
+                }
+              }}
+            >
+              {checking 
+                ? 'Analyzing...' 
+                : forceNewCheck 
+                  ? 'Force New Check' 
+                  : 'Run AI Check'
+              }
+            </Button>
+          </Tooltip>
           
-          <Tooltip title="Bypass MD5 duplicate detection and run a fresh AI analysis even if this note was already checked">
+          <Tooltip title="Bypass duplicate detection and run fresh analysis">
             <FormControlLabel
               control={
                 <Checkbox
                   checked={forceNewCheck}
                   onChange={(e) => setForceNewCheck(e.target.checked)}
                   size="small"
-                  sx={{ color: 'white', '&.Mui-checked': { color: 'white' } }}
+                  sx={{ 
+                    color: '#94a3b8', 
+                    '&.Mui-checked': { color: '#3b82f6' },
+                    '&:hover': { backgroundColor: 'rgba(59, 130, 246, 0.1)' }
+                  }}
                 />
               }
               label="Force New"
               sx={{ 
-                color: 'white', 
-                fontSize: '0.8rem',
-                '& .MuiFormControlLabel-label': { fontSize: '0.8rem' }
+                color: '#e2e8f0', 
+                fontSize: '0.85rem',
+                fontWeight: 500,
+                '& .MuiFormControlLabel-label': { fontSize: '0.85rem' }
               }}
             />
           </Tooltip>
@@ -1108,41 +1198,73 @@ const NoteDetail: React.FC = () => {
               <Chip
                 icon={<CheckCircle />}
                 label={`ToDo Created (${createdTodos.length})`}
-                color="success"
-                size="medium"
-                sx={{ fontWeight: 'bold' }}
-              />
-            ) : (
-              <Button
-                variant="contained"
-                color="warning"
-                startIcon={<Assignment />}
-                onClick={() => {
-                  setShowToDoModal(true);
-                  setModalState('preview'); // Reset modal state
-                  setModalError(null);
-                  setModalSuccess(null);
-                }}
-                size="small"
                 sx={{ 
-                  backgroundColor: 'warning.main',
-                  '&:hover': {
-                    backgroundColor: 'warning.dark'
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  fontWeight: 700,
+                  fontSize: '0.8rem',
+                  border: '1px solid #059669',
+                  '& .MuiChip-icon': {
+                    color: 'white'
                   }
                 }}
-              >
-                Create ToDo for Issues
-              </Button>
+              />
+            ) : (
+              <Tooltip title="Create a ToDo for the identified issues">
+                <Button
+                  variant="contained"
+                  startIcon={<Assignment />}
+                  onClick={() => {
+                    setShowToDoModal(true);
+                    setModalState('preview');
+                    setModalError(null);
+                    setModalSuccess(null);
+                  }}
+                  sx={{ 
+                    backgroundColor: '#f59e0b',
+                    color: 'white',
+                    border: '1px solid #d97706',
+                    borderRadius: 2,
+                    px: 3,
+                    py: 1,
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
+                    '&:hover': {
+                      backgroundColor: '#d97706',
+                      borderColor: '#b45309'
+                    }
+                  }}
+                >
+                  Create ToDo
+                </Button>
+              </Tooltip>
             )
           )}
           
-          <IconButton
-            color="inherit"
-            onClick={refreshNoteData}
-            disabled={loading}
-          >
-            <Refresh />
-          </IconButton>
+          <Tooltip title="Refresh note data">
+            <IconButton
+              onClick={refreshNoteData}
+              disabled={loading}
+              sx={{ 
+                color: '#f8fafc',
+                backgroundColor: '#2a2a2a',
+                border: '1px solid #3a3a3a',
+                borderRadius: 2,
+                p: 1.5,
+                '&:hover': {
+                  backgroundColor: '#3a3a3a',
+                  borderColor: '#4a4a4a'
+                },
+                '&:disabled': {
+                  color: '#64748b',
+                  backgroundColor: '#1a1a1a',
+                  borderColor: '#2a2a2a'
+                }
+              }}
+            >
+              {loading ? <CircularProgress size={20} sx={{ color: '#64748b' }} /> : <Refresh sx={{ fontSize: '1.25rem' }} />}
+            </IconButton>
+          </Tooltip>
         </Box>
       </Box>
 
