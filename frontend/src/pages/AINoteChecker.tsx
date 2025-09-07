@@ -17,7 +17,6 @@ import {
   Checkbox,
   Tabs,
   Tab,
-  Badge,
 } from '@mui/material';
 import {
   Psychology,
@@ -641,116 +640,111 @@ const AINoteChecker: React.FC = () => {
         >
           <Tab 
             label={
-              <Badge 
-                badgeContent={noteCounts.all} 
-                max={999}
-                sx={{
-                  '& .MuiBadge-badge': {
-                    backgroundColor: '#64748b',
-                    color: 'white',
-                    fontWeight: 700,
-                    fontSize: '0.75rem',
-                    minWidth: '22px',
-                    height: '22px',
-                    borderRadius: '11px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                  }
-                }}
-              >
-                All Notes
-              </Badge>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <span>All Notes</span>
+                <Box sx={{
+                  backgroundColor: 'rgba(100, 116, 139, 0.15)',
+                  color: '#475569',
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: '12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  minWidth: '28px',
+                  textAlign: 'center',
+                  border: '1px solid rgba(100, 116, 139, 0.2)'
+                }}>
+                  {noteCounts.all}
+                </Box>
+              </Box>
             } 
             value="all" 
           />
           <Tab 
             label={
-              <Badge 
-                badgeContent={noteCounts.clean} 
-                max={999}
-                sx={{
-                  '& .MuiBadge-badge': {
-                    backgroundColor: '#10b981',
-                    color: 'white',
-                    fontWeight: 700,
-                    fontSize: '0.75rem',
-                    minWidth: '22px',
-                    height: '22px',
-                    borderRadius: '11px',
-                    boxShadow: '0 2px 4px rgba(16,185,129,0.3)'
-                  }
-                }}
-              >
-                Clean Notes
-              </Badge>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <span>Clean Notes</span>
+                <Box sx={{
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  color: '#059669',
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: '12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  minWidth: '28px',
+                  textAlign: 'center',
+                  border: '1px solid rgba(16, 185, 129, 0.3)'
+                }}>
+                  {noteCounts.clean}
+                </Box>
+              </Box>
             } 
             value="clean" 
           />
           <Tab 
             label={
-              <Badge 
-                badgeContent={noteCounts.issues} 
-                max={999}
-                sx={{
-                  '& .MuiBadge-badge': {
-                    backgroundColor: '#ef4444',
-                    color: 'white',
-                    fontWeight: 700,
-                    fontSize: '0.75rem',
-                    minWidth: '22px',
-                    height: '22px',
-                    borderRadius: '11px',
-                    boxShadow: '0 2px 4px rgba(239,68,68,0.3)'
-                  }
-                }}
-              >
-                Notes with Issues
-              </Badge>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <span>Notes with Issues</span>
+                <Box sx={{
+                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                  color: '#dc2626',
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: '12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  minWidth: '28px',
+                  textAlign: 'center',
+                  border: '1px solid rgba(239, 68, 68, 0.3)'
+                }}>
+                  {noteCounts.issues}
+                </Box>
+              </Box>
             } 
             value="issues" 
           />
           <Tab 
             label={
-              <Badge 
-                badgeContent={noteCounts.unchecked} 
-                max={999}
-                sx={{
-                  '& .MuiBadge-badge': {
-                    backgroundColor: '#f59e0b',
-                    color: 'white',
-                    fontWeight: 700,
-                    fontSize: '0.75rem',
-                    minWidth: '22px',
-                    height: '22px',
-                    borderRadius: '11px',
-                    boxShadow: '0 2px 4px rgba(245,158,11,0.3)'
-                  }
-                }}
-              >
-                Unchecked Notes
-              </Badge>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <span>Unchecked Notes</span>
+                <Box sx={{
+                  backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                  color: '#d97706',
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: '12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  minWidth: '28px',
+                  textAlign: 'center',
+                  border: '1px solid rgba(245, 158, 11, 0.3)'
+                }}>
+                  {noteCounts.unchecked}
+                </Box>
+              </Box>
             } 
             value="unchecked" 
           />
           <Tab 
             label={
-              <Badge 
-                badgeContent={noteCounts['issues-no-todos']} 
-                max={999}
-                sx={{
-                  '& .MuiBadge-badge': {
-                    backgroundColor: '#dc2626',
-                    color: 'white',
-                    fontWeight: 700,
-                    fontSize: '0.75rem',
-                    minWidth: '22px',
-                    height: '22px',
-                    borderRadius: '11px',
-                    boxShadow: '0 2px 4px rgba(220,38,38,0.3)'
-                  }
-                }}
-              >
-                Issues Without ToDos
-              </Badge>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <span>Issues Without ToDos</span>
+                <Box sx={{
+                  backgroundColor: 'rgba(220, 38, 38, 0.15)',
+                  color: '#b91c1c',
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: '12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  minWidth: '28px',
+                  textAlign: 'center',
+                  border: '1px solid rgba(220, 38, 38, 0.3)'
+                }}>
+                  {noteCounts['issues-no-todos']}
+                </Box>
+              </Box>
             } 
             value="issues-no-todos" 
           />
