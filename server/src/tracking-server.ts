@@ -769,8 +769,29 @@ app.post('/notes/incomplete', validateSession, async (req: Request, res: Respons
       }
     });
     
-    console.log(`📊 Processed ${encounters.length} eligible encounters from ${incompleteNotesData.length} batches (filtered by status and 2+ hour age requirement)`);
-    res.json({ success: true, encounters });
+    // Add ToDo status information to each encounter
+    const encountersWithTodoStatus = await Promise.all(
+      encounters.map(async (encounter) => {
+        try {
+          const createdTodos = await vitalSignsDb.getCreatedToDosForEncounter(encounter.encounterId);
+          return {
+            ...encounter,
+            todoCreated: createdTodos.length > 0,
+            todoCount: createdTodos.length
+          };
+        } catch (error) {
+          console.error(`Error fetching ToDo status for encounter ${encounter.encounterId}:`, error);
+          return {
+            ...encounter,
+            todoCreated: false,
+            todoCount: 0
+          };
+        }
+      })
+    );
+
+    console.log(`📊 Processed ${encountersWithTodoStatus.length} eligible encounters from ${incompleteNotesData.length} batches (filtered by status and 2+ hour age requirement)`);
+    res.json({ success: true, encounters: encountersWithTodoStatus });
   } catch (error: any) {
     console.error('Error fetching incomplete notes:', error);
     res.status(500).json({ error: 'Failed to fetch incomplete notes', details: error.message });

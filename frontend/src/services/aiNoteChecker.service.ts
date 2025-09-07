@@ -12,6 +12,8 @@ export interface EligibleEncounter {
   chiefComplaint: string;
   dateOfService: string;
   status: string;
+  todoCreated?: boolean;
+  todoCount?: number;
 }
 
 export interface AIAnalysisIssue {

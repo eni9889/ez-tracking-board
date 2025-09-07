@@ -71,20 +71,16 @@ export const EncountersProvider: React.FC<EncountersProviderProps> = ({ children
         checkResults.map(result => [result.encounterId, result])
       );
       
-      // Get ToDo status for these notes
-      const encounterIds = uniqueNotes.map(note => note.encounterId);
-      const todoStatusMap = await aiNoteCheckerService.getTodoStatusForEncounters(encounterIds);
-      
-      // Combine the data
+      // Combine the data - ToDo status is now included in the backend response
       const notesWithStatus = uniqueNotes.map(note => {
-        const todoStatus = todoStatusMap.get(note.encounterId);
         return {
           ...note,
           lastCheckStatus: checkResultsMap.get(note.encounterId)?.status || null,
           lastCheckDate: checkResultsMap.get(note.encounterId)?.checkedAt || null,
           issuesFound: checkResultsMap.get(note.encounterId)?.issuesFound || false,
-          todoCreated: todoStatus?.todoCreated || false,
-          todoCount: todoStatus?.todoCount || 0
+          // ToDo status is now included directly from the backend
+          todoCreated: note.todoCreated || false,
+          todoCount: note.todoCount || 0
         };
       });
       
