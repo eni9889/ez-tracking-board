@@ -769,22 +769,25 @@ app.post('/notes/incomplete', validateSession, async (req: Request, res: Respons
       }
     });
     
-    // Add ToDo status information to each encounter
+    // Add ToDo status and valid issues information to each encounter
     const encountersWithTodoStatus = await Promise.all(
       encounters.map(async (encounter) => {
         try {
           const createdTodos = await vitalSignsDb.getCreatedToDosForEncounter(encounter.encounterId);
+          const hasValidIssues = await vitalSignsDb.hasValidIssues(encounter.encounterId);
           return {
             ...encounter,
             todoCreated: createdTodos.length > 0,
-            todoCount: createdTodos.length
+            todoCount: createdTodos.length,
+            hasValidIssues: hasValidIssues
           };
         } catch (error) {
           console.error(`Error fetching ToDo status for encounter ${encounter.encounterId}:`, error);
           return {
             ...encounter,
             todoCreated: false,
-            todoCount: 0
+            todoCount: 0,
+            hasValidIssues: false
           };
         }
       })

@@ -13,6 +13,7 @@ interface IncompleteNote {
   issuesFound?: boolean;
   todoCreated?: boolean;
   todoCount?: number;
+  hasValidIssues?: boolean;
 }
 
 interface EncountersContextType {

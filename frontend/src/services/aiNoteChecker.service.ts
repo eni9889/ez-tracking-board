@@ -14,6 +14,7 @@ export interface EligibleEncounter {
   status: string;
   todoCreated?: boolean;
   todoCount?: number;
+  hasValidIssues?: boolean;
 }
 
 export interface AIAnalysisIssue {

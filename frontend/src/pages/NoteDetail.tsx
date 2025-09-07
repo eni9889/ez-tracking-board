@@ -113,13 +113,13 @@ const NoteDetail: React.FC = () => {
       
       // Filter notes based on the tab the user came from
       if (currentFilter === 'issues') {
-        filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && note.issuesFound === true);
+        filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && note.hasValidIssues === true);
       } else if (currentFilter === 'clean') {
         filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && !note.issuesFound);
       } else if (currentFilter === 'unchecked') {
         filteredNotes = allEncounters.filter(note => !note.lastCheckStatus || note.lastCheckStatus === 'pending');
       } else if (currentFilter === 'issues-no-todos') {
-        filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && note.issuesFound === true && !note.todoCreated);
+        filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && note.hasValidIssues === true && !note.todoCreated);
       }
       // For 'all' or no filter context, use all encounters
       

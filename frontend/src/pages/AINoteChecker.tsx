@@ -46,6 +46,7 @@ interface IncompleteNote {
   issuesFound?: boolean;
   todoCreated?: boolean;
   todoCount?: number;
+  hasValidIssues?: boolean;
 }
 
 type FilterType = 'all' | 'clean' | 'issues' | 'unchecked' | 'issues-no-todos';
@@ -96,7 +97,7 @@ const AINoteChecker: React.FC = () => {
         );
       case 'issues':
         return incompleteNotes.filter(note => 
-          note.lastCheckStatus === 'completed' && note.issuesFound
+          note.lastCheckStatus === 'completed' && note.hasValidIssues
         );
       case 'unchecked':
         return incompleteNotes.filter(note => 
@@ -104,7 +105,7 @@ const AINoteChecker: React.FC = () => {
         );
       case 'issues-no-todos':
         return incompleteNotes.filter(note => 
-          note.lastCheckStatus === 'completed' && note.issuesFound && !note.todoCreated
+          note.lastCheckStatus === 'completed' && note.hasValidIssues && !note.todoCreated
         );
       case 'all':
       default:
@@ -122,13 +123,13 @@ const AINoteChecker: React.FC = () => {
         note.lastCheckStatus === 'completed' && !note.issuesFound
       ).length,
       issues: incompleteNotes.filter(note => 
-        note.lastCheckStatus === 'completed' && note.issuesFound
+        note.lastCheckStatus === 'completed' && note.hasValidIssues
       ).length,
       unchecked: incompleteNotes.filter(note => 
         !note.lastCheckStatus || note.lastCheckStatus === 'pending'
       ).length,
       'issues-no-todos': incompleteNotes.filter(note => 
-        note.lastCheckStatus === 'completed' && note.issuesFound && !note.todoCreated
+        note.lastCheckStatus === 'completed' && note.hasValidIssues && !note.todoCreated
       ).length,
     };
   };
