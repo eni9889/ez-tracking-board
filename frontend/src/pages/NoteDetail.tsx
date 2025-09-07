@@ -104,15 +104,32 @@ const NoteDetail: React.FC = () => {
       const navigationState = location.state as { currentFilter?: string; filteredNotes?: NoteData[] } | null;
       const currentFilter = navigationState?.currentFilter;
       
+      console.log('🔍 NoteDetail filtering:', {
+        currentFilter,
+        allEncountersCount: allEncounters.length,
+        encounterId,
+        navigationState
+      });
+      
       // Filter notes based on the tab the user came from
       if (currentFilter === 'issues') {
-        filteredNotes = allEncounters.filter(note => note.issuesFound === true);
+        filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && note.issuesFound === true);
       } else if (currentFilter === 'clean') {
-        filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'ok' && !note.issuesFound);
+        filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && !note.issuesFound);
       } else if (currentFilter === 'unchecked') {
-        filteredNotes = allEncounters.filter(note => !note.lastCheckStatus);
+        filteredNotes = allEncounters.filter(note => !note.lastCheckStatus || note.lastCheckStatus === 'pending');
       }
       // For 'all' or no filter context, use all encounters
+      
+      console.log('🔍 Filtered results:', {
+        currentFilter,
+        filteredCount: filteredNotes.length,
+        sampleNotes: filteredNotes.slice(0, 3).map(n => ({
+          encounterId: n.encounterId,
+          lastCheckStatus: n.lastCheckStatus,
+          issuesFound: n.issuesFound
+        }))
+      });
       
       setNotes(filteredNotes);
       
@@ -922,10 +939,21 @@ const NoteDetail: React.FC = () => {
 
   // Show loading if we don't have notes loaded yet or no current note
   if (encountersLoading || notes.length === 0 || !currentNote) {
+    console.log('🔍 Loading state:', {
+      encountersLoading,
+      notesLength: notes.length,
+      currentNote: !!currentNote,
+      allEncountersLength: allEncounters.length
+    });
+    
     return (
       <Box sx={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <CircularProgress />
-        <Typography sx={{ ml: 2 }}>Loading notes...</Typography>
+        <Typography sx={{ ml: 2 }}>
+          {encountersLoading ? 'Loading encounters...' : 
+           notes.length === 0 ? 'No notes found for this filter...' :
+           'Loading note data...'}
+        </Typography>
       </Box>
     );
   }

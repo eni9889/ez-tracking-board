@@ -131,6 +131,7 @@ export type EncounterStatus =
   | 'ARRIVED' 
   | 'IN_ROOM' 
   | 'WITH_PROVIDER' 
+  | 'READY_FOR_PROVIDER'
   | 'WITH_STAFF' 
   | 'PENDING_COSIGN' 
   | 'CHECKED_OUT' 

@@ -301,7 +301,7 @@ You must return {"status": ":ok", "reason": "..."} only if absolutely everything
       const noteText = this.formatProgressNoteForAnalysis(progressNote);
 
       const response = await this.openaiClient.responses.create({
-        model: 'gpt-4.1',
+        model: 'gpt-5-mini',
         input: `${this.promptTemplate}\n\nProgress Note to analyze:\n${noteText}`
       });
 

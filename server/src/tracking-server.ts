@@ -117,7 +117,8 @@ const ACTIVE_STATUSES: EncounterStatus[] = [
   'IN_ROOM', 
   'WITH_PROVIDER',
   'WITH_STAFF',
-  'READY_FOR_STAFF'
+  'READY_FOR_STAFF',
+  'READY_FOR_PROVIDER'
 ];
 
 // Utility functions

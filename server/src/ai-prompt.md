@@ -15,7 +15,7 @@ Do not flag stylistic differences or documentation preferences that do not affec
     -	Lasts ≥12 months (or until death).
     -	Not self-limited, requires ongoing monitoring.
     -	Chronicity is based on duration, not severity. Duration has to be over a year or over 12 months. We do not need to know the exact amount of time. The HPI can say last several years, more than a year, a few years etc. As long as the implication is that the condition has been there for longer than 12 months the documentation is valid.
-  - When the patient is following up on a condition we can assume the chronicity was documented in the first visit for that patient
+  - When the patient is a return patient following up on a condition we can assume the chronicity was documented in the first visit for that patient
 ⸻
 
 2. Plan Check (Billing-Relevant Only)
