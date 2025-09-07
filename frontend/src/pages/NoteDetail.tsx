@@ -264,19 +264,39 @@ const NoteDetail: React.FC = () => {
     return getValidIssues(result).length > 0;
   };
 
+  // Helper function to create a hash for issues
+  const createIssueHash = async (issue: AIAnalysisIssue): Promise<string> => {
+    const content = issue.assessment + issue.issue + JSON.stringify(issue.details);
+    
+    // Try to use crypto.subtle if available (secure contexts only)
+    if (typeof crypto !== 'undefined' && crypto.subtle) {
+      try {
+        const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(content));
+        return Array.from(new Uint8Array(hashBuffer))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('')
+          .substring(0, 16); // First 16 chars for brevity
+      } catch (error) {
+        console.warn('crypto.subtle failed, using fallback hash:', error);
+      }
+    }
+    
+    // Fallback: simple hash using string manipulation (works everywhere)
+    let hash = 0;
+    for (let i = 0; i < content.length; i++) {
+      const char = content.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(16).substring(0, 16);
+  };
+
   const markIssueAsInvalid = async (checkId: number, issueIndex: number, issue: AIAnalysisIssue, reason?: string) => {
     try {
       if (!currentNote) return;
 
       // Create a hash for the issue
-      const issueHash = await crypto.subtle.digest('SHA-256', 
-        new TextEncoder().encode(issue.assessment + issue.issue + JSON.stringify(issue.details))
-      ).then(hashBuffer => 
-        Array.from(new Uint8Array(hashBuffer))
-          .map(b => b.toString(16).padStart(2, '0'))
-          .join('')
-          .substring(0, 16) // First 16 chars for brevity
-      );
+      const issueHash = await createIssueHash(issue);
 
       await aiNoteCheckerService.markIssueAsInvalid(
         currentNote.encounterId,
