@@ -29,10 +29,23 @@ class AINoteChecker {
   // Define the check types
   private readonly CHECK_TYPES = {
     CHRONICITY: 'chronicity-check',
-    HPI_STRUCTURE: 'hpi-structure-check', 
+    HPI_STRUCTURE: 'hpi-structure-check',
     PLAN: 'plan-check',
     ACCURACY: 'accuracy-check'
   } as const;
+
+  // Model configuration for different check types
+  // gpt-4o: More capable, better for complex analysis (HPI structure, plan evaluation)
+  // gpt-4o-mini: Faster and cheaper, good for simpler checks (chronicity, accuracy)
+  private readonly CHECK_MODELS = {
+    'chronicity-check': 'gpt-5',     // Simple chronicity detection
+    'hpi-structure-check': 'gpt-5-nano',       // Complex HPI structure analysis
+    'plan-check': 'gpt-5-nano',                // Detailed plan evaluation
+    'accuracy-check': 'gpt-5-mini'        // Basic accuracy validation
+  } as const;
+
+  // Default model fallback
+  private readonly DEFAULT_MODEL = 'gpt-5-nano';
 
   constructor() {
     const openaiApiKey = process.env.OPENAI_API_KEY || '';
@@ -307,6 +320,21 @@ class AINoteChecker {
   }
 
   /**
+   * Get the AI model to use for a specific check type
+   */
+  private getModelForCheck(checkType: string): string {
+    return this.CHECK_MODELS[checkType as keyof typeof this.CHECK_MODELS] || this.DEFAULT_MODEL;
+  }
+
+  /**
+   * Get model configuration summary for logging
+   */
+  private getModelConfigSummary(): string {
+    const configs = Object.entries(this.CHECK_MODELS).map(([check, model]) => `${check}: ${model}`);
+    return configs.join(', ');
+  }
+
+  /**
    * Perform a single AI check with specific prompt
    */
   private async performSingleCheck(
@@ -322,15 +350,27 @@ class AINoteChecker {
       throw new Error(`Prompt template not found for check type: ${checkType}`);
     }
 
-    try {
-      console.log(`🤖 Performing ${checkType} check with OpenAI GPT-5...`);
+    // Get the model for this specific check type
+    const modelToUse = this.getModelForCheck(checkType);
 
-      const response = await this.openaiClient.responses.create({
-        model: 'gpt-5',
-        input: `${prompt}\n\nProgress Note to analyze:\n${noteText}`
+    try {
+      console.log(`🤖 Performing ${checkType} check with OpenAI ${modelToUse}...`);
+
+      const fullPrompt = prompt.replace('{{PROGRESS_NOTE}}', noteText);
+
+      const response = await this.openaiClient.chat.completions.create({
+        model: modelToUse,
+        messages: [
+          {
+            role: 'user',
+            content: fullPrompt
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 2000
       });
 
-      const aiResponse = response.output_text;
+      const aiResponse = response.choices[0]?.message?.content;
       if (!aiResponse) {
         throw new Error(`No response content received from OpenAI for ${checkType}`);
       }
@@ -404,6 +444,7 @@ class AINoteChecker {
       );
 
       console.log(`🔄 Running ${checkPromises.length} AI checks in parallel...`);
+      console.log(`🤖 Model configuration: ${this.getModelConfigSummary()}`);
       const aiCheckResults = await Promise.all(checkPromises);
 
       // Perform local vital signs check (no AI call needed)
