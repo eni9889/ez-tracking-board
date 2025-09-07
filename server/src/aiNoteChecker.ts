@@ -4,6 +4,7 @@ import { vitalSignsDb } from './database';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import OpenAI from 'openai';
 import {
   IncompleteNotesRequest,
   IncompleteNotesResponse,
@@ -22,15 +23,19 @@ import {
 
 class AINoteChecker {
   private readonly EZDERM_API_BASE = 'https://srvprod.ezinfra.net';
-  private readonly CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
-  private claudeApiKey: string;
+  private openaiClient: OpenAI;
   private promptTemplate: string = '';
 
   constructor() {
-    this.claudeApiKey = process.env.CLAUDE_API_KEY || '';
-    if (!this.claudeApiKey) {
-      console.warn('⚠️ CLAUDE_API_KEY not found in environment variables. AI analysis will not be available.');
+    const openaiApiKey = process.env.OPENAI_API_KEY || '';
+    if (!openaiApiKey) {
+      console.warn('⚠️ OPENAI_API_KEY not found in environment variables. AI analysis will not be available.');
     }
+    
+    this.openaiClient = new OpenAI({
+      apiKey: openaiApiKey
+    });
+    
     this.loadPromptTemplate();
   }
 
@@ -49,7 +54,7 @@ class AINoteChecker {
 1. If the chronicity of every diagnosis in the A&P matches what is documented in the HPI.
 2. If every assessment in the A&P has a documented plan.
 
-You must return {status: :ok} only if absolutely everything is correct. If even one issue is found, return a JSON object listing all issues, with details and corrections. Return JSON only.`;
+You must return {"status": ":ok", "reason": "..."} only if absolutely everything is correct. If even one issue is found, return a JSON object listing all issues, with details and corrections. Return JSON only.`;
     }
   }
 
@@ -276,15 +281,15 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
   }
 
   /**
-   * Analyze progress note using Claude AI
+   * Analyze progress note using OpenAI GPT-5
    */
   async analyzeProgressNote(progressNote: ProgressNoteResponse): Promise<AIAnalysisResult> {
-    if (!this.claudeApiKey) {
-      throw new Error('Claude API key not configured');
+    if (!this.openaiClient.apiKey) {
+      throw new Error('OpenAI API key not configured');
     }
 
     try {
-      console.log('🤖 Analyzing progress note with Claude AI...');
+      console.log('🤖 Analyzing progress note with OpenAI GPT-5...');
       
       // In development mode, reload the prompt template every time
       if (process.env.NODE_ENV === 'development') {
@@ -294,41 +299,26 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
       }
       
       const noteText = this.formatProgressNoteForAnalysis(progressNote);
-      const fullPrompt = `${this.promptTemplate}\n\nProgress Note to analyze:\n${noteText}`;
 
-      const response = await axios.post(
-        this.CLAUDE_API_URL,
-        {
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 4000,
-          system: 'You are a medical coding assistant. You must respond with ONLY valid JSON. Do not include any explanations, comments, or additional text outside the JSON object.',
-          messages: [
-            {
-              role: 'user',
-              content: fullPrompt
-            }
-          ]
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': this.claudeApiKey,
-            'anthropic-version': '2023-06-01'
-          },
-          timeout: 120000 // 2 minutes timeout for Anthropic API calls
-        }
-      );
+      const response = await this.openaiClient.responses.create({
+        model: 'gpt-4.1',
+        input: `${this.promptTemplate}\n\nProgress Note to analyze:\n${noteText}`
+      });
 
-      const aiResponse = response.data.content[0].text;
+      const aiResponse = response.output_text;
+      if (!aiResponse) {
+        throw new Error('No response content received from OpenAI');
+      }
+      
       console.log('📝 Raw AI response:', aiResponse);
 
-      // Parse the JSON response from Claude
+      // Parse the JSON response from OpenAI
       let analysisResult: AIAnalysisResult;
       try {
         // Extract JSON from the response (might have extra text)
         let jsonText = this.extractJSON(aiResponse);
         
-        // Fix common JSON syntax issues from Claude
+        // Fix common JSON syntax issues from AI responses
         jsonText = this.fixCommonJSONIssues(jsonText);
         
         const parsedResponse = JSON.parse(jsonText);

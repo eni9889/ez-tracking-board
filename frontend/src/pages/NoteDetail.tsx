@@ -94,16 +94,21 @@ const NoteDetail: React.FC = () => {
   const [forceNewCheck, setForceNewCheck] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
-  // Initialize notes array from encounters context
+  // Initialize notes array from encounters context - filter for notes with issues only
   useEffect(() => {
     if (!encountersLoading && allEncounters.length > 0) {
-      setNotes(allEncounters);
+      // Filter to only include notes that have issues
+      const notesWithIssues = allEncounters.filter(note => note.issuesFound === true);
+      setNotes(notesWithIssues);
       
-      // Find current note index
+      // Find current note index in the filtered array
       if (encounterId) {
-        const index = allEncounters.findIndex(note => note.encounterId === encounterId);
+        const index = notesWithIssues.findIndex(note => note.encounterId === encounterId);
         if (index !== -1) {
           setCurrentIndex(index);
+        } else {
+          // If current note doesn't have issues, start with the first note that does
+          setCurrentIndex(0);
         }
       }
     }
@@ -959,12 +964,12 @@ const NoteDetail: React.FC = () => {
           </Tooltip>
           
           <Typography variant="body2" sx={{ 
-            minWidth: '60px', 
+            minWidth: '120px', 
             textAlign: 'center', 
             fontSize: '0.8rem',
             fontWeight: 'medium'
           }}>
-            {currentIndex + 1} / {notes.length}
+            {currentIndex + 1} / {notes.length} with issues
           </Typography>
           
           <Tooltip title="Next note (Arrow Right)">
