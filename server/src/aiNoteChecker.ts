@@ -398,18 +398,22 @@ class AINoteChecker {
       
       const noteText = this.formatProgressNoteForAnalysis(progressNote);
 
-      // Perform all checks in parallel for better performance
+      // Perform all AI checks in parallel for better performance
       const checkPromises = Object.values(this.CHECK_TYPES).map(checkType => 
         this.performSingleCheck(checkType, noteText)
       );
 
       console.log(`🔄 Running ${checkPromises.length} AI checks in parallel...`);
-      const checkResults = await Promise.all(checkPromises);
+      const aiCheckResults = await Promise.all(checkPromises);
 
-      // Combine all results into a single analysis result
-      const combinedResult = this.combineCheckResults(checkResults);
+      // Perform local vital signs check (no AI call needed)
+      const vitalSignsResult = this.checkVitalSigns(progressNote);
+
+      // Combine all results (AI checks + vital signs check)
+      const allCheckResults = [...aiCheckResults, vitalSignsResult];
+      const combinedResult = this.combineCheckResults(allCheckResults);
       
-      console.log('✅ Comprehensive AI analysis completed');
+      console.log('✅ Comprehensive note analysis completed (AI checks + local validation)');
       console.log('📊 Combined analysis result:', JSON.stringify(combinedResult, null, 2));
       
       return combinedResult;
@@ -417,6 +421,88 @@ class AINoteChecker {
       console.error('❌ Error analyzing progress note with AI:', error.response?.data || error.message);
       throw new Error(`AI analysis failed: ${error.message}`);
     }
+  }
+
+  /**
+   * Check for presence of height and weight in vital signs (local validation)
+   */
+  private checkVitalSigns(progressNote: ProgressNoteResponse): AIAnalysisResult {
+    console.log('🔍 Checking vital signs for height and weight...');
+    
+    // Find the OBJECTIVE section
+    const objectiveSection = progressNote.progressNotes.find(
+      section => section.sectionType === 'OBJECTIVE'
+    );
+    
+    if (!objectiveSection) {
+      console.log('⚠️ No OBJECTIVE section found');
+      return {
+        status: 'corrections_needed',
+        summary: 'Missing OBJECTIVE section with vital signs',
+        issues: [{
+          assessment: 'Vital Signs',
+          issue: 'unclear_documentation',
+          details: {
+            HPI: 'No OBJECTIVE section found',
+            'A&P': 'Vital signs section missing',
+            correction: 'Add OBJECTIVE section with height and weight measurements'
+          }
+        }]
+      };
+    }
+    
+    // Find the VITAL_SIGNS element
+    const vitalSignsItem = objectiveSection.items.find(
+      item => item.elementType === 'VITAL_SIGNS'
+    );
+    
+    if (!vitalSignsItem || !vitalSignsItem.text) {
+      console.log('⚠️ No VITAL_SIGNS element found');
+      return {
+        status: 'corrections_needed',
+        summary: 'Missing vital signs documentation',
+        issues: [{
+          assessment: 'Vital Signs',
+          issue: 'unclear_documentation',
+          details: {
+            HPI: 'Vital signs not documented',
+            'A&P': 'Height and weight required for billing',
+            correction: 'Add height and weight measurements to vital signs'
+          }
+        }]
+      };
+    }
+    
+    const vitalSignsText = vitalSignsItem.text.toLowerCase();
+    const hasHeight = vitalSignsText.includes('height') || vitalSignsText.includes('ht');
+    const hasWeight = vitalSignsText.includes('weight') || vitalSignsText.includes('wt') || vitalSignsText.includes('lbs') || vitalSignsText.includes('kg');
+    
+    const missingVitals: string[] = [];
+    if (!hasHeight) missingVitals.push('height');
+    if (!hasWeight) missingVitals.push('weight');
+    
+    if (missingVitals.length > 0) {
+      console.log(`⚠️ Missing vital signs: ${missingVitals.join(', ')}`);
+      return {
+        status: 'corrections_needed',
+        summary: `Missing required vital signs: ${missingVitals.join(' and ')}`,
+        issues: [{
+          assessment: 'Vital Signs',
+          issue: 'unclear_documentation',
+          details: {
+            HPI: `Current vital signs: ${vitalSignsItem.text}`,
+            'A&P': `Missing ${missingVitals.join(' and ')} measurements`,
+            correction: `Add ${missingVitals.join(' and ')} to vital signs documentation`
+          }
+        }]
+      };
+    }
+    
+    console.log('✅ Height and weight found in vital signs');
+    return {
+      status: 'ok',
+      reason: 'Height and weight are properly documented in vital signs'
+    };
   }
 
   /**
@@ -438,7 +524,7 @@ class AINoteChecker {
     if (!hasIssues) {
       return {
         status: 'ok',
-        reason: 'All checks passed: chronicity, HPI structure, plan documentation, and accuracy validation completed successfully'
+        reason: 'All checks passed: chronicity, HPI structure, plan documentation, accuracy validation, and vital signs verification completed successfully'
       };
     }
 
