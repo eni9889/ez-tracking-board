@@ -1328,6 +1328,67 @@ app.post('/notes/bulk-force-recheck', validateSession, async (req: Request, res:
   }
 });
 
+// Sign off a note
+app.post('/notes/sign-off', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const username = (req as any).user.username;
+    const { encounterId, patientId, status } = req.body;
+    
+    if (!encounterId || !patientId) {
+      res.status(400).json({ error: 'Encounter ID and Patient ID are required' });
+      return;
+    }
+    
+    // Get valid tokens
+    const userTokens = await getValidTokens(username);
+    if (!userTokens) {
+      res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      return;
+    }
+    
+    console.log(`🖊️ Signing off note for encounter ${encounterId} by user ${username}`);
+    
+    // Prepare sign-off data based on the SignOff.md example
+    const signOffData = {
+      room: 0,
+      dateOfArrival: new Date().toISOString(),
+      status: status || 'SIGNED_OFF',
+      id: encounterId
+    };
+    
+    // Make request to EZDerm sign-off API
+    const response = await axios.post(
+      `${userTokens.serverUrl}ezderm-webservice/rest/encounter/signOff`,
+      signOffData,
+      {
+        headers: {
+          'Host': 'srvprod.ezinfra.net',
+          'accept': 'application/json',
+          'content-type': 'application/json',
+          'authorization': `Bearer ${userTokens.accessToken}`,
+          'encounterid': encounterId,
+          'patientid': patientId,
+          'user-agent': 'ezDerm/4.28.1 (build:133.1; macOS(Catalyst) 15.6.1)',
+          'accept-language': 'en-US;q=1.0'
+        }
+      }
+    );
+    
+    console.log(`✅ Note signed off successfully for encounter ${encounterId}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Note signed off successfully',
+      encounterId,
+      status: signOffData.status
+    });
+  } catch (error: any) {
+    console.error('Error signing off note:', error);
+    const errorMessage = error.response?.data?.error || error.message || 'Failed to sign off note';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
 // Token refresh function
 async function refreshEZDermToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string } | null> {
   try {

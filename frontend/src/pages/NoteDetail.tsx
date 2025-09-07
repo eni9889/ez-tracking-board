@@ -46,7 +46,8 @@ import {
   Group,
   Badge,
   MedicalServices,
-  Block
+  Block,
+  Edit
 } from '@mui/icons-material';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -94,6 +95,8 @@ const NoteDetail: React.FC = () => {
   const [modalSuccess, setModalSuccess] = useState<string | null>(null);
   const [forceNewCheck, setForceNewCheck] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const [showSignOffModal, setShowSignOffModal] = useState(false);
+  const [signingOff, setSigningOff] = useState(false);
 
   // Initialize notes array from encounters context - filter based on navigation context
   useEffect(() => {
@@ -299,6 +302,46 @@ const NoteDetail: React.FC = () => {
     );
   };
 
+  // Check if the current user is the attending provider for this note
+  const isAttendingProvider = (): boolean => {
+    if (!user || !careTeam.length) return false;
+    
+    // Find the attending provider in the care team
+    const attendingProvider = careTeam.find(member => 
+      member.encounterRoleType === 'PROVIDER' && member.active
+    );
+    
+    if (!attendingProvider) return false;
+    
+    // Check if the current user matches the attending provider
+    // Note: This is a simplified check - in a real system you might need to match by provider ID
+    // For now, we'll assume the username matches the provider's name or ID
+    return user.username === attendingProvider.providerId || 
+           user.username.toLowerCase() === `${attendingProvider.firstName} ${attendingProvider.lastName}`.toLowerCase();
+  };
+
+  // Check if the note can be signed off (no valid issues and user is attending provider)
+  const canSignOffNote = (): boolean => {
+    if (!isAttendingProvider()) return false;
+    
+    // Check if there are any valid issues in the latest check
+    const latestCheck = checkHistory.find(check => check.status === 'completed');
+    if (!latestCheck) return false; // Must have at least one completed check
+    
+    // If there are no issues found, or all issues are marked invalid, can sign off
+    if (!latestCheck.issuesFound) return true;
+    
+    // Check if all issues are marked as invalid
+    if (latestCheck.aiAnalysis?.issues) {
+      const allIssuesInvalid = latestCheck.aiAnalysis.issues.every((_, index) => 
+        isIssueMarkedInvalid(latestCheck.id, index)
+      );
+      return allIssuesInvalid;
+    }
+    
+    return false;
+  };
+
   const getValidIssues = (result: NoteCheckResult): AIAnalysisIssue[] => {
     if (!result.aiAnalysis?.issues) return [];
     
@@ -402,6 +445,30 @@ const NoteDetail: React.FC = () => {
     } catch (err: any) {
       console.error('Error unmarking issue as invalid:', err);
       setError(err.message || 'Failed to unmark issue as invalid');
+    }
+  };
+
+  // Handle sign-off
+  const handleSignOff = async () => {
+    if (!currentNote) return;
+    
+    setSigningOff(true);
+    try {
+      await aiNoteCheckerService.signOffNote(currentNote.encounterId, currentNote.patientId);
+      
+      // Show success message
+      setError(null);
+      setShowSignOffModal(false);
+      
+      // Optionally refresh the note data or show a success message
+      // You might want to navigate back or update the UI to reflect the signed-off status
+      console.log('✅ Note signed off successfully');
+      
+    } catch (err: any) {
+      console.error('Error signing off note:', err);
+      setError(err.message || 'Failed to sign off note');
+    } finally {
+      setSigningOff(false);
     }
   };
 
@@ -1241,6 +1308,39 @@ const NoteDetail: React.FC = () => {
             )
           )}
           
+          {/* Sign Off Button - only show if user can sign off */}
+          {canSignOffNote() && (
+            <Tooltip title="Sign off this note">
+              <Button
+                variant="contained"
+                startIcon={<Edit />}
+                onClick={() => setShowSignOffModal(true)}
+                disabled={signingOff}
+                sx={{ 
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  border: '1px solid #059669',
+                  borderRadius: 2,
+                  px: 3,
+                  py: 1,
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  '&:hover': {
+                    backgroundColor: '#059669',
+                    borderColor: '#047857'
+                  },
+                  '&:disabled': {
+                    backgroundColor: '#64748b',
+                    borderColor: '#475569',
+                    color: '#e2e8f0'
+                  }
+                }}
+              >
+                {signingOff ? 'Signing Off...' : 'Sign Off Note'}
+              </Button>
+            </Tooltip>
+          )}
+          
           <Tooltip title="Refresh note data">
             <IconButton
               onClick={refreshNoteData}
@@ -1879,6 +1979,86 @@ const NoteDetail: React.FC = () => {
             </DialogActions>
           </>
         )}
+      </Dialog>
+
+      {/* Sign Off Confirmation Modal */}
+      <Dialog
+        open={showSignOffModal}
+        onClose={() => !signingOff && setShowSignOffModal(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ 
+          backgroundColor: '#f8fafc', 
+          borderBottom: '1px solid #e2e8f0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2
+        }}>
+          <Edit sx={{ color: '#10b981' }} />
+          Sign Off Note
+        </DialogTitle>
+        
+        <DialogContent sx={{ pt: 3 }}>
+          <DialogContentText sx={{ mb: 2 }}>
+            Are you sure you want to sign off this note?
+          </DialogContentText>
+          
+          <Box sx={{ 
+            backgroundColor: '#f0fdf4', 
+            border: '1px solid #bbf7d0',
+            borderRadius: 2,
+            p: 2,
+            mb: 2
+          }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, color: '#166534', mb: 1 }}>
+              Note Details:
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              <strong>Patient:</strong> {currentNote?.patientName}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              <strong>Chief Complaint:</strong> {currentNote?.chiefComplaint}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              <strong>Date of Service:</strong> {currentNote && aiNoteCheckerService.formatTimeAgo(currentNote.dateOfService)}
+            </Typography>
+          </Box>
+          
+          <Alert severity="info" sx={{ mb: 2 }}>
+            This action will mark the note as signed off in the EZDerm system. This cannot be undone.
+          </Alert>
+        </DialogContent>
+        
+        <DialogActions sx={{ p: 3, gap: 2 }}>
+          <Button
+            onClick={() => setShowSignOffModal(false)}
+            disabled={signingOff}
+            sx={{ 
+              color: '#64748b',
+              '&:hover': { backgroundColor: '#f1f5f9' }
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSignOff}
+            disabled={signingOff}
+            variant="contained"
+            startIcon={signingOff ? <CircularProgress size={16} color="inherit" /> : <Edit />}
+            sx={{
+              backgroundColor: '#10b981',
+              color: 'white',
+              '&:hover': { backgroundColor: '#059669' },
+              '&:disabled': { 
+                backgroundColor: '#64748b',
+                color: '#e2e8f0'
+              }
+            }}
+          >
+            {signingOff ? 'Signing Off...' : 'Sign Off Note'}
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

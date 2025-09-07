@@ -805,6 +805,38 @@ class AINoteCheckerService {
       throw new Error(error.response?.data?.error || 'Failed to enqueue bulk force re-check jobs');
     }
   }
+
+  // Sign off a note
+  async signOffNote(encounterId: string, patientId: string): Promise<void> {
+    if (USE_MOCK_DATA) {
+      console.log('🔄 Mock: Signing off note', { encounterId, patientId });
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return;
+    }
+
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/notes/sign-off`,
+        {
+          encounterId,
+          patientId,
+          status: 'SIGNED_OFF'
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${authService.getSessionToken()}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error signing off note:', error);
+      throw new Error(error.response?.data?.error || 'Failed to sign off note');
+    }
+  }
 }
 
 const aiNoteCheckerService = new AINoteCheckerService();
