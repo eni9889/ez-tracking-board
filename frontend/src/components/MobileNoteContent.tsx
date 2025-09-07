@@ -59,13 +59,15 @@ function TabPanel(props: TabPanelProps) {
       hidden={value !== index}
       id={`mobile-tabpanel-${index}`}
       aria-labelledby={`mobile-tab-${index}`}
+      style={{
+        height: '100%',
+        overflow: value === index ? 'auto' : 'hidden',
+        WebkitOverflowScrolling: 'touch', // Enable momentum scrolling on iOS
+        overscrollBehavior: 'contain' // Prevent overscroll bounce affecting parent
+      }}
       {...other}
     >
-      {value === index && (
-        <Box sx={{ height: '100%', overflow: 'auto' }}>
-          {children}
-        </Box>
-      )}
+      {value === index && children}
     </div>
   );
 }
@@ -231,7 +233,12 @@ const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
     }
 
     return (
-      <Box sx={{ p: 1 }}>
+      <Box sx={{ 
+        p: 1,
+        height: '100%',
+        overflow: 'auto',
+        WebkitOverflowScrolling: 'touch'
+      }}>
         <Stack spacing={1}>
           {sections.map((section: any, index: number) => {
             const sectionType = section.sectionType || section.label || `Section ${index + 1}`;
@@ -485,7 +492,12 @@ const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
     };
 
     return (
-      <Box sx={{ p: 2 }}>
+      <Box sx={{ 
+        p: 2,
+        height: '100%',
+        overflow: 'auto',
+        WebkitOverflowScrolling: 'touch'
+      }}>
         <Stack spacing={1}>
           {careTeam.map((member) => (
             <Card
@@ -552,7 +564,12 @@ const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
     }
 
     return (
-      <Box sx={{ p: 1 }}>
+      <Box sx={{ 
+        p: 1,
+        height: '100%',
+        overflow: 'auto',
+        WebkitOverflowScrolling: 'touch'
+      }}>
         <Stack spacing={1}>
           {checkHistory.map((result, index) => (
             <Card key={result.id} sx={{ border: '1px solid', borderColor: 'divider' }}>
@@ -681,7 +698,12 @@ const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
     }
 
     return (
-      <Box sx={{ p: 1 }}>
+      <Box sx={{ 
+        p: 1,
+        height: '100%',
+        overflow: 'auto',
+        WebkitOverflowScrolling: 'touch'
+      }}>
         <Stack spacing={1}>
           {createdTodos.map((todo) => (
             <Card key={todo.id} sx={{ border: '1px solid', borderColor: 'success.main', bgcolor: 'success.50' }}>
@@ -718,12 +740,18 @@ const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
   const todosCount = createdTodos.length;
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ 
+      height: '100%', 
+      display: 'flex', 
+      flexDirection: 'column',
+      overflow: 'hidden' // Prevent the container from growing beyond viewport
+    }}>
       {/* Tab Navigation */}
       <Paper sx={{ 
         borderRadius: 0,
         borderBottom: '1px solid',
-        borderColor: 'divider'
+        borderColor: 'divider',
+        flexShrink: 0 // Prevent tabs from shrinking
       }}>
         <Tabs
           value={currentTab}
@@ -779,7 +807,13 @@ const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
       </Paper>
 
       {/* Tab Content */}
-      <Box sx={{ flex: 1, overflow: 'hidden' }}>
+      <Box sx={{ 
+        flex: 1, 
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0 // Important for flex children to shrink
+      }}>
         <TabPanel value={currentTab} index={0}>
           {renderProgressNote()}
         </TabPanel>
