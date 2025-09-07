@@ -47,6 +47,7 @@ COPY --from=builder --chown=nodejs:nodejs /app/certs ./certs
 COPY --chown=nodejs:nodejs migrations/ ./migrations/
 # Copy markdown files needed at runtime
 COPY --from=builder --chown=nodejs:nodejs /app/src/ai-prompt.md ./dist/
+COPY --from=builder --chown=nodejs:nodejs /app/src/prompts/ ./dist/prompts/
 
 # Set environment to production
 ENV NODE_ENV=production
