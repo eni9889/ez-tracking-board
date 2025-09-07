@@ -33,6 +33,8 @@ import aiNoteCheckerService from '../services/aiNoteChecker.service';
 import authService from '../services/auth.service';
 import MobileHeader from '../components/MobileHeader';
 import MobileFilters from '../components/MobileFilters';
+import PullToRefresh from '../components/PullToRefresh';
+import MobileFAB from '../components/MobileFAB';
 import useResponsive from '../hooks/useResponsive';
 
 interface IncompleteNote {
@@ -59,6 +61,8 @@ const AINoteChecker: React.FC = () => {
   const [selectedNotes, setSelectedNotes] = useState<Set<string>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [currentFilter, setCurrentFilter] = useState<FilterType>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('dateDesc');
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { user, logout } = useAuth();
@@ -103,32 +107,77 @@ const AINoteChecker: React.FC = () => {
     }
   }, [location.state, navigate]);
 
-  // Filter notes based on current filter
-  const getFilteredNotes = (): IncompleteNote[] => {
+  // Filter, search, and sort notes
+  const getFilteredAndSortedNotes = (): IncompleteNote[] => {
+    let filtered = incompleteNotes;
+
+    // Apply filter
     switch (currentFilter) {
       case 'clean':
-        return incompleteNotes.filter(note => 
+        filtered = incompleteNotes.filter(note => 
           note.lastCheckStatus === 'completed' && !note.issuesFound
         );
+        break;
       case 'issues':
-        return incompleteNotes.filter(note => 
+        filtered = incompleteNotes.filter(note => 
           note.lastCheckStatus === 'completed' && note.hasValidIssues
         );
+        break;
       case 'unchecked':
-        return incompleteNotes.filter(note => 
+        filtered = incompleteNotes.filter(note => 
           !note.lastCheckStatus || note.lastCheckStatus === 'pending'
         );
+        break;
       case 'issues-no-todos':
-        return incompleteNotes.filter(note => 
+        filtered = incompleteNotes.filter(note => 
           note.lastCheckStatus === 'completed' && note.hasValidIssues && !note.todoCreated
         );
+        break;
       case 'all':
       default:
-        return incompleteNotes;
+        filtered = incompleteNotes;
+        break;
     }
+
+    // Apply search
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(note => 
+        note.patientName.toLowerCase().includes(query) ||
+        note.chiefComplaint.toLowerCase().includes(query) ||
+        note.status.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'dateAsc':
+          return new Date(a.dateOfService).getTime() - new Date(b.dateOfService).getTime();
+        case 'dateDesc':
+          return new Date(b.dateOfService).getTime() - new Date(a.dateOfService).getTime();
+        case 'patientName':
+          return a.patientName.localeCompare(b.patientName);
+        case 'status':
+          return a.status.localeCompare(b.status);
+        case 'aiStatus':
+          // Sort by AI check status priority
+          const getAIStatusPriority = (note: IncompleteNote) => {
+            if (!note.lastCheckStatus) return 0; // Unchecked first
+            if (note.lastCheckStatus === 'error') return 1; // Errors second
+            if (note.issuesFound) return 2; // Issues third
+            return 3; // Clean last
+          };
+          return getAIStatusPriority(a) - getAIStatusPriority(b);
+        default:
+          return new Date(b.dateOfService).getTime() - new Date(a.dateOfService).getTime();
+      }
+    });
+
+    return filtered;
   };
 
-  const filteredNotes = getFilteredNotes();
+  const filteredNotes = getFilteredAndSortedNotes();
 
   // Count notes for each filter
   const getNoteCounts = () => {
@@ -599,6 +648,10 @@ const AINoteChecker: React.FC = () => {
         currentFilter={currentFilter}
         noteCounts={noteCounts}
         onFilterChange={setCurrentFilter}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        sortBy={sortBy}
+        onSortChange={setSortBy}
       />
 
       {/* Desktop Filter Tabs - only show on desktop */}
@@ -812,7 +865,7 @@ const AINoteChecker: React.FC = () => {
         </Box>
       )}
 
-      {/* Notes Table */}
+      {/* Notes Table with Pull to Refresh */}
       <Box sx={{ 
         flex: 1, 
         px: isMobile ? 1 : 1, 
@@ -829,6 +882,12 @@ const AINoteChecker: React.FC = () => {
             minWidth: 'unset'
           }
         }}>
+          <PullToRefresh
+            onRefresh={async () => {
+              await refreshEncounters();
+            }}
+            disabled={loading || autoRefreshing}
+          >
           <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
             <Table stickyHeader size={isMobile ? "medium" : "small"} sx={{ 
               tableLayout: isMobile ? 'auto' : 'fixed',
@@ -1098,8 +1157,18 @@ const AINoteChecker: React.FC = () => {
               </Typography>
             </Box>
           )}
+          </PullToRefresh>
         </Paper>
       </Box>
+
+      {/* Mobile Floating Action Button */}
+      <MobileFAB
+        selectedCount={selectedNotes.size}
+        onRefresh={refreshEncounters}
+        onBulkCheck={selectedNotes.size > 0 ? handleBulkForceRecheck : undefined}
+        refreshing={loading || autoRefreshing}
+        bulkProcessing={bulkProcessing}
+      />
     </Box>
   );
 };

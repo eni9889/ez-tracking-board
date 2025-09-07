@@ -8,14 +8,27 @@ import {
   Chip,
   Tabs,
   Tab,
-  useTheme
+  useTheme,
+  TextField,
+  InputAdornment,
+  IconButton,
+  Collapse,
+  Stack,
+  Button,
+  Divider
 } from '@mui/material';
 import {
   Assessment,
   CheckCircle,
   Warning,
   Schedule,
-  Block
+  Block,
+  Search,
+  Clear,
+  FilterList,
+  Sort,
+  ExpandMore,
+  ExpandLess
 } from '@mui/icons-material';
 import useResponsive from '../hooks/useResponsive';
 
@@ -33,15 +46,24 @@ interface MobileFiltersProps {
   currentFilter: FilterType;
   noteCounts: NoteCounts;
   onFilterChange: (filter: FilterType) => void;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
+  sortBy?: string;
+  onSortChange?: (sort: string) => void;
 }
 
 const MobileFilters: React.FC<MobileFiltersProps> = ({
   currentFilter,
   noteCounts,
-  onFilterChange
+  onFilterChange,
+  searchQuery = '',
+  onSearchChange,
+  sortBy = 'dateDesc',
+  onSortChange
 }) => {
   const { isMobile, isSmallMobile, isTablet } = useResponsive();
   const theme = useTheme();
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const filterOptions = [
     {
@@ -81,12 +103,25 @@ const MobileFilters: React.FC<MobileFiltersProps> = ({
     }
   ];
 
+  const sortOptions = [
+    { value: 'dateDesc', label: 'Newest First' },
+    { value: 'dateAsc', label: 'Oldest First' },
+    { value: 'patientName', label: 'Patient Name' },
+    { value: 'status', label: 'Status' },
+    { value: 'aiStatus', label: 'AI Check Status' }
+  ];
+
   const getCurrentFilterLabel = () => {
     const current = filterOptions.find(option => option.value === currentFilter);
     return current ? `${current.label} (${current.count})` : 'All Notes';
   };
 
-  // Mobile dropdown for small screens
+  const getCurrentSortLabel = () => {
+    const current = sortOptions.find(option => option.value === sortBy);
+    return current ? current.label : 'Newest First';
+  };
+
+  // Enhanced mobile interface for small screens
   if (isSmallMobile) {
     return (
       <Box sx={{ 
@@ -95,62 +130,162 @@ const MobileFilters: React.FC<MobileFiltersProps> = ({
         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
         p: 2
       }}>
-        <Typography variant="body2" sx={{ 
-          mb: 1, 
-          fontWeight: 600, 
-          color: '#475569',
-          fontSize: '0.85rem'
-        }}>
-          Filter Notes
-        </Typography>
-        <FormControl fullWidth size="small">
-          <Select
-            value={currentFilter}
-            onChange={(e) => onFilterChange(e.target.value as FilterType)}
-            sx={{
-              backgroundColor: 'white',
-              borderRadius: 2,
-              '& .MuiOutlinedInput-notchedOutline': {
-                borderColor: '#e2e8f0'
-              },
-              '&:hover .MuiOutlinedInput-notchedOutline': {
-                borderColor: '#3b82f6'
-              },
-              '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                borderColor: '#3b82f6'
-              }
-            }}
-          >
-            {filterOptions.map((option) => (
-              <MenuItem key={option.value} value={option.value}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                  <Box sx={{ color: option.color }}>
-                    {option.icon}
+        {/* Search Bar */}
+        {onSearchChange && (
+          <Box sx={{ mb: 2 }}>
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Search patients..."
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search sx={{ color: '#64748b', fontSize: '1.1rem' }} />
+                  </InputAdornment>
+                ),
+                endAdornment: searchQuery && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      onClick={() => onSearchChange('')}
+                      sx={{ p: 0.5 }}
+                    >
+                      <Clear sx={{ fontSize: '1rem' }} />
+                    </IconButton>
+                  </InputAdornment>
+                )
+              }}
+              sx={{
+                backgroundColor: 'white',
+                borderRadius: 2,
+                '& .MuiOutlinedInput-root': {
+                  '& fieldset': {
+                    borderColor: '#e2e8f0'
+                  },
+                  '&:hover fieldset': {
+                    borderColor: '#3b82f6'
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#3b82f6'
+                  }
+                }
+              }}
+            />
+          </Box>
+        )}
+
+        {/* Filter and Sort Row */}
+        <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+          <FormControl size="small" sx={{ flex: 1 }}>
+            <Select
+              value={currentFilter}
+              onChange={(e) => onFilterChange(e.target.value as FilterType)}
+              displayEmpty
+              sx={{
+                backgroundColor: 'white',
+                borderRadius: 2,
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: '#e2e8f0'
+                },
+                '&:hover .MuiOutlinedInput-notchedOutline': {
+                  borderColor: '#3b82f6'
+                },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                  borderColor: '#3b82f6'
+                }
+              }}
+            >
+              {filterOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                    <Box sx={{ color: option.color }}>
+                      {option.icon}
+                    </Box>
+                    <Typography variant="body2" sx={{ flex: 1 }}>
+                      {option.label}
+                    </Typography>
+                    <Chip
+                      label={option.count}
+                      size="small"
+                      sx={{
+                        backgroundColor: `${option.color}15`,
+                        color: option.color,
+                        fontWeight: 600,
+                        fontSize: '0.7rem',
+                        minWidth: '28px',
+                        height: '20px'
+                      }}
+                    />
                   </Box>
-                  <Typography variant="body2" sx={{ flex: 1 }}>
-                    {option.label}
-                  </Typography>
-                  <Chip
-                    label={option.count}
-                    size="small"
-                    sx={{
-                      backgroundColor: `${option.color}15`,
-                      color: option.color,
-                      fontWeight: 600,
-                      fontSize: '0.75rem',
-                      minWidth: '32px'
-                    }}
-                  />
-                </Box>
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {onSortChange && (
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <Select
+                value={sortBy}
+                onChange={(e) => onSortChange(e.target.value)}
+                displayEmpty
+                sx={{
+                  backgroundColor: 'white',
+                  borderRadius: 2,
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#e2e8f0'
+                  },
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#3b82f6'
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#3b82f6'
+                  }
+                }}
+              >
+                {sortOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Sort sx={{ fontSize: '1rem', color: '#64748b' }} />
+                      <Typography variant="body2">
+                        {option.label}
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+        </Stack>
+
+        {/* Quick Filter Chips */}
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          {filterOptions.slice(1, 4).map((option) => (
+            <Chip
+              key={option.value}
+              label={`${option.label.split(' ')[0]} (${option.count})`}
+              size="small"
+              variant={currentFilter === option.value ? 'filled' : 'outlined'}
+              onClick={() => onFilterChange(option.value)}
+              sx={{
+                backgroundColor: currentFilter === option.value ? `${option.color}15` : 'transparent',
+                borderColor: `${option.color}30`,
+                color: option.color,
+                fontWeight: 600,
+                fontSize: '0.7rem',
+                '&:hover': {
+                  backgroundColor: `${option.color}20`
+                }
+              }}
+            />
+          ))}
+        </Box>
       </Box>
     );
   }
 
-  // Scrollable tabs for tablets and larger mobile screens
+  // Enhanced tablet interface
   if (isMobile || isTablet) {
     return (
       <Box sx={{ 
@@ -168,6 +303,91 @@ const MobileFilters: React.FC<MobileFiltersProps> = ({
           background: 'linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.5), transparent)'
         }
       }}>
+        {/* Search and Sort Bar for Tablets */}
+        {(onSearchChange || onSortChange) && (
+          <Box sx={{ px: 2, pt: 2, pb: 1 }}>
+            <Stack direction="row" spacing={2} alignItems="center">
+              {onSearchChange && (
+                <TextField
+                  size="small"
+                  placeholder="Search patients..."
+                  value={searchQuery}
+                  onChange={(e) => onSearchChange(e.target.value)}
+                  sx={{ 
+                    flex: 1,
+                    maxWidth: '300px',
+                    backgroundColor: 'white',
+                    borderRadius: 2,
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': {
+                        borderColor: '#e2e8f0'
+                      },
+                      '&:hover fieldset': {
+                        borderColor: '#3b82f6'
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#3b82f6'
+                      }
+                    }
+                  }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search sx={{ color: '#64748b', fontSize: '1.1rem' }} />
+                      </InputAdornment>
+                    ),
+                    endAdornment: searchQuery && (
+                      <InputAdornment position="end">
+                        <IconButton
+                          size="small"
+                          onClick={() => onSearchChange('')}
+                          sx={{ p: 0.5 }}
+                        >
+                          <Clear sx={{ fontSize: '1rem' }} />
+                        </IconButton>
+                      </InputAdornment>
+                    )
+                  }}
+                />
+              )}
+              
+              {onSortChange && (
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                  <Select
+                    value={sortBy}
+                    onChange={(e) => onSortChange(e.target.value)}
+                    displayEmpty
+                    sx={{
+                      backgroundColor: 'white',
+                      borderRadius: 2,
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#e2e8f0'
+                      },
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#3b82f6'
+                      },
+                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#3b82f6'
+                      }
+                    }}
+                  >
+                    {sortOptions.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Sort sx={{ fontSize: '1rem', color: '#64748b' }} />
+                          <Typography variant="body2">
+                            {option.label}
+                          </Typography>
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+            </Stack>
+          </Box>
+        )}
+        
         <Tabs 
           value={currentFilter} 
           onChange={(_, newValue) => onFilterChange(newValue as FilterType)}
