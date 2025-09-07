@@ -251,6 +251,34 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
   }
 
   /**
+   * Filter assessment and plan text to remove items containing destruction or biopsy
+   */
+  private filterAssessmentAndPlan(assessmentText: string): string {
+    if (!assessmentText) return '';
+
+    // Split the assessment text into individual numbered items
+    // The pattern matches the start of a new numbered item (e.g., "1. ", "2. ", etc.)
+    const assessmentItems = assessmentText.split(/(?=\n\n\d+\.\s|\n\d+\.\s|^\d+\.\s)/);
+    
+    const filteredItems: string[] = [];
+
+    for (const item of assessmentItems) {
+      if (!item.trim()) continue;
+
+      // Check if this assessment item contains "destruction" or "biopsy" anywhere in the text
+      const lowerCaseItem = item.toLowerCase();
+      const hasDestructionOrBiopsy = lowerCaseItem.includes('plan:') && (lowerCaseItem.includes('destruction') || lowerCaseItem.includes('biopsy') || lowerCaseItem.includes('excision'));
+
+      if (!hasDestructionOrBiopsy) {
+        filteredItems.push(item);
+      }
+    }
+
+    // Join the filtered items and clean up any extra whitespace
+    return filteredItems.join('\n\n').trim();
+  }
+
+  /**
    * Format progress note for AI analysis
    */
   private formatProgressNoteForAnalysis(progressNote: ProgressNoteResponse): string {
@@ -262,7 +290,15 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
       for (const item of section.items) {
         if (item.elementType === 'HISTORY_OF_PRESENT_ILLNESS') {
           formattedNote += `\n${item.elementType}:\n${item.note}\n`;
-        } else if (item.text && item.text.trim()) {
+        } 
+        else if (item.elementType === 'ASSESSMENT_AND_PLAN') { 
+          // Remove any assessment and plan items that have Plan: that includes destruction or biopsy
+          const filteredAssessmentText = this.filterAssessmentAndPlan(item.text);
+          if (filteredAssessmentText.trim()) {
+            formattedNote += `\n${item.elementType}:\n${filteredAssessmentText}\n`;
+          }
+        }
+        else if (item.text && item.text.trim()) {
           formattedNote += `\n${item.elementType}:\n${item.text}\n`;
           
           if (item.note && item.note.trim()) {
