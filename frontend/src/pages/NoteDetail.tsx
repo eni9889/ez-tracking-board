@@ -99,6 +99,7 @@ const NoteDetail: React.FC = () => {
   const [signingOff, setSigningOff] = useState(false);
   const [currentUserProviderId, setCurrentUserProviderId] = useState<string | null>(null);
   const [noteSignedOff, setNoteSignedOff] = useState(false);
+  const [signOffInfo, setSignOffInfo] = useState<string | null>(null);
 
   // Fetch current user's provider ID
   useEffect(() => {
@@ -190,6 +191,9 @@ const NoteDetail: React.FC = () => {
         fetchCreatedTodos(encounterId),
         fetchInvalidIssues(encounterId)
       ]);
+
+      // Check if note is already signed off
+      checkIfNoteSignedOff(noteResponse.progressNote);
 
       // Cache the data
       setNoteDataCache(prev => new Map(prev).set(encounterId, {
@@ -334,6 +338,26 @@ const NoteDetail: React.FC = () => {
     
     // Check if the current user's provider ID matches the attending provider's ID
     return currentUserProviderId === attendingProvider.providerId;
+  };
+
+  // Check if note is already signed off by looking for POST_SIGNOFF_INFO section
+  const checkIfNoteSignedOff = (progressNoteData: any) => {
+    if (!progressNoteData?.progressNotes) return;
+
+    const signOffSection = progressNoteData.progressNotes.find(
+      (section: any) => section.sectionType === 'POST_SIGNOFF_INFO'
+    );
+
+    if (signOffSection) {
+      const signOffItem = signOffSection.items?.find(
+        (item: any) => item.elementType === 'SIGNOFF_NOTE'
+      );
+      
+      if (signOffItem?.text) {
+        setNoteSignedOff(true);
+        setSignOffInfo(signOffItem.text);
+      }
+    }
   };
 
   // Check if the note can be signed off (no valid issues and user is attending provider)
@@ -1109,19 +1133,21 @@ const NoteDetail: React.FC = () => {
                 {currentNote.patientName} • {currentNote.chiefComplaint}
               </Typography>
               {noteSignedOff && (
-                <Chip
-                  icon={<CheckCircle />}
-                  label="SIGNED OFF"
-                  sx={{
-                    backgroundColor: '#10b981',
-                    color: 'white',
-                    fontWeight: 700,
-                    fontSize: '0.75rem',
-                    '& .MuiChip-icon': {
-                      color: 'white'
-                    }
-                  }}
-                />
+                <Tooltip title={signOffInfo || 'Note has been signed off'}>
+                  <Chip
+                    icon={<CheckCircle />}
+                    label="SIGNED OFF"
+                    sx={{
+                      backgroundColor: '#10b981',
+                      color: 'white',
+                      fontWeight: 700,
+                      fontSize: '0.75rem',
+                      '& .MuiChip-icon': {
+                        color: 'white'
+                      }
+                    }}
+                  />
+                </Tooltip>
               )}
             </Box>
             <Typography variant="body2" sx={{ 
@@ -1543,18 +1569,66 @@ const NoteDetail: React.FC = () => {
         </Paper>
 
         {/* Right Panel - Care Team & AI Check History with modern styling */}
-        <Paper sx={{ 
-          width: '420px', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          maxHeight: '100%',
-          backgroundColor: 'white',
-          borderRadius: 3,
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-          border: '1px solid #e2e8f0',
-          overflow: 'hidden'
-        }}>
-          {/* Care Team Section */}
+        <Box sx={{ width: '420px', display: 'flex', flexDirection: 'column', gap: 3, maxHeight: '100%' }}>
+          {/* Sign-off Information Section - only show if note is signed off */}
+          {noteSignedOff && signOffInfo && (
+            <Paper
+              elevation={0}
+              sx={{
+                border: '1px solid #10b981',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                backgroundColor: '#f0fdf4'
+              }}
+            >
+              {/* Header */}
+              <Box sx={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                p: 2,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}>
+                <CheckCircle sx={{ color: 'white', fontSize: '1.4rem' }} />
+                <Typography variant="h6" sx={{ 
+                  color: 'white', 
+                  fontWeight: 600,
+                  fontSize: '1rem'
+                }}>
+                  Note Signed Off
+                </Typography>
+              </Box>
+              
+              {/* Content */}
+              <Box sx={{ p: 2 }}>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: '#065f46',
+                    lineHeight: 1.5,
+                    whiteSpace: 'pre-line',
+                    fontFamily: 'monospace',
+                    fontSize: '0.85rem'
+                  }}
+                >
+                  {signOffInfo}
+                </Typography>
+              </Box>
+            </Paper>
+          )}
+
+          {/* Main Panel */}
+          <Paper sx={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            flex: 1,
+            backgroundColor: 'white',
+            borderRadius: 3,
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            border: '1px solid #e2e8f0',
+            overflow: 'hidden'
+          }}>
+            {/* Care Team Section */}
           <Box sx={{ 
             p: 3, 
             borderBottom: '2px solid #f1f5f9',
@@ -1784,7 +1858,8 @@ const NoteDetail: React.FC = () => {
               </List>
             )}
           </Box>
-        </Paper>
+          </Paper>
+        </Box>
       </Box>
 
       {/* ToDo Confirmation Modal */}
