@@ -571,34 +571,92 @@ const AINoteChecker: React.FC = () => {
 
       {/* Filter Tabs */}
       <Box sx={{ 
-        borderBottom: 1, 
-        borderColor: 'divider', 
-        backgroundColor: 'white',
-        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)'
+        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+        borderBottom: '2px solid #e2e8f0',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        position: 'relative',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '1px',
+          background: 'linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.5), transparent)'
+        }
       }}>
         <Tabs 
           value={currentFilter} 
           onChange={(_, newValue) => setCurrentFilter(newValue as FilterType)}
           sx={{ 
-            px: 3,
+            px: 4,
             '& .MuiTabs-indicator': {
-              backgroundColor: '#0a0a0a',
-              height: 3
+              background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
+              height: 4,
+              borderRadius: '2px 2px 0 0',
+              boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)'
             },
             '& .MuiTab-root': {
-              fontWeight: 600,
-              fontSize: '0.875rem',
+              fontWeight: 700,
+              fontSize: '0.95rem',
               textTransform: 'none',
-              minHeight: 48,
+              minHeight: 56,
+              px: 3,
+              py: 2,
+              borderRadius: '8px 8px 0 0',
+              margin: '0 2px',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              position: 'relative',
+              overflow: 'hidden',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.05), rgba(29, 78, 216, 0.05))',
+                opacity: 0,
+                transition: 'opacity 0.3s ease'
+              },
+              '&:hover': {
+                backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                transform: 'translateY(-1px)',
+                '&::before': {
+                  opacity: 1
+                }
+              },
               '&.Mui-selected': {
-                color: '#0a0a0a'
+                color: '#1e40af',
+                backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                fontWeight: 800,
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.15)',
+                '&::before': {
+                  opacity: 1
+                }
               }
             }
           }}
         >
           <Tab 
             label={
-              <Badge badgeContent={noteCounts.all} color="default" max={999}>
+              <Badge 
+                badgeContent={noteCounts.all} 
+                max={999}
+                sx={{
+                  '& .MuiBadge-badge': {
+                    backgroundColor: '#64748b',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                    minWidth: '22px',
+                    height: '22px',
+                    borderRadius: '11px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }
+                }}
+              >
                 All Notes
               </Badge>
             } 
@@ -606,7 +664,22 @@ const AINoteChecker: React.FC = () => {
           />
           <Tab 
             label={
-              <Badge badgeContent={noteCounts.clean} color="success" max={999}>
+              <Badge 
+                badgeContent={noteCounts.clean} 
+                max={999}
+                sx={{
+                  '& .MuiBadge-badge': {
+                    backgroundColor: '#10b981',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                    minWidth: '22px',
+                    height: '22px',
+                    borderRadius: '11px',
+                    boxShadow: '0 2px 4px rgba(16,185,129,0.3)'
+                  }
+                }}
+              >
                 Clean Notes
               </Badge>
             } 
@@ -614,7 +687,22 @@ const AINoteChecker: React.FC = () => {
           />
           <Tab 
             label={
-              <Badge badgeContent={noteCounts.issues} color="error" max={999}>
+              <Badge 
+                badgeContent={noteCounts.issues} 
+                max={999}
+                sx={{
+                  '& .MuiBadge-badge': {
+                    backgroundColor: '#ef4444',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                    minWidth: '22px',
+                    height: '22px',
+                    borderRadius: '11px',
+                    boxShadow: '0 2px 4px rgba(239,68,68,0.3)'
+                  }
+                }}
+              >
                 Notes with Issues
               </Badge>
             } 
@@ -622,7 +710,22 @@ const AINoteChecker: React.FC = () => {
           />
           <Tab 
             label={
-              <Badge badgeContent={noteCounts.unchecked} color="warning" max={999}>
+              <Badge 
+                badgeContent={noteCounts.unchecked} 
+                max={999}
+                sx={{
+                  '& .MuiBadge-badge': {
+                    backgroundColor: '#f59e0b',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                    minWidth: '22px',
+                    height: '22px',
+                    borderRadius: '11px',
+                    boxShadow: '0 2px 4px rgba(245,158,11,0.3)'
+                  }
+                }}
+              >
                 Unchecked Notes
               </Badge>
             } 
@@ -630,7 +733,22 @@ const AINoteChecker: React.FC = () => {
           />
           <Tab 
             label={
-              <Badge badgeContent={noteCounts['issues-no-todos']} color="error" max={999}>
+              <Badge 
+                badgeContent={noteCounts['issues-no-todos']} 
+                max={999}
+                sx={{
+                  '& .MuiBadge-badge': {
+                    backgroundColor: '#dc2626',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                    minWidth: '22px',
+                    height: '22px',
+                    borderRadius: '11px',
+                    boxShadow: '0 2px 4px rgba(220,38,38,0.3)'
+                  }
+                }}
+              >
                 Issues Without ToDos
               </Badge>
             } 
