@@ -97,6 +97,24 @@ const NoteDetail: React.FC = () => {
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [showSignOffModal, setShowSignOffModal] = useState(false);
   const [signingOff, setSigningOff] = useState(false);
+  const [currentUserProviderId, setCurrentUserProviderId] = useState<string | null>(null);
+
+  // Fetch current user's provider ID
+  useEffect(() => {
+    const fetchUserProviderInfo = async () => {
+      if (user) {
+        try {
+          const providerInfo = await aiNoteCheckerService.getCurrentUserProviderInfo();
+          setCurrentUserProviderId(providerInfo.providerId);
+          console.log('✅ Current user provider ID:', providerInfo.providerId);
+        } catch (error) {
+          console.error('Failed to get current user provider info:', error);
+        }
+      }
+    };
+
+    fetchUserProviderInfo();
+  }, [user]);
 
   // Initialize notes array from encounters context - filter based on navigation context
   useEffect(() => {
@@ -304,7 +322,7 @@ const NoteDetail: React.FC = () => {
 
   // Check if the current user is the attending provider for this note
   const isAttendingProvider = (): boolean => {
-    if (!user || !careTeam.length) return false;
+    if (!currentUserProviderId || !careTeam.length) return false;
     
     // Find the attending provider in the care team
     const attendingProvider = careTeam.find(member => 
@@ -313,11 +331,8 @@ const NoteDetail: React.FC = () => {
     
     if (!attendingProvider) return false;
     
-    // Check if the current user matches the attending provider
-    // Note: This is a simplified check - in a real system you might need to match by provider ID
-    // For now, we'll assume the username matches the provider's name or ID
-    return user.username === attendingProvider.providerId || 
-           user.username.toLowerCase() === `${attendingProvider.firstName} ${attendingProvider.lastName}`.toLowerCase();
+    // Check if the current user's provider ID matches the attending provider's ID
+    return currentUserProviderId === attendingProvider.providerId;
   };
 
   // Check if the note can be signed off (no valid issues and user is attending provider)

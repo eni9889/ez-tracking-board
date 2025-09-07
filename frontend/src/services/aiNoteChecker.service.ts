@@ -806,6 +806,34 @@ class AINoteCheckerService {
     }
   }
 
+  // Get current user's provider info
+  async getCurrentUserProviderInfo(): Promise<{ username: string; providerId: string }> {
+    if (USE_MOCK_DATA) {
+      console.log('🔄 Mock: Getting current user provider info');
+      return {
+        username: 'mockuser',
+        providerId: 'dd0c986b-1b6d-4ade-89c8-f2b96d5958cc' // Mock provider ID from encounter.json
+      };
+    }
+
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/user/provider-info`,
+        {
+          headers: {
+            'Authorization': `Bearer ${authService.getSessionToken()}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting current user provider info:', error);
+      throw new Error(error.response?.data?.error || 'Failed to get current user provider info');
+    }
+  }
+
   // Sign off a note
   async signOffNote(encounterId: string, patientId: string): Promise<void> {
     if (USE_MOCK_DATA) {

@@ -1328,6 +1328,46 @@ app.post('/notes/bulk-force-recheck', validateSession, async (req: Request, res:
   }
 });
 
+// Get current user's provider info
+app.get('/user/provider-info', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const username = (req as any).user.username;
+    
+    // Get valid tokens
+    const userTokens = await getValidTokens(username);
+    if (!userTokens) {
+      res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      return;
+    }
+    
+    // Decode the JWT token to get provider ID
+    // The JWT token contains the provider ID in the 'u' field
+    try {
+      const tokenParts = userTokens.accessToken.split('.');
+      if (tokenParts.length !== 3 || !tokenParts[1]) {
+        throw new Error('Invalid JWT token format');
+      }
+      
+      const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
+      const providerId = payload.u; // Provider ID from JWT
+      
+      console.log(`🔍 Current user provider info - Username: ${username}, Provider ID: ${providerId}`);
+      
+      res.json({ 
+        username,
+        providerId,
+        success: true
+      });
+    } catch (jwtError) {
+      console.error('Error decoding JWT token:', jwtError);
+      res.status(500).json({ error: 'Failed to decode user token' });
+    }
+  } catch (error: any) {
+    console.error('Error getting user provider info:', error);
+    res.status(500).json({ error: 'Failed to get user provider info' });
+  }
+});
+
 // Sign off a note
 app.post('/notes/sign-off', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
