@@ -3,7 +3,6 @@ import {
   Box,
   Paper,
   Typography,
-  Button,
   Table,
   TableBody,
   TableCell,
@@ -15,7 +14,6 @@ import {
   Tooltip,
   IconButton,
   CircularProgress,
-  Grid,
   Checkbox,
   Tabs,
   Tab,
@@ -26,13 +24,14 @@ import {
   Refresh,
   Assignment,
   ArrowBack,
-
+  ExitToApp,
   PlayArrow
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useEncounters } from '../contexts/EncountersContext';
 import aiNoteCheckerService from '../services/aiNoteChecker.service';
+import authService from '../services/auth.service';
 
 interface IncompleteNote {
   encounterId: string;
@@ -60,7 +59,7 @@ const AINoteChecker: React.FC = () => {
   const [currentFilter, setCurrentFilter] = useState<FilterType>('all');
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { 
@@ -302,6 +301,19 @@ const AINoteChecker: React.FC = () => {
     );
   };
 
+  const handleLogout = async () => {
+    try {
+      console.log('🏥 Manual logout requested from AI Note Checker');
+      await authService.manualLogout(); // Clear stored credentials
+      await logout(); // Clear auth context
+      navigate('/login');
+    } catch (error) {
+      console.error('Manual logout error:', error);
+      // Force navigation even if logout fails
+      navigate('/login');
+    }
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
@@ -312,98 +324,277 @@ const AINoteChecker: React.FC = () => {
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f5f5f5' }}>
-      {/* Header */}
+      {/* Header with integrated summary - matching Dashboard style */}
       <Box sx={{ 
-        backgroundColor: '#1976d2', 
+        backgroundColor: '#0a0a0a', 
         color: 'white', 
         px: 3, 
         py: 1.5,
-        display: 'flex',
+        display: 'flex', 
+        justifyContent: 'space-between', 
         alignItems: 'center',
-        gap: 2
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        borderBottom: '1px solid #1a1a1a'
       }}>
-        <IconButton
-          color="inherit"
-          onClick={() => navigate('/dashboard')}
-          sx={{ mr: 1 }}
-        >
-          <ArrowBack />
-        </IconButton>
-        <Assignment sx={{ fontSize: '1.5rem' }} />
-        <Typography variant="h6" sx={{ fontWeight: 'bold', flex: 1 }}>
-          AI Note Checker - Incomplete Notes
-        </Typography>
-        <Typography variant="caption" sx={{ mr: 2, opacity: 0.8 }}>
-          Showing notes &gt; 2 hours old with status: PENDING_COSIGN, CHECKED_OUT, WITH_PROVIDER
-        </Typography>
-        {lastRefresh && (
-          <Typography variant="caption" sx={{ mr: 2, opacity: 0.7 }}>
-            Last updated: {lastRefresh.toLocaleTimeString()}
-            {autoRefreshing && (
-              <Typography component="span" sx={{ ml: 1, opacity: 0.8 }}>
-                🔄
-              </Typography>
-            )}
-          </Typography>
-        )}
-        <Button
-          variant="outlined"
-          color="inherit"
-          startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Refresh />}
-          onClick={refreshEncounters}
-          disabled={loading}
-          size="small"
-        >
-          {loading ? 'Refreshing...' : 'Refresh'}
-        </Button>
-        
-        {selectedNotes.size > 0 && (
-          <Button
-            variant="contained"
-            color="warning"
-            startIcon={bulkProcessing ? <CircularProgress size={16} color="inherit" /> : <PlayArrow />}
-            onClick={handleBulkForceRecheck}
-            disabled={bulkProcessing || loading}
-            size="small"
-            sx={{ ml: 1 }}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <IconButton 
+            color="inherit" 
+            onClick={() => navigate('/dashboard')}
+            sx={{ 
+              color: '#f8fafc',
+              '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' }
+            }}
           >
-            {bulkProcessing ? 'Processing...' : `Force Re-check (${selectedNotes.size})`}
-          </Button>
-        )}
+            <ArrowBack />
+          </IconButton>
+          <Psychology sx={{ 
+            fontSize: '2rem', 
+            color: '#f8fafc',
+            filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1))'
+          }} />
+          <Box>
+            <Typography variant="h5" sx={{ 
+              fontWeight: 600, 
+              lineHeight: 1.2,
+              color: '#f8fafc',
+              letterSpacing: '-0.025em'
+            }}>
+              AI Note Checker
+            </Typography>
+            <Typography variant="body2" sx={{ 
+              opacity: 0.8,
+              color: '#e2e8f0',
+              fontSize: '0.875rem',
+              fontWeight: 400
+            }}>
+              {new Date().toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                month: 'short', 
+                day: 'numeric' 
+              })} • Updated: {lastRefresh ? lastRefresh.toLocaleTimeString() : 'Never'}
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* Integrated Summary Stats */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Box sx={{ 
+            textAlign: 'center',
+            px: 2,
+            py: 1,
+            borderRadius: 2,
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #2a2a2a'
+          }}>
+            <Typography variant="h4" sx={{ 
+              fontWeight: 700, 
+              lineHeight: 1,
+              color: '#f8fafc',
+              fontSize: '1.875rem'
+            }}>
+              {noteCounts.all}
+            </Typography>
+            <Typography variant="caption" sx={{ 
+              fontSize: '0.75rem', 
+              opacity: 0.8,
+              color: '#94a3b8',
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em'
+            }}>
+              Total Notes
+            </Typography>
+          </Box>
+          <Box sx={{ 
+            textAlign: 'center',
+            px: 2,
+            py: 1,
+            borderRadius: 2,
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #2a2a2a'
+          }}>
+            <Typography variant="h4" sx={{ 
+              fontWeight: 700, 
+              lineHeight: 1, 
+              color: '#ef4444',
+              fontSize: '1.875rem'
+            }}>
+              {noteCounts.issues}
+            </Typography>
+            <Typography variant="caption" sx={{ 
+              fontSize: '0.75rem', 
+              opacity: 0.8,
+              color: '#94a3b8',
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em'
+            }}>
+              With Issues
+            </Typography>
+          </Box>
+          <Box sx={{ 
+            textAlign: 'center',
+            px: 2,
+            py: 1,
+            borderRadius: 2,
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #2a2a2a'
+          }}>
+            <Typography variant="h4" sx={{ 
+              fontWeight: 700, 
+              lineHeight: 1, 
+              color: '#10b981',
+              fontSize: '1.875rem'
+            }}>
+              {noteCounts.clean}
+            </Typography>
+            <Typography variant="caption" sx={{ 
+              fontSize: '0.75rem', 
+              opacity: 0.8,
+              color: '#94a3b8',
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em'
+            }}>
+              Clean Notes
+            </Typography>
+          </Box>
+          <Box sx={{ 
+            textAlign: 'center',
+            px: 2,
+            py: 1,
+            borderRadius: 2,
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #2a2a2a'
+          }}>
+            <Typography variant="h4" sx={{ 
+              fontWeight: 700, 
+              lineHeight: 1, 
+              color: '#fbbf24',
+              fontSize: '1.875rem'
+            }}>
+              {noteCounts.unchecked}
+            </Typography>
+            <Typography variant="caption" sx={{ 
+              fontSize: '0.75rem', 
+              opacity: 0.8,
+              color: '#94a3b8',
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em'
+            }}>
+              Unchecked
+            </Typography>
+          </Box>
+          
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+            <Tooltip title="Refresh">
+              <IconButton 
+                onClick={refreshEncounters} 
+                disabled={loading || autoRefreshing}
+                sx={{ 
+                  color: '#f8fafc',
+                  backgroundColor: '#1a1a1a',
+                  border: '1px solid #2a2a2a',
+                  borderRadius: 2,
+                  p: 1.5,
+                  '&:hover': {
+                    backgroundColor: '#2a2a2a',
+                    borderColor: '#3a3a3a'
+                  },
+                  '&:disabled': {
+                    color: '#64748b',
+                    backgroundColor: '#0f0f0f',
+                    borderColor: '#1a1a1a'
+                  }
+                }}
+              >
+                {autoRefreshing ? (
+                  <CircularProgress size={20} sx={{ color: '#f8fafc' }} />
+                ) : (
+                  <Refresh sx={{ fontSize: '1.25rem' }} />
+                )}
+              </IconButton>
+            </Tooltip>
+            {selectedNotes.size > 0 && (
+              <Tooltip title={`Force Re-check ${selectedNotes.size} selected notes`}>
+                <IconButton 
+                  onClick={handleBulkForceRecheck}
+                  disabled={bulkProcessing || loading}
+                  sx={{ 
+                    color: '#f8fafc',
+                    backgroundColor: '#f59e0b',
+                    border: '1px solid #fbbf24',
+                    borderRadius: 2,
+                    p: 1.5,
+                    '&:hover': {
+                      backgroundColor: '#d97706',
+                      borderColor: '#f59e0b'
+                    },
+                    '&:disabled': {
+                      color: '#64748b',
+                      backgroundColor: '#0f0f0f',
+                      borderColor: '#1a1a1a'
+                    }
+                  }}
+                >
+                  {bulkProcessing ? (
+                    <CircularProgress size={20} sx={{ color: '#f8fafc' }} />
+                  ) : (
+                    <PlayArrow sx={{ fontSize: '1.25rem' }} />
+                  )}
+                </IconButton>
+              </Tooltip>
+            )}
+            <Tooltip title="Logout">
+              <IconButton 
+                onClick={handleLogout} 
+                sx={{ 
+                  color: '#f8fafc',
+                  backgroundColor: '#dc2626',
+                  border: '1px solid #ef4444',
+                  borderRadius: 2,
+                  p: 1.5,
+                  '&:hover': {
+                    backgroundColor: '#b91c1c',
+                    borderColor: '#dc2626'
+                  }
+                }}
+              >
+                <ExitToApp sx={{ fontSize: '1.25rem' }} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </Box>
       </Box>
 
-      {/* Status Info */}
-      <Box sx={{ px: 3, py: 2, backgroundColor: 'white', borderBottom: 1, borderColor: 'divider' }}>
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <Typography variant="body2" color="text.secondary">
-              Total Notes: <strong>{incompleteNotes.length}</strong>
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <Typography variant="body2" color="text.secondary">
-              Checked: <strong>{incompleteNotes.filter(n => n.lastCheckStatus).length}</strong>
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <Typography variant="body2" color="text.secondary">
-              With Issues: <strong>{incompleteNotes.filter(n => n.issuesFound).length}</strong>
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <Typography variant="body2" color="text.secondary">
-              Last Refresh: <strong>{lastRefresh ? lastRefresh.toLocaleTimeString() : 'Never'}</strong>
-            </Typography>
-          </Grid>
-        </Grid>
-      </Box>
 
       {/* Filter Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', backgroundColor: 'white' }}>
+      <Box sx={{ 
+        borderBottom: 1, 
+        borderColor: 'divider', 
+        backgroundColor: 'white',
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)'
+      }}>
         <Tabs 
           value={currentFilter} 
           onChange={(_, newValue) => setCurrentFilter(newValue as FilterType)}
-          sx={{ px: 3 }}
+          sx={{ 
+            px: 3,
+            '& .MuiTabs-indicator': {
+              backgroundColor: '#0a0a0a',
+              height: 3
+            },
+            '& .MuiTab-root': {
+              fontWeight: 600,
+              fontSize: '0.875rem',
+              textTransform: 'none',
+              minHeight: 48,
+              '&.Mui-selected': {
+                color: '#0a0a0a'
+              }
+            }
+          }}
         >
           <Tab 
             label={
@@ -474,13 +665,21 @@ const AINoteChecker: React.FC = () => {
       )}
 
       {/* Notes Table */}
-      <Box sx={{ flex: 1, px: 3, py: 2 }}>
-        <Paper sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ flex: 1, px: 1, py: 0.5 }}>
+        <Paper sx={{ 
+          height: '100%', 
+          display: 'flex', 
+          flexDirection: 'column',
+          boxShadow: 2,
+          '& .MuiTable-root': {
+            minWidth: 'unset'
+          }
+        }}>
           <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
-            <Table size="small" stickyHeader>
+            <Table stickyHeader size="small" sx={{ tableLayout: 'fixed' }}>
               <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa', width: 50 }}>
+                <TableRow sx={{ '& th': { backgroundColor: '#f8f9fa', fontWeight: 'bold', py: 1.5 } }}>
+                  <TableCell sx={{ width: '50px', textAlign: 'center', fontSize: '1.1rem' }}>
                     <Checkbox
                       checked={selectedNotes.size === filteredNotes.length && filteredNotes.length > 0}
                       indeterminate={selectedNotes.size > 0 && selectedNotes.size < filteredNotes.length}
@@ -488,25 +687,25 @@ const AINoteChecker: React.FC = () => {
                       disabled={bulkProcessing}
                     />
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
+                  <TableCell sx={{ width: '200px', fontSize: '1.1rem' }}>
                     Patient
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
+                  <TableCell sx={{ width: '250px', fontSize: '1.1rem' }}>
                     Chief Complaint
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
+                  <TableCell sx={{ width: '120px', fontSize: '1.1rem' }}>
                     Date of Service
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
+                  <TableCell sx={{ width: '120px', fontSize: '1.1rem' }}>
                     Status
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
+                  <TableCell sx={{ width: '140px', fontSize: '1.1rem' }}>
                     AI Check Status
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }} align="center">
+                  <TableCell sx={{ width: '120px', fontSize: '1.1rem', textAlign: 'center' }}>
                     ToDo Status
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }} align="center">
+                  <TableCell sx={{ width: '100px', fontSize: '1.1rem', textAlign: 'center' }}>
                     Actions
                   </TableCell>
                 </TableRow>
@@ -517,8 +716,17 @@ const AINoteChecker: React.FC = () => {
                     key={note.encounterId} 
                     hover 
                     selected={selectedNotes.has(note.encounterId)}
+                    sx={{
+                      height: '80px',
+                      '&:hover': {
+                        backgroundColor: '#f5f5f5'
+                      },
+                      '&.Mui-selected': {
+                        backgroundColor: '#e3f2fd'
+                      }
+                    }}
                   >
-                    <TableCell>
+                    <TableCell sx={{ textAlign: 'center', height: '80px', verticalAlign: 'middle' }}>
                       <Checkbox
                         checked={selectedNotes.has(note.encounterId)}
                         onChange={(e) => {
@@ -529,13 +737,18 @@ const AINoteChecker: React.FC = () => {
                       />
                     </TableCell>
                     <TableCell 
-                      sx={{ cursor: 'pointer' }}
+                      sx={{ cursor: 'pointer', height: '80px', verticalAlign: 'middle' }}
                       onClick={() => handleViewNote(note)}
                     >
-                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                      <Typography variant="h6" sx={{ 
+                        fontWeight: 'bold', 
+                        lineHeight: 1, 
+                        fontSize: '1.1rem',
+                        mb: 0.5
+                      }}>
                         {note.patientName}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
                         {note.status}
                       </Typography>
                     </TableCell>
