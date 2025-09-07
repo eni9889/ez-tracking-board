@@ -98,6 +98,7 @@ const NoteDetail: React.FC = () => {
   const [showSignOffModal, setShowSignOffModal] = useState(false);
   const [signingOff, setSigningOff] = useState(false);
   const [currentUserProviderId, setCurrentUserProviderId] = useState<string | null>(null);
+  const [noteSignedOff, setNoteSignedOff] = useState(false);
 
   // Fetch current user's provider ID
   useEffect(() => {
@@ -471,12 +472,11 @@ const NoteDetail: React.FC = () => {
     try {
       await aiNoteCheckerService.signOffNote(currentNote.encounterId, currentNote.patientId);
       
-      // Show success message
+      // Update the UI to show signed-off status
+      setNoteSignedOff(true);
       setError(null);
       setShowSignOffModal(false);
       
-      // Optionally refresh the note data or show a success message
-      // You might want to navigate back or update the UI to reflect the signed-off status
       console.log('✅ Note signed off successfully');
       
     } catch (err: any) {
@@ -1099,14 +1099,31 @@ const NoteDetail: React.FC = () => {
             }}>
               AI Note Analysis
             </Typography>
-            <Typography variant="body1" sx={{ 
-              opacity: 0.8,
-              color: '#e2e8f0',
-              fontSize: '0.95rem',
-              fontWeight: 500
-            }}>
-              {currentNote.patientName} • {currentNote.chiefComplaint}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Typography variant="body1" sx={{ 
+                opacity: 0.8,
+                color: '#e2e8f0',
+                fontSize: '0.95rem',
+                fontWeight: 500
+              }}>
+                {currentNote.patientName} • {currentNote.chiefComplaint}
+              </Typography>
+              {noteSignedOff && (
+                <Chip
+                  icon={<CheckCircle />}
+                  label="SIGNED OFF"
+                  sx={{
+                    backgroundColor: '#10b981',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                    '& .MuiChip-icon': {
+                      color: 'white'
+                    }
+                  }}
+                />
+              )}
+            </Box>
             <Typography variant="body2" sx={{ 
               opacity: 0.6,
               color: '#94a3b8',
@@ -1323,8 +1340,8 @@ const NoteDetail: React.FC = () => {
             )
           )}
           
-          {/* Sign Off Button - only show if user can sign off */}
-          {canSignOffNote() && (
+          {/* Sign Off Button - only show if user can sign off and note isn't already signed off */}
+          {canSignOffNote() && !noteSignedOff && (
             <Tooltip title="Sign off this note">
               <Button
                 variant="contained"
@@ -1388,6 +1405,30 @@ const NoteDetail: React.FC = () => {
         <Box sx={{ px: 3, pt: 2 }}>
           <Alert severity="error" onClose={() => setError(null)}>
             {error}
+          </Alert>
+        </Box>
+      )}
+
+      {/* Success Alert for Sign Off */}
+      {noteSignedOff && (
+        <Box sx={{ px: 3, pt: 2 }}>
+          <Alert 
+            severity="success" 
+            onClose={() => setNoteSignedOff(false)}
+            sx={{
+              backgroundColor: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              '& .MuiAlert-icon': {
+                color: '#10b981'
+              }
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <CheckCircle sx={{ fontSize: '1.2rem' }} />
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                Note successfully signed off! The note status has been updated in the EZDerm system.
+              </Typography>
+            </Box>
           </Alert>
         </Box>
       )}

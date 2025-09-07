@@ -55,11 +55,11 @@ Do not flag stylistic differences or documentation preferences that do not affec
  - Lupus
 
 ⸻
-7. Vital Signs & Physical Exam Check
- - Every note must include vital signs
+7. Vital Signs Check
+ - Every note must include height and weight
 ⸻
 
-7. Output Rules
+8. Output Rules
 	-	Must return valid JSON only.
 	-	Two outcomes:
 
