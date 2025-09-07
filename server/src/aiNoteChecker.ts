@@ -266,7 +266,9 @@ You must return {"status": ":ok", "reason": "..."} only if absolutely everything
       
       for (const item of section.items) {
         if (item.elementType === 'HISTORY_OF_PRESENT_ILLNESS') {
-          formattedNote += `\n${item.elementType}:\n${item.note}\n`;
+          const HPIIntroText = item.text.split('\n\n')[0]
+          console.log('HPIIntroText:', HPIIntroText)
+          formattedNote += `\n${item.elementType}:\n${HPIIntroText}\n${item.note}\n`;
         } else if (item.text && item.text.trim()) {
           formattedNote += `\n${item.elementType}:\n${item.text}\n`;
           
