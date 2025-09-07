@@ -48,7 +48,7 @@ import {
   MedicalServices,
   Block
 } from '@mui/icons-material';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useEncounters } from '../contexts/EncountersContext';
 import aiNoteCheckerService, { NoteCheckResult, AIAnalysisIssue, CareTeamMember, CreatedToDo, InvalidIssue } from '../services/aiNoteChecker.service';
@@ -76,6 +76,7 @@ interface CachedNoteData {
 const NoteDetail: React.FC = () => {
   const { encounterId } = useParams<{ encounterId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { user } = useAuth();
   const { encounters: allEncounters, loading: encountersLoading } = useEncounters();
@@ -94,25 +95,39 @@ const NoteDetail: React.FC = () => {
   const [forceNewCheck, setForceNewCheck] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
-  // Initialize notes array from encounters context - filter for notes with issues only
+  // Initialize notes array from encounters context - filter based on navigation context
   useEffect(() => {
     if (!encountersLoading && allEncounters.length > 0) {
-      // Filter to only include notes that have issues
-      const notesWithIssues = allEncounters.filter(note => note.issuesFound === true);
-      setNotes(notesWithIssues);
+      let filteredNotes = allEncounters;
+      
+      // Get filter context from navigation state
+      const navigationState = location.state as { currentFilter?: string; filteredNotes?: NoteData[] } | null;
+      const currentFilter = navigationState?.currentFilter;
+      
+      // Filter notes based on the tab the user came from
+      if (currentFilter === 'issues') {
+        filteredNotes = allEncounters.filter(note => note.issuesFound === true);
+      } else if (currentFilter === 'clean') {
+        filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'ok' && !note.issuesFound);
+      } else if (currentFilter === 'unchecked') {
+        filteredNotes = allEncounters.filter(note => !note.lastCheckStatus);
+      }
+      // For 'all' or no filter context, use all encounters
+      
+      setNotes(filteredNotes);
       
       // Find current note index in the filtered array
       if (encounterId) {
-        const index = notesWithIssues.findIndex(note => note.encounterId === encounterId);
+        const index = filteredNotes.findIndex(note => note.encounterId === encounterId);
         if (index !== -1) {
           setCurrentIndex(index);
         } else {
-          // If current note doesn't have issues, start with the first note that does
+          // If current note is not in filtered results, start with the first one
           setCurrentIndex(0);
         }
       }
     }
-  }, [allEncounters, encountersLoading, encounterId]);
+  }, [allEncounters, encountersLoading, encounterId, location.state]);
 
   // Get current note
   const currentNote = notes[currentIndex];
@@ -197,18 +212,26 @@ const NoteDetail: React.FC = () => {
       const newIndex = currentIndex - 1;
       setCurrentIndex(newIndex);
       const newNote = notes[newIndex];
-      navigate(`/ai-note-checker/${newNote.encounterId}`, { replace: true });
+      // Preserve the location state context when navigating
+      navigate(`/ai-note-checker/${newNote.encounterId}`, { 
+        replace: true,
+        state: location.state // Preserve the filter context
+      });
     }
-  }, [currentIndex, notes, navigate]);
+  }, [currentIndex, notes, navigate, location.state]);
 
   const handleNextNote = useCallback(() => {
     if (currentIndex < notes.length - 1) {
       const newIndex = currentIndex + 1;
       setCurrentIndex(newIndex);
       const newNote = notes[newIndex];
-      navigate(`/ai-note-checker/${newNote.encounterId}`, { replace: true });
+      // Preserve the location state context when navigating
+      navigate(`/ai-note-checker/${newNote.encounterId}`, { 
+        replace: true,
+        state: location.state // Preserve the filter context
+      });
     }
-  }, [currentIndex, notes, navigate]);
+  }, [currentIndex, notes, navigate, location.state]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -969,7 +992,14 @@ const NoteDetail: React.FC = () => {
             fontSize: '0.8rem',
             fontWeight: 'medium'
           }}>
-            {currentIndex + 1} / {notes.length} with issues
+            {(() => {
+              const navigationState = location.state as { currentFilter?: string } | null;
+              const currentFilter = navigationState?.currentFilter;
+              const suffix = currentFilter === 'issues' ? ' with issues' :
+                           currentFilter === 'clean' ? ' clean' :
+                           currentFilter === 'unchecked' ? ' unchecked' : '';
+              return `${currentIndex + 1} / ${notes.length}${suffix}`;
+            })()}
           </Typography>
           
           <Tooltip title="Next note (Arrow Right)">
