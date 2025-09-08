@@ -40,7 +40,7 @@ class AINoteChecker {
   private readonly CHECK_MODELS = {
     'chronicity-check': 'gpt-5',     // Simple chronicity detection
     'hpi-structure-check': 'gpt-5-nano',       // Complex HPI structure analysis
-    'plan-check': 'gpt-5-nano',                // Detailed plan evaluation
+    'plan-check': 'gpt-5-mini',                // Detailed plan evaluation
     'accuracy-check': 'gpt-5-mini'        // Basic accuracy validation
   } as const;
 
