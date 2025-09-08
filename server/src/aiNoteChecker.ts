@@ -356,21 +356,12 @@ class AINoteChecker {
     try {
       console.log(`🤖 Performing ${checkType} check with OpenAI ${modelToUse}...`);
 
-      const fullPrompt = prompt.replace('{{PROGRESS_NOTE}}', noteText);
-
-      const response = await this.openaiClient.chat.completions.create({
+      const response = await this.openaiClient.responses.create({
         model: modelToUse,
-        messages: [
-          {
-            role: 'user',
-            content: fullPrompt
-          }
-        ],
-        temperature: 0.1,
-        max_tokens: 2000
+        input: `${prompt}\n\nProgress Note to analyze:\n${noteText}`
       });
 
-      const aiResponse = response.choices[0]?.message?.content;
+      const aiResponse = response.output_text;
       if (!aiResponse) {
         throw new Error(`No response content received from OpenAI for ${checkType}`);
       }
