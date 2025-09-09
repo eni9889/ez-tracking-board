@@ -631,7 +631,7 @@ class AINoteChecker {
     }
 
     // If issues found, combine them
-    const issueTypes = [...new Set(allIssues.map(issue => issue.issue))];
+    const issueTypes = Array.from(new Set(allIssues.map(issue => issue.issue)));
     const issueCount = allIssues.length;
     
     return {
