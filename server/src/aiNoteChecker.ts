@@ -280,15 +280,83 @@ class AINoteChecker {
   }
 
   /**
-   * Format progress note for AI analysis
+   * Format progress note for AI analysis based on check type
    */
-  private formatProgressNoteForAnalysis(progressNote: ProgressNoteResponse): string {
+  private formatProgressNoteForAnalysis(progressNote: ProgressNoteResponse, checkType?: string): string {
     let formattedNote = '';
 
+    // Determine which sections to include based on check type
+    const shouldIncludeSection = (sectionType: string): boolean => {
+      if (!checkType) {
+        // Default behavior: include all sections (for backward compatibility)
+        return true;
+      }
+
+      switch (checkType) {
+        case this.CHECK_TYPES.HPI_STRUCTURE:
+          // HPI check: only SUBJECTIVE section (contains HPI)
+          return sectionType === 'SUBJECTIVE';
+        
+        case this.CHECK_TYPES.CHRONICITY:
+        case this.CHECK_TYPES.ACCURACY:
+          // Chronicity and Accuracy checks: only SUBJECTIVE (HPI) and ASSESSMENT_AND_PLAN
+          return sectionType === 'SUBJECTIVE' || sectionType === 'ASSESSMENT_AND_PLAN';
+        
+        case this.CHECK_TYPES.PLAN:
+          // Plan check: only ASSESSMENT_AND_PLAN section
+          return sectionType === 'ASSESSMENT_AND_PLAN';
+        
+        default:
+          // Unknown check type: include all sections
+          return true;
+      }
+    };
+
+    // Determine which element types to include within a section
+    const shouldIncludeElement = (elementType: string, sectionType: string, checkType?: string): boolean => {
+      if (!checkType) {
+        // Default behavior: include all elements except PHYSICAL_EXAM
+        return elementType !== 'PHYSICAL_EXAM';
+      }
+
+      switch (checkType) {
+        case this.CHECK_TYPES.HPI_STRUCTURE:
+          // HPI check: only include HPI-related elements
+          return elementType === 'HISTORY_OF_PRESENT_ILLNESS';
+        
+        case this.CHECK_TYPES.CHRONICITY:
+        case this.CHECK_TYPES.ACCURACY:
+          // Chronicity and Accuracy checks: include HPI and A&P elements, exclude PHYSICAL_EXAM
+          if (sectionType === 'SUBJECTIVE') {
+            return elementType === 'HISTORY_OF_PRESENT_ILLNESS';
+          }
+          if (sectionType === 'ASSESSMENT_AND_PLAN') {
+            return true; // Include all A&P elements
+          }
+          return false;
+        
+        case this.CHECK_TYPES.PLAN:
+          // Plan check: only include A&P elements
+          return sectionType === 'ASSESSMENT_AND_PLAN';
+        
+        default:
+          // Unknown check type: exclude PHYSICAL_EXAM by default
+          return elementType !== 'PHYSICAL_EXAM';
+      }
+    };
+
     for (const section of progressNote.progressNotes) {
+      if (!shouldIncludeSection(section.sectionType)) {
+        continue;
+      }
+
       formattedNote += `\n\n--- ${section.sectionType} ---\n`;
       
       for (const item of section.items) {
+        if (!shouldIncludeElement(item.elementType, section.sectionType, checkType)) {
+          continue;
+        }
+
         if (item.elementType === 'HISTORY_OF_PRESENT_ILLNESS') {
           const HPIIntroText = item.text.split('\n\n')[0]
           console.log('HPIIntroText:', HPIIntroText)
@@ -311,7 +379,7 @@ class AINoteChecker {
    */
   private async performSingleCheck(
     checkType: string, 
-    noteText: string
+    progressNote: ProgressNoteResponse
   ): Promise<AIAnalysisResult> {
     if (!this.openaiClient.apiKey) {
       throw new Error('OpenAI API key not configured');
@@ -322,8 +390,12 @@ class AINoteChecker {
       throw new Error(`Prompt template not found for check type: ${checkType}`);
     }
 
+    // Generate filtered note content based on check type
+    const noteText = this.formatProgressNoteForAnalysis(progressNote, checkType);
+
     try {
       console.log(`🤖 Performing ${checkType} check with OpenAI GPT-5...`);
+      console.log(`📄 Filtered note content for ${checkType}:`, noteText.substring(0, 200) + '...');
 
       const response = await this.openaiClient.responses.create({
         model: 'gpt-5',
@@ -396,11 +468,9 @@ class AINoteChecker {
         console.log('✅ All AI prompt templates reloaded successfully');
       }
       
-      const noteText = this.formatProgressNoteForAnalysis(progressNote);
-
       // Perform all checks in parallel for better performance
       const checkPromises = Object.values(this.CHECK_TYPES).map(checkType => 
-        this.performSingleCheck(checkType, noteText)
+        this.performSingleCheck(checkType, progressNote)
       );
 
       console.log(`🔄 Running ${checkPromises.length} AI checks in parallel...`);
