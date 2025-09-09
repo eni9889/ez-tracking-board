@@ -979,14 +979,33 @@ app.post('/notes/:encounterId/create-todo', validateSession, async (req: Request
       lastName: encounterDetails.patientInfo.lastName || 'Patient'
     };
 
-    // Create the ToDo
+    // Filter out invalid issues before creating the ToDo
+    const validIssues = [];
+    const allIssues = noteCheckResult.aiAnalysis.issues;
+    
+    for (let issueIndex = 0; issueIndex < allIssues.length; issueIndex++) {
+      const isInvalid = await vitalSignsDb.isIssueMarkedInvalid(encounterId, noteCheckResult.id, issueIndex);
+      if (!isInvalid) {
+        validIssues.push(allIssues[issueIndex]);
+      }
+    }
+
+    // Check if we have any valid issues left to create a ToDo for
+    if (validIssues.length === 0) {
+      res.status(400).json({ error: 'No valid issues found to create a ToDo for. All issues have been marked as invalid.' });
+      return;
+    }
+
+    console.log(`📝 Creating ToDo with ${validIssues.length} valid issues out of ${allIssues.length} total issues for encounter ${encounterId}`);
+
+    // Create the ToDo with only valid issues
     const todoId = await aiNoteChecker.createNoteDeficiencyToDo(
       userTokens.accessToken,
       encounterId,
       patientData.id,
       `${patientData.firstName} ${patientData.lastName}`,
       encounterData.dateOfService,
-      noteCheckResult.aiAnalysis.issues,
+      validIssues,
       encounterData.encounterRoleInfoList || []
     );
 
@@ -1000,8 +1019,8 @@ app.post('/notes/:encounterId/create-todo', validateSession, async (req: Request
     });
     const subject = `Note Deficiencies - ${formattedDate}`;
     
-    // Build description
-    const issuesList = noteCheckResult.aiAnalysis.issues.map((issue: any, index: number) => {
+    // Build description using only valid issues
+    const issuesList = validIssues.map((issue: any, index: number) => {
       const issueTypeMap: { [key: string]: string } = {
         'no_explicit_plan': 'Missing Explicit Plan',
         'chronicity_mismatch': 'Chronicity Mismatch',
@@ -1035,7 +1054,7 @@ app.post('/notes/:encounterId/create-todo', validateSession, async (req: Request
       assignee?.providerId || 'unknown',
       assignee ? `${assignee.firstName} ${assignee.lastName}` : 'Unknown',
       ccList,
-      noteCheckResult.aiAnalysis.issues.length,
+      validIssues.length,
       username
     );
 
