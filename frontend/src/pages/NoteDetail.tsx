@@ -8,20 +8,12 @@ import {
   Alert,
   IconButton,
   CircularProgress,
-  Divider,
-  List,
-  ListItem,
   Card,
   CardContent,
   CardHeader,
   Collapse,
   Tooltip,
   Stack,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  DialogContentText,
   FormControlLabel,
   Checkbox,
   TextField
@@ -41,8 +33,6 @@ import {
   LocalHospital,
   NavigateBefore,
   NavigateNext,
-  CheckCircleOutline,
-  ErrorOutline,
   Person,
   Group,
   Badge,
@@ -50,7 +40,9 @@ import {
   Block,
   Edit,
   Save,
-  Cancel
+  Cancel,
+  ExpandMore,
+  ExpandLess
 } from '@mui/icons-material';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -104,6 +96,7 @@ const NoteDetail: React.FC = () => {
   const [modalSuccess, setModalSuccess] = useState<string | null>(null);
   const [forceNewCheck, setForceNewCheck] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const [careTeamCollapsed, setCareTeamCollapsed] = useState(true); // Default to collapsed on desktop
   const [showSignOffModal, setShowSignOffModal] = useState(false);
   const [signingOff, setSigningOff] = useState(false);
   const [currentUserProviderId, setCurrentUserProviderId] = useState<string | null>(null);
@@ -1752,7 +1745,7 @@ const NoteDetail: React.FC = () => {
         </Paper>
 
         {/* Right Panel - Care Team & AI Check History with modern styling */}
-        <Box sx={{ width: '420px', display: 'flex', flexDirection: 'column', gap: 3, maxHeight: '100%' }}>
+        <Box sx={{ width: '500px', display: 'flex', flexDirection: 'column', gap: 3, maxHeight: '100%' }}>
           {/* Sign-off Information Section - only show if note is signed off */}
           {noteSignedOff && signOffInfo && (
             <Paper
@@ -1813,50 +1806,63 @@ const NoteDetail: React.FC = () => {
           }}>
             {/* Care Team Section */}
           <Box sx={{ 
-            p: 3, 
-            borderBottom: '2px solid #f1f5f9',
-            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)'
-          }}>
+            p: 2, 
+            borderBottom: careTeamCollapsed ? 'none' : '2px solid #f1f5f9',
+            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+            cursor: 'pointer',
+            '&:hover': {
+              background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)'
+            }
+          }}
+          onClick={() => setCareTeamCollapsed(!careTeamCollapsed)}
+          >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
               <Group sx={{ fontSize: '1.5rem', color: '#10b981' }} />
               <Typography variant="h6" sx={{ 
                 fontWeight: 800,
                 color: '#1e293b',
-                fontSize: '1.1rem'
+                fontSize: '1.1rem',
+                flex: 1
               }}>
                 Care Team ({careTeam.length})
               </Typography>
-            </Box>
-            <Typography variant="body2" sx={{ 
-              color: '#64748b',
-              fontSize: '0.85rem',
-              fontWeight: 500
-            }}>
-              Providers and staff for this encounter
-            </Typography>
-          </Box>
-          <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9' }}>
-            {loading ? (
-              <Box sx={{ py: 3, textAlign: 'center' }}>
-                <CircularProgress size={24} sx={{ color: '#3b82f6' }} />
-                <Typography variant="body2" sx={{ 
-                  mt: 2,
+              <IconButton 
+                size="small"
+                sx={{
                   color: '#64748b',
-                  fontSize: '0.85rem'
-                }}>
-                  Loading Data...
-                </Typography>
-              </Box>
-            ) : (
-              renderCareTeam()
-            )}
+                  '&:hover': {
+                    backgroundColor: 'rgba(100, 116, 139, 0.1)'
+                  }
+                }}
+              >
+                {careTeamCollapsed ? <ExpandMore /> : <ExpandLess />}
+              </IconButton>
+            </Box>
           </Box>
+          <Collapse in={!careTeamCollapsed}>
+            <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9' }}>
+              {loading ? (
+                <Box sx={{ py: 3, textAlign: 'center' }}>
+                  <CircularProgress size={24} sx={{ color: '#3b82f6' }} />
+                  <Typography variant="body2" sx={{ 
+                    mt: 2,
+                    color: '#64748b',
+                    fontSize: '0.85rem'
+                  }}>
+                    Loading Data...
+                  </Typography>
+                </Box>
+              ) : (
+                renderCareTeam()
+              )}
+            </Box>
+          </Collapse>
 
           {/* Created ToDos Section */}
           {(!loading && createdTodos.length > 0) && (
             <>
               <Box sx={{ 
-                p: 3, 
+                p: 2, 
                 borderBottom: '2px solid #f1f5f9',
                 background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)'
               }}>
@@ -1912,7 +1918,7 @@ const NoteDetail: React.FC = () => {
 
           {/* AI Check History Section */}
           <Box sx={{ 
-            p: 3, 
+            p: 2, 
             borderBottom: '2px solid #f1f5f9',
             background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)'
           }}>
@@ -1926,15 +1932,25 @@ const NoteDetail: React.FC = () => {
                 AI Check History ({checkHistory.length})
               </Typography>
             </Box>
-            <Typography variant="body2" sx={{ 
-              color: '#64748b',
-              fontSize: '0.85rem',
-              fontWeight: 500
-            }}>
-              Recent AI analysis results
-            </Typography>
           </Box>
-          <Box sx={{ flex: 1, overflow: 'auto' }}>
+          <Box sx={{ 
+            flex: 1, 
+            overflow: 'auto',
+            '&::-webkit-scrollbar': {
+              width: '8px',
+            },
+            '&::-webkit-scrollbar-track': {
+              background: '#f1f5f9',
+              borderRadius: '4px'
+            },
+            '&::-webkit-scrollbar-thumb': {
+              background: '#cbd5e1',
+              borderRadius: '4px',
+              '&:hover': {
+                background: '#94a3b8'
+              }
+            }
+          }}>
             {loading ? (
               <Box sx={{ p: 4, textAlign: 'center' }}>
                 <CircularProgress size={32} sx={{ color: '#3b82f6' }} />
@@ -1964,10 +1980,19 @@ const NoteDetail: React.FC = () => {
                 </Typography>
               </Box>
             ) : (
-              <List sx={{ p: 0 }}>
+              <Box sx={{ p: 2 }}>
                 {checkHistory.map((result, index) => (
                   <React.Fragment key={result.id}>
-                    <ListItem sx={{ px: 2, py: 2, alignItems: 'flex-start' }}>
+                    <Paper 
+                      elevation={0}
+                      sx={{ 
+                        p: 2, 
+                        mb: index < checkHistory.length - 1 ? 2 : 0,
+                        border: '1px solid #e2e8f0',
+                        borderRadius: 2,
+                        backgroundColor: '#fafafa'
+                      }}
+                    >
                       <Box sx={{ width: '100%' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                           {getStatusIcon(result)}
@@ -2034,11 +2059,10 @@ const NoteDetail: React.FC = () => {
                           </Box>
                         )}
                       </Box>
-                    </ListItem>
-                    {index < checkHistory.length - 1 && <Divider />}
+                    </Paper>
                   </React.Fragment>
                 ))}
-              </List>
+              </Box>
             )}
           </Box>
           </Paper>
