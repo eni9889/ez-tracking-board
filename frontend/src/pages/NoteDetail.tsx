@@ -1806,7 +1806,7 @@ const NoteDetail: React.FC = () => {
           }}>
             {/* Care Team Section */}
           <Box sx={{ 
-            p: 3, 
+            p: 2, 
             borderBottom: careTeamCollapsed ? 'none' : '2px solid #f1f5f9',
             background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
             cursor: 'pointer',
@@ -1838,13 +1838,6 @@ const NoteDetail: React.FC = () => {
                 {careTeamCollapsed ? <ExpandMore /> : <ExpandLess />}
               </IconButton>
             </Box>
-            <Typography variant="body2" sx={{ 
-              color: '#64748b',
-              fontSize: '0.85rem',
-              fontWeight: 500
-            }}>
-              Providers and staff for this encounter
-            </Typography>
           </Box>
           <Collapse in={!careTeamCollapsed}>
             <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9' }}>
@@ -1869,7 +1862,7 @@ const NoteDetail: React.FC = () => {
           {(!loading && createdTodos.length > 0) && (
             <>
               <Box sx={{ 
-                p: 3, 
+                p: 2, 
                 borderBottom: '2px solid #f1f5f9',
                 background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)'
               }}>
@@ -1925,7 +1918,7 @@ const NoteDetail: React.FC = () => {
 
           {/* AI Check History Section */}
           <Box sx={{ 
-            p: 3, 
+            p: 2, 
             borderBottom: '2px solid #f1f5f9',
             background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)'
           }}>
@@ -1939,13 +1932,6 @@ const NoteDetail: React.FC = () => {
                 AI Check History ({checkHistory.length})
               </Typography>
             </Box>
-            <Typography variant="body2" sx={{ 
-              color: '#64748b',
-              fontSize: '0.85rem',
-              fontWeight: 500
-            }}>
-              Recent AI analysis results
-            </Typography>
           </Box>
           <Box sx={{ 
             flex: 1, 
