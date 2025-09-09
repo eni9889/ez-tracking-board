@@ -230,7 +230,12 @@ const AINoteChecker: React.FC = () => {
   };
 
   const handleViewNote = (note: IncompleteNote) => {
-    navigate(`/ai-note-checker/${note.encounterId}`, {
+    // Build URL with filter parameter for page reload recovery
+    const url = currentFilter !== 'all' ? 
+      `/ai-note-checker/${note.encounterId}?filter=${currentFilter}` :
+      `/ai-note-checker/${note.encounterId}`;
+      
+    navigate(url, {
       state: { 
         note,
         currentFilter,

@@ -128,15 +128,21 @@ const NoteDetail: React.FC = () => {
     if (!encountersLoading && allEncounters.length > 0) {
       let filteredNotes = allEncounters;
       
-      // Get filter context from navigation state
+      // Get filter context from navigation state or URL search params (for page reload recovery)
       const navigationState = location.state as { currentFilter?: string; filteredNotes?: NoteData[] } | null;
-      const currentFilter = navigationState?.currentFilter;
+      const urlParams = new URLSearchParams(location.search);
+      const urlFilter = urlParams.get('filter');
+      
+      // Use navigation state if available, otherwise fall back to URL parameter, otherwise default to 'all'
+      const currentFilter = navigationState?.currentFilter || urlFilter || 'all';
       
       console.log('🔍 NoteDetail filtering:', {
         currentFilter,
         allEncountersCount: allEncounters.length,
         encounterId,
-        navigationState
+        navigationState,
+        urlFilter,
+        hasNavigationState: !!navigationState
       });
       
       // Filter notes based on the tab the user came from
@@ -169,12 +175,22 @@ const NoteDetail: React.FC = () => {
         if (index !== -1) {
           setCurrentIndex(index);
         } else {
-          // If current note is not in filtered results, start with the first one
-          setCurrentIndex(0);
+          // If current note is not in filtered results, fall back to showing all notes
+          console.log('⚠️ Current note not found in filtered results, falling back to all notes');
+          setNotes(allEncounters);
+          const allNotesIndex = allEncounters.findIndex(note => note.encounterId === encounterId);
+          setCurrentIndex(allNotesIndex !== -1 ? allNotesIndex : 0);
         }
       }
+      
+      // Update URL with filter parameter to preserve context on reload
+      if (currentFilter !== 'all' && !urlParams.get('filter')) {
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('filter', currentFilter);
+        window.history.replaceState(null, '', newUrl.toString());
+      }
     }
-  }, [allEncounters, encountersLoading, encounterId, location.state]);
+  }, [allEncounters, encountersLoading, encounterId, location.state, location.search]);
 
   // Get current note
   const currentNote = notes[currentIndex];
@@ -262,26 +278,48 @@ const NoteDetail: React.FC = () => {
       const newIndex = currentIndex - 1;
       setCurrentIndex(newIndex);
       const newNote = notes[newIndex];
+      
+      // Get current filter context
+      const navigationState = location.state as { currentFilter?: string; filteredNotes?: NoteData[] } | null;
+      const urlParams = new URLSearchParams(location.search);
+      const currentFilter = navigationState?.currentFilter || urlParams.get('filter') || 'all';
+      
+      // Build URL with filter parameter
+      const url = currentFilter !== 'all' ? 
+        `/ai-note-checker/${newNote.encounterId}?filter=${currentFilter}` :
+        `/ai-note-checker/${newNote.encounterId}`;
+      
       // Preserve the location state context when navigating
-      navigate(`/ai-note-checker/${newNote.encounterId}`, { 
+      navigate(url, { 
         replace: true,
         state: location.state // Preserve the filter context
       });
     }
-  }, [currentIndex, notes, navigate, location.state]);
+  }, [currentIndex, notes, navigate, location.state, location.search]);
 
   const handleNextNote = useCallback(() => {
     if (currentIndex < notes.length - 1) {
       const newIndex = currentIndex + 1;
       setCurrentIndex(newIndex);
       const newNote = notes[newIndex];
+      
+      // Get current filter context
+      const navigationState = location.state as { currentFilter?: string; filteredNotes?: NoteData[] } | null;
+      const urlParams = new URLSearchParams(location.search);
+      const currentFilter = navigationState?.currentFilter || urlParams.get('filter') || 'all';
+      
+      // Build URL with filter parameter
+      const url = currentFilter !== 'all' ? 
+        `/ai-note-checker/${newNote.encounterId}?filter=${currentFilter}` :
+        `/ai-note-checker/${newNote.encounterId}`;
+      
       // Preserve the location state context when navigating
-      navigate(`/ai-note-checker/${newNote.encounterId}`, { 
+      navigate(url, { 
         replace: true,
         state: location.state // Preserve the filter context
       });
     }
-  }, [currentIndex, notes, navigate, location.state]);
+  }, [currentIndex, notes, navigate, location.state, location.search]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -1190,14 +1228,19 @@ const NoteDetail: React.FC = () => {
         signOffInfo={signOffInfo}
         currentIndex={currentIndex}
         totalNotes={notes.length}
-        filterContext={(location.state as any)?.currentFilter}
+        filterContext={(() => {
+          const navigationState = location.state as { currentFilter?: string } | null;
+          const urlParams = new URLSearchParams(location.search);
+          return navigationState?.currentFilter || urlParams.get('filter') || 'all';
+        })()}
         onBack={() => {
           const navigationState = location.state as { currentFilter?: string; filteredNotes?: any[] } | null;
-          const currentFilter = navigationState?.currentFilter;
+          const urlParams = new URLSearchParams(location.search);
+          const currentFilter = navigationState?.currentFilter || urlParams.get('filter') || 'all';
           
           navigate('/ai-note-checker', {
             state: { 
-              returnToFilter: currentFilter || 'all' 
+              returnToFilter: currentFilter 
             }
           });
         }}
@@ -1244,12 +1287,13 @@ const NoteDetail: React.FC = () => {
               onClick={() => {
                 // Get the current filter context to preserve it when going back
                 const navigationState = location.state as { currentFilter?: string; filteredNotes?: any[] } | null;
-                const currentFilter = navigationState?.currentFilter;
+                const urlParams = new URLSearchParams(location.search);
+                const currentFilter = navigationState?.currentFilter || urlParams.get('filter') || 'all';
                 
                 // Navigate back with the filter context preserved
                 navigate('/ai-note-checker', {
                   state: { 
-                    returnToFilter: currentFilter || 'all' 
+                    returnToFilter: currentFilter 
                   }
                 });
               }}
@@ -1370,7 +1414,8 @@ const NoteDetail: React.FC = () => {
             }}>
               {(() => {
                 const navigationState = location.state as { currentFilter?: string } | null;
-                const currentFilter = navigationState?.currentFilter;
+                const urlParams = new URLSearchParams(location.search);
+                const currentFilter = navigationState?.currentFilter || urlParams.get('filter') || 'all';
                 const suffix = currentFilter === 'issues' ? ' with issues' :
                              currentFilter === 'clean' ? ' clean' :
                              currentFilter === 'unchecked' ? ' unchecked' :
