@@ -574,6 +574,14 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
 
     console.log(`✅ AI check completed for encounter: ${encounterId}, checkId: ${checkId}`);
     
+    // Immediately verify the result was saved by reading it back
+    const verifyResult = await vitalSignsDb.getNoteCheckResult(encounterId);
+    if (verifyResult && verifyResult.id === checkId) {
+      console.log(`✅ Verified: Background job result saved and readable for encounter ${encounterId}`);
+    } else {
+      console.error(`❌ Warning: Could not verify saved result for encounter ${encounterId}`);
+    }
+    
     return {
       encounterId,
       patientName,

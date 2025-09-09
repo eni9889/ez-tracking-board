@@ -85,13 +85,18 @@ const AINoteChecker: React.FC = () => {
   useEffect(() => {
     loadEncounters();
     
-    // Auto-refresh every 30 seconds to pick up background job results
+    // Auto-refresh every 15 seconds to pick up background job results faster
     const refreshInterval = setInterval(async () => {
       console.log('🔄 Auto-refreshing note check results...');
       setAutoRefreshing(true);
-      await refreshEncounters();
-      setAutoRefreshing(false);
-    }, 30000); // 30 seconds
+      try {
+        await refreshEncounters();
+      } catch (error) {
+        console.error('Error during auto-refresh:', error);
+      } finally {
+        setAutoRefreshing(false);
+      }
+    }, 15000); // 15 seconds (reduced from 30)
     
     return () => clearInterval(refreshInterval);
   }, [loadEncounters, refreshEncounters]);

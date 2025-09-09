@@ -1173,6 +1173,15 @@ app.get('/notes/results', validateSession, async (req: Request, res: Response): 
       parseInt(offset as string)
     );
     
+    // Log recent results for debugging
+    const recentResults = results
+      .filter(result => result.checkedAt && new Date(result.checkedAt) > new Date(Date.now() - 5 * 60 * 1000))
+      .slice(0, 3);
+    if (recentResults.length > 0) {
+      console.log(`🔍 API: Returning ${results.length} total results, ${recentResults.length} from last 5 minutes:`, 
+        recentResults.map(r => `${r.encounterId}:${r.status}:${r.issuesFound ? 'issues' : 'clean'}`));
+    }
+    
     res.json({ success: true, results });
   } catch (error: any) {
     console.error('Error fetching note check results:', error);

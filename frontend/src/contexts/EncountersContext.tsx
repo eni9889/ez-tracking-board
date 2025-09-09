@@ -68,9 +68,20 @@ export const EncountersProvider: React.FC<EncountersProviderProps> = ({ children
       
       // Get existing check results for these notes
       const checkResults = await aiNoteCheckerService.getNoteCheckResults(100, 0);
+      console.log(`📊 Context: Fetched ${checkResults.length} check results from database`);
+      
       const checkResultsMap = new Map(
         checkResults.map(result => [result.encounterId, result])
       );
+      
+      // Log some debug info about recent results
+      const recentResults = checkResults
+        .filter(result => result.checkedAt && new Date(result.checkedAt) > new Date(Date.now() - 5 * 60 * 1000))
+        .slice(0, 3);
+      if (recentResults.length > 0) {
+        console.log(`🕐 Context: Found ${recentResults.length} results from last 5 minutes:`, 
+          recentResults.map(r => `${r.encounterId}: ${r.status} (${r.issuesFound ? 'has issues' : 'clean'})`));
+      }
       
       // Combine the data - ToDo status is now included in the backend response
       const notesWithStatus = uniqueNotes.map(note => {

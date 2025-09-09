@@ -779,7 +779,10 @@ class VitalSignsDatabase {
       status, JSON.stringify(aiAnalysis), issuesFound, checkedBy, errorMessage, noteContentMd5, noteContent
     ]);
 
-    return result.rows[0].id;
+    const savedId = result.rows[0].id;
+    console.log(`💾 Database: Saved note check result for encounter ${encounterId}, status: ${status}, issues: ${issuesFound}, id: ${savedId}`);
+    
+    return savedId;
   }
 
   async findNoteCheckByMd5(noteContentMd5: string): Promise<any | null> {
