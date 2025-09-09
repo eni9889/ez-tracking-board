@@ -53,9 +53,9 @@ export const EncountersProvider: React.FC<EncountersProviderProps> = ({ children
     setError(null);
     
     try {
-      // Fetch incomplete notes from EZDerm
+      // Fetch incomplete notes from EZDerm (now with pagination to get ALL notes)
       const notes = await aiNoteCheckerService.getIncompleteNotes();
-      console.log(`📋 Context: Fetched ${notes.length} incomplete notes from API`);
+      console.log(`📋 Context: Fetched ${notes.length} incomplete notes from API (with pagination)`);
       
       // Remove duplicates (same logic as main page)
       const uniqueNotes = notes.filter((note, index, array) => 

@@ -482,7 +482,7 @@ const AINoteChecker: React.FC = () => {
               textTransform: 'uppercase',
               letterSpacing: '0.05em'
             }}>
-              Total Notes
+              Total Notes (All Pages)
             </Typography>
           </Box>
           <Box sx={{ 
@@ -735,7 +735,7 @@ const AINoteChecker: React.FC = () => {
           <Tab 
             label={
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <span>All Notes</span>
+                <span>All Notes (All Pages)</span>
                 <Box sx={{
                   backgroundColor: 'rgba(100, 116, 139, 0.15)',
                   color: '#475569',

@@ -226,7 +226,7 @@ class AINoteCheckerService {
   ];
 
   /**
-   * Get all incomplete notes from EZDerm
+   * Get all incomplete notes from EZDerm (with pagination)
    */
   async getIncompleteNotes(): Promise<EligibleEncounter[]> {
     if (USE_MOCK_DATA) {
@@ -236,8 +236,36 @@ class AINoteCheckerService {
     }
 
     try {
+      console.log('📖 Fetching ALL incomplete notes from EZDerm with pagination...');
       const response = await axios.post(`${API_BASE_URL}/notes/incomplete`, 
-        { fetchFrom: 0, size: 100 },
+        { fetchAll: true },
+        {
+          headers: this.headers()
+        }
+      );
+
+      const encounters = response.data.encounters || [];
+      console.log(`📋 Fetched ${encounters.length} total encounters from EZDerm`);
+      return encounters;
+    } catch (error: any) {
+      console.error('Error fetching incomplete notes:', error);
+      throw new Error('Failed to fetch incomplete notes: ' + (error.response?.data?.error || error.message));
+    }
+  }
+
+  /**
+   * Get incomplete notes with manual pagination (for specific use cases)
+   */
+  async getIncompleteNotesPage(fetchFrom: number = 0, size: number = 100): Promise<EligibleEncounter[]> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Returning mock incomplete notes page');
+      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
+      return this.mockEligibleEncounters.slice(fetchFrom, fetchFrom + size);
+    }
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}/notes/incomplete`, 
+        { fetchFrom, size },
         {
           headers: this.headers()
         }
@@ -245,7 +273,7 @@ class AINoteCheckerService {
 
       return response.data.encounters || [];
     } catch (error: any) {
-      console.error('Error fetching incomplete notes:', error);
+      console.error('Error fetching incomplete notes page:', error);
       throw new Error('Failed to fetch incomplete notes: ' + (error.response?.data?.error || error.message));
     }
   }

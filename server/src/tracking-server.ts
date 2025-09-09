@@ -714,7 +714,7 @@ app.get('/ai-notes/jobs/stats', validateSession, async (req: Request, res: Respo
 app.post('/notes/incomplete', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
     const username = (req as any).user.username;
-    const { fetchFrom, size, group } = req.body;
+    const { fetchFrom, size, group, fetchAll } = req.body;
     
     // Get valid tokens
     const userTokens = await getValidTokens(username);
@@ -723,11 +723,21 @@ app.post('/notes/incomplete', validateSession, async (req: Request, res: Respons
       return;
     }
     
-    const incompleteNotesData = await aiNoteChecker.fetchIncompleteNotes(userTokens.accessToken, {
-      fetchFrom,
-      size,
-      group
-    });
+    let incompleteNotesData;
+    
+    if (fetchAll) {
+      console.log('📖 Fetching ALL incomplete notes with pagination...');
+      // Use the paginated method to get all notes
+      const allPatients = await aiNoteChecker.getAllIncompleteNotes(userTokens.accessToken);
+      incompleteNotesData = [{ incompletePatientEncounters: allPatients }];
+    } else {
+      // Use the single page method for backward compatibility
+      incompleteNotesData = await aiNoteChecker.fetchIncompleteNotes(userTokens.accessToken, {
+        fetchFrom,
+        size,
+        group
+      });
+    }
     
     // Transform the EZDerm response to the format expected by frontend
     const encounters: any[] = [];
