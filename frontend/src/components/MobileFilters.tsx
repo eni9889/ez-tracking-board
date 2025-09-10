@@ -104,8 +104,8 @@ const MobileFilters: React.FC<MobileFiltersProps> = ({
   ];
 
   const sortOptions = [
-    { value: 'dateDesc', label: 'Newest First' },
-    { value: 'dateAsc', label: 'Oldest First' },
+    { value: 'dateDesc', label: 'Date of Service: Newest First' },
+    { value: 'dateAsc', label: 'Date of Service: Oldest First' },
     { value: 'patientName', label: 'Patient Name' },
     { value: 'status', label: 'Status' },
     { value: 'aiStatus', label: 'AI Check Status' }
@@ -118,7 +118,7 @@ const MobileFilters: React.FC<MobileFiltersProps> = ({
 
   const getCurrentSortLabel = () => {
     const current = sortOptions.find(option => option.value === sortBy);
-    return current ? current.label : 'Newest First';
+    return current ? current.label : 'Date of Service: Newest First';
   };
 
   // Enhanced mobile interface for small screens

@@ -24,7 +24,9 @@ import {
   Assignment,
   ArrowBack,
   ExitToApp,
-  PlayArrow
+  PlayArrow,
+  ArrowUpward,
+  ArrowDownward
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -1052,9 +1054,28 @@ const AINoteChecker: React.FC = () => {
                   </TableCell>
                   <TableCell sx={{ 
                     width: isMobile ? 'auto' : '120px',
-                    display: isMobile ? 'none' : 'table-cell' // Hide on mobile
+                    display: isMobile ? 'none' : 'table-cell', // Hide on mobile
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    '&:hover': {
+                      backgroundColor: '#e3f2fd'
+                    }
+                  }}
+                  onClick={() => {
+                    // Toggle between dateAsc and dateDesc
+                    const newSort = sortBy === 'dateDesc' ? 'dateAsc' : 'dateDesc';
+                    setSortBy(newSort);
                   }}>
-                    Date of Service
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      Date of Service
+                      {sortBy === 'dateDesc' ? (
+                        <ArrowDownward sx={{ fontSize: '1rem', color: '#3b82f6' }} />
+                      ) : sortBy === 'dateAsc' ? (
+                        <ArrowUpward sx={{ fontSize: '1rem', color: '#3b82f6' }} />
+                      ) : (
+                        <ArrowDownward sx={{ fontSize: '1rem', color: '#94a3b8' }} />
+                      )}
+                    </Box>
                   </TableCell>
                   <TableCell sx={{ 
                     width: isMobile ? 'auto' : '120px',
