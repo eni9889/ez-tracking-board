@@ -65,7 +65,7 @@ const AINoteChecker: React.FC = () => {
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [currentFilter, setCurrentFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('dateDesc');
+  const [sortBy, setSortBy] = useState('dateAsc');
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { user, logout } = useAuth();
