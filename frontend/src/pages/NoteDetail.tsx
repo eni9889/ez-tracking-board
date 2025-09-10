@@ -1139,9 +1139,13 @@ const NoteDetail: React.FC = () => {
                           />
                           <CardContent sx={{ pt: 0 }}>
                             <Stack spacing={2}>
-                              {apSection.apSectionElements?.filter((element: any) => 
-                                element.text && element.text.trim() !== ''
-                              ).map((element: any, elementIndex: number) => (
+                              {apSection.apSectionElements?.filter((element: any) => {
+                                // Show if element has text content
+                                if (element.text && element.text.trim() !== '') return true;
+                                // Show if element has items with text content  
+                                if (element.items && element.items.some((item: any) => item.text && item.text.trim() !== '')) return true;
+                                return false;
+                              }).map((element: any, elementIndex: number) => (
                                 <Box key={element.id || elementIndex}>
                                   <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
                                     {element.title}
@@ -1149,9 +1153,23 @@ const NoteDetail: React.FC = () => {
                                   {element.type === 'PROBLEM_POINTS' ? (
                                     renderProblemField(element, apIndex, apSection.encounterMedicalProblemInfo?.id)
                                   ) : (
-                                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                      {element.text || 'No content'}
-                                    </Typography>
+                                    <Box>
+                                      {/* Show main element text if it exists */}
+                                      {element.text && element.text.trim() !== '' && (
+                                        <Typography variant="body2" sx={{ color: 'text.secondary', mb: element.items?.length > 0 ? 1 : 0 }}>
+                                          {element.text}
+                                        </Typography>
+                                      )}
+                                      {/* Show nested items if they exist */}
+                                      {element.items && element.items.map((item: any, itemIndex: number) => {
+                                        if (!item.text || item.text.trim() === '') return null;
+                                        return (
+                                          <Typography key={itemIndex} variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
+                                            {item.text}
+                                          </Typography>
+                                        );
+                                      })}
+                                    </Box>
                                   )}
                                 </Box>
                               ))}
