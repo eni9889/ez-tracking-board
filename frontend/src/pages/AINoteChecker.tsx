@@ -104,14 +104,23 @@ const AINoteChecker: React.FC = () => {
     return () => clearInterval(refreshInterval);
   }, [loadEncounters, refreshEncounters]);
 
-  // Check for returnToFilter state when component mounts (from back navigation)
+  // Check for returnToFilter and returnToSort state when component mounts (from back navigation)
   useEffect(() => {
-    const navigationState = location.state as { returnToFilter?: FilterType } | null;
+    const navigationState = location.state as { 
+      returnToFilter?: FilterType;
+      returnToSort?: string;
+    } | null;
     if (navigationState?.returnToFilter) {
       console.log('🔄 Restoring filter from back navigation:', navigationState.returnToFilter);
       setCurrentFilter(navigationState.returnToFilter);
-      
-      // Clear the navigation state to prevent it from persisting
+    }
+    if (navigationState?.returnToSort) {
+      console.log('🔄 Restoring sort from back navigation:', navigationState.returnToSort);
+      setSortBy(navigationState.returnToSort);
+    }
+    
+    // Clear the navigation state to prevent it from persisting
+    if (navigationState?.returnToFilter || navigationState?.returnToSort) {
       navigate('/ai-note-checker', { replace: true, state: null });
     }
   }, [location.state, navigate]);
@@ -245,7 +254,8 @@ const AINoteChecker: React.FC = () => {
       state: { 
         note,
         currentFilter,
-        filteredNotes
+        filteredNotes,
+        sortBy
       }
     });
   };

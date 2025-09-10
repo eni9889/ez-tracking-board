@@ -124,39 +124,77 @@ const NoteDetail: React.FC = () => {
     fetchUserProviderInfo();
   }, [user]);
 
-  // Initialize notes array from encounters context - filter based on navigation context
+  // Initialize notes array from encounters context - use pre-sorted filteredNotes from navigation state
   useEffect(() => {
     if (!encountersLoading && allEncounters.length > 0) {
-      let filteredNotes = allEncounters;
+      // Get filter and sort context from navigation state
+      const navigationState = location.state as { 
+        currentFilter?: string; 
+        filteredNotes?: NoteData[];
+        sortBy?: string;
+      } | null;
       
-      // Get filter context from navigation state
-      const navigationState = location.state as { currentFilter?: string; filteredNotes?: NoteData[] } | null;
       const currentFilter = navigationState?.currentFilter;
+      const preSortedFilteredNotes = navigationState?.filteredNotes;
+      const sortBy = navigationState?.sortBy;
       
       console.log('🔍 NoteDetail filtering:', {
         currentFilter,
+        sortBy,
         allEncountersCount: allEncounters.length,
+        preSortedCount: preSortedFilteredNotes?.length,
         encounterId,
         navigationState
       });
       
-      // Filter notes based on the tab the user came from
-      if (currentFilter === 'issues') {
-        filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && note.hasValidIssues === true);
-      } else if (currentFilter === 'clean') {
-        filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && !note.issuesFound);
-      } else if (currentFilter === 'unchecked') {
-        filteredNotes = allEncounters.filter(note => !note.lastCheckStatus || note.lastCheckStatus === 'pending');
-      } else if (currentFilter === 'issues-no-todos') {
-        filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && note.hasValidIssues === true && !note.todoCreated);
-      }
-      // For 'all' or no filter context, use all encounters
+      let filteredNotes: NoteData[];
       
-      console.log('🔍 Filtered results:', {
+      // Use pre-sorted and pre-filtered notes if available, otherwise fall back to manual filtering
+      if (preSortedFilteredNotes && preSortedFilteredNotes.length > 0) {
+        console.log('✅ Using pre-sorted filteredNotes from navigation state');
+        filteredNotes = preSortedFilteredNotes;
+      } else {
+        console.log('⚠️ Fallback to manual filtering (no pre-sorted notes available)');
+        filteredNotes = allEncounters;
+        
+        // Filter notes based on the tab the user came from
+        if (currentFilter === 'issues') {
+          filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && note.hasValidIssues === true);
+        } else if (currentFilter === 'clean') {
+          filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && !note.issuesFound);
+        } else if (currentFilter === 'unchecked') {
+          filteredNotes = allEncounters.filter(note => !note.lastCheckStatus || note.lastCheckStatus === 'pending');
+        } else if (currentFilter === 'issues-no-todos') {
+          filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && note.hasValidIssues === true && !note.todoCreated);
+        }
+        
+        // Apply sorting if sortBy is provided
+        if (sortBy) {
+          filteredNotes.sort((a, b) => {
+            switch (sortBy) {
+              case 'dateAsc':
+                return new Date(a.dateOfService).getTime() - new Date(b.dateOfService).getTime();
+              case 'dateDesc':
+                return new Date(b.dateOfService).getTime() - new Date(a.dateOfService).getTime();
+              case 'patientName':
+                return a.patientName.localeCompare(b.patientName);
+              case 'status':
+                return a.status.localeCompare(b.status);
+              default:
+                return new Date(b.dateOfService).getTime() - new Date(a.dateOfService).getTime();
+            }
+          });
+        }
+      }
+      
+      console.log('🔍 Final navigation results:', {
         currentFilter,
+        sortBy,
         filteredCount: filteredNotes.length,
         sampleNotes: filteredNotes.slice(0, 3).map(n => ({
           encounterId: n.encounterId,
+          patientName: n.patientName,
+          dateOfService: n.dateOfService,
           lastCheckStatus: n.lastCheckStatus,
           issuesFound: n.issuesFound
         }))
@@ -1230,12 +1268,18 @@ const NoteDetail: React.FC = () => {
         totalNotes={notes.length}
         filterContext={(location.state as any)?.currentFilter}
         onBack={() => {
-          const navigationState = location.state as { currentFilter?: string; filteredNotes?: any[] } | null;
+          const navigationState = location.state as { 
+            currentFilter?: string; 
+            filteredNotes?: any[];
+            sortBy?: string;
+          } | null;
           const currentFilter = navigationState?.currentFilter;
+          const sortBy = navigationState?.sortBy;
           
           navigate('/ai-note-checker', {
             state: { 
-              returnToFilter: currentFilter || 'all' 
+              returnToFilter: currentFilter || 'all',
+              returnToSort: sortBy || 'dateDesc'
             }
           });
         }}
@@ -1280,14 +1324,20 @@ const NoteDetail: React.FC = () => {
           <Tooltip title="Back to AI Note Checker">
             <IconButton
               onClick={() => {
-                // Get the current filter context to preserve it when going back
-                const navigationState = location.state as { currentFilter?: string; filteredNotes?: any[] } | null;
+                // Get the current filter and sort context to preserve it when going back
+                const navigationState = location.state as { 
+                  currentFilter?: string; 
+                  filteredNotes?: any[];
+                  sortBy?: string;
+                } | null;
                 const currentFilter = navigationState?.currentFilter;
+                const sortBy = navigationState?.sortBy;
                 
-                // Navigate back with the filter context preserved
+                // Navigate back with the filter and sort context preserved
                 navigate('/ai-note-checker', {
                   state: { 
-                    returnToFilter: currentFilter || 'all' 
+                    returnToFilter: currentFilter || 'all',
+                    returnToSort: sortBy || 'dateDesc'
                   }
                 });
               }}

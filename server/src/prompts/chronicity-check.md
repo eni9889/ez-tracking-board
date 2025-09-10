@@ -7,7 +7,6 @@ Verify that every diagnosis in the Assessment & Plan (A&P) matches the chronicit
 
 ## Rules
 1. **Billing-Relevant Only**: Only check diagnoses that:
-   - Are chief complaints or actively managed in the visit, OR
    - Impact risk level and E/M billing code, OR
    - Are NOT benign/incidental findings (e.g., seborrheic keratosis on skin check) unless presenting complaints
 

@@ -14,13 +14,8 @@ Verify that the Assessment & Plan (A&P) aligns and is consistent with the Histor
 
 2. **Documentation Clarity**:
    - Flag unclear, incomplete, or ambiguous documentation
-   - Only flag if ambiguity affects coding level determination
+   - Only flag if ambiguity affects E/M level determination
    - Do not flag trivial ambiguity with no billing impact
-
-3. **Clinical Logic**:
-   - Treatment decisions should align with documented symptoms
-   - Follow-up intervals should match condition severity
-   - Medication changes should align with reported response
 
 4. **Error Handling**:
    - Do not assume or infer intent
