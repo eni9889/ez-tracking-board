@@ -80,7 +80,7 @@ const AINoteChecker: React.FC = () => {
     loadEncounters, 
     refreshEncounters 
   } = useEncounters();
-  const { isMobile, isDesktop } = useResponsive();
+  const { isMobile, isDesktop, isTablet } = useResponsive();
 
   // Check if we're in mock data mode
   const isUsingMockData = process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_MOCK_DATA === 'true';
@@ -462,8 +462,8 @@ const AINoteChecker: React.FC = () => {
         showStats={true}
       />
 
-      {/* Desktop Header - only show on desktop */}
-      {isDesktop && (
+      {/* Desktop Header - show on desktop and tablet */}
+      {(isDesktop || isTablet) && (
         <Box sx={{ 
           backgroundColor: '#0a0a0a', 
           color: 'white', 
@@ -766,8 +766,8 @@ const AINoteChecker: React.FC = () => {
         onSortChange={setSortBy}
       />
 
-      {/* Desktop Filter Tabs - only show on desktop */}
-      {isDesktop && (
+      {/* Desktop Filter Tabs - show on desktop and tablet */}
+      {(isDesktop || isTablet) && (
         <Box sx={{ 
           background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
           borderBottom: '2px solid #e2e8f0',

@@ -83,7 +83,7 @@ const NoteDetail: React.FC = () => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { user } = useAuth();
   const { encounters: allEncounters, loading: encountersLoading, refreshEncounters } = useEncounters();
-  const { isMobile, isDesktop } = useResponsive();
+  const { isMobile, isDesktop, isTablet } = useResponsive();
 
   // Simplified state management with data cache
   const [notes, setNotes] = useState<NoteData[]>([]);
@@ -1511,8 +1511,8 @@ const NoteDetail: React.FC = () => {
         canCreateToDo={checkHistory.some(check => check.issuesFound) && createdTodos.length === 0}
       />
 
-      {/* Desktop Header - only show on desktop */}
-      {isDesktop && (
+      {/* Desktop Header - show on desktop and tablet */}
+      {(isDesktop || isTablet) && (
         <Box sx={{ 
           background: 'linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%)',
           color: '#f8fafc',
