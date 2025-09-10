@@ -129,7 +129,7 @@ const NoteDetail: React.FC = () => {
 
   // Initialize notes array from encounters context - use pre-sorted filteredNotes from navigation state
   useEffect(() => {
-    if (!encountersLoading && allEncounters.length > 0) {
+    if (!encountersLoading && encounterId) {
       // Get filter and sort context from navigation state
       const navigationState = location.state as { 
         currentFilter?: string; 
@@ -158,35 +158,54 @@ const NoteDetail: React.FC = () => {
         filteredNotes = preSortedFilteredNotes;
       } else {
         console.log('⚠️ Fallback to manual filtering (no pre-sorted notes available)');
-        filteredNotes = allEncounters;
         
-        // Filter notes based on the tab the user came from
-        if (currentFilter === 'issues') {
-          filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && note.hasValidIssues === true);
-        } else if (currentFilter === 'clean') {
-          filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && !note.issuesFound);
-        } else if (currentFilter === 'unchecked') {
-          filteredNotes = allEncounters.filter(note => !note.lastCheckStatus || note.lastCheckStatus === 'pending');
-        } else if (currentFilter === 'issues-no-todos') {
-          filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && note.hasValidIssues === true && !note.todoCreated);
-        }
+        // Check if current encounter exists in allEncounters
+        const currentEncounter = allEncounters.find(note => note.encounterId === encounterId);
         
-        // Apply sorting if sortBy is provided
-        if (sortBy) {
-          filteredNotes.sort((a, b) => {
-            switch (sortBy) {
-              case 'dateAsc':
-                return new Date(a.dateOfService).getTime() - new Date(b.dateOfService).getTime();
-              case 'dateDesc':
-                return new Date(b.dateOfService).getTime() - new Date(a.dateOfService).getTime();
-              case 'patientName':
-                return a.patientName.localeCompare(b.patientName);
-              case 'status':
-                return a.status.localeCompare(b.status);
-              default:
-                return new Date(b.dateOfService).getTime() - new Date(a.dateOfService).getTime();
-            }
-          });
+        if (!currentEncounter || allEncounters.length === 0) {
+          console.log('⚠️ Current encounter not found in allEncounters or allEncounters is empty, creating single-note array');
+          // If the current encounter isn't in allEncounters, create a minimal note entry
+          // This happens when accessing direct URL before main page loads all encounters
+          filteredNotes = [{
+            encounterId: encounterId,
+            patientId: '', // Will be loaded from note data
+            patientName: 'Loading...', // Will be updated when note data loads
+            chiefComplaint: '',
+            dateOfService: '',
+            status: '',
+            lastCheckStatus: null
+          }];
+        } else {
+          filteredNotes = allEncounters;
+        
+          // Filter notes based on the tab the user came from
+          if (currentFilter === 'issues') {
+            filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && note.hasValidIssues === true);
+          } else if (currentFilter === 'clean') {
+            filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && !note.issuesFound);
+          } else if (currentFilter === 'unchecked') {
+            filteredNotes = allEncounters.filter(note => !note.lastCheckStatus || note.lastCheckStatus === 'pending');
+          } else if (currentFilter === 'issues-no-todos') {
+            filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && note.hasValidIssues === true && !note.todoCreated);
+          }
+          
+          // Apply sorting if sortBy is provided
+          if (sortBy) {
+            filteredNotes.sort((a, b) => {
+              switch (sortBy) {
+                case 'dateAsc':
+                  return new Date(a.dateOfService).getTime() - new Date(b.dateOfService).getTime();
+                case 'dateDesc':
+                  return new Date(b.dateOfService).getTime() - new Date(a.dateOfService).getTime();
+                case 'patientName':
+                  return a.patientName.localeCompare(b.patientName);
+                case 'status':
+                  return a.status.localeCompare(b.status);
+                default:
+                  return new Date(b.dateOfService).getTime() - new Date(a.dateOfService).getTime();
+              }
+            });
+          }
         }
       }
       
@@ -259,6 +278,72 @@ const NoteDetail: React.FC = () => {
       setError(err.message || 'Failed to load note data');
     }
   }, []);
+
+  // Handle direct URL access - load note data immediately if we have no navigation context
+  useEffect(() => {
+    const handleDirectAccess = async () => {
+      if (encounterId && notes.length > 0) {
+        const currentNote = notes[currentIndex];
+        const isDirectAccess = !location.state && currentNote?.patientName === 'Loading...';
+        
+        if (isDirectAccess) {
+          console.log('🔗 Direct URL access detected, loading note data immediately');
+          setLoading(true);
+          
+          try {
+            // First, try to get encounter data from allEncounters context if available
+            let patientId = '';
+            let patientName = 'Loading...';
+            let chiefComplaint = '';
+            let dateOfService = '';
+            let status = '';
+            
+            // Check if encounter exists in allEncounters (might be available now)
+            const encounter = allEncounters.find(enc => enc.encounterId === encounterId);
+            if (encounter) {
+              patientId = encounter.patientId;
+              patientName = encounter.patientName;
+              chiefComplaint = encounter.chiefComplaint;
+              dateOfService = encounter.dateOfService;
+              status = encounter.status;
+              console.log('✅ Found encounter in allEncounters for direct access');
+            } else {
+              // Fallback: try to get some info from progress note API
+              console.log('⚠️ Encounter not in allEncounters, using progress note API');
+              const noteResponse = await aiNoteCheckerService.getProgressNote(encounterId, '');
+              // Since ProgressNoteResponse doesn't have patient info, we'll load it with empty data
+              // The loadNoteData call will handle getting the actual data
+            }
+            
+            // Update the note data with real patient info
+            setNotes(prev => prev.map(note => 
+              note.encounterId === encounterId 
+                ? {
+                    ...note,
+                    patientId,
+                    patientName: patientName || 'Loading...',
+                    chiefComplaint,
+                    dateOfService,
+                    status
+                  }
+                : note
+            ));
+            
+            // Load complete note data (this will work even with empty patientId)
+            await loadNoteData(encounterId, patientId);
+            
+          } catch (error) {
+            console.error('Failed to load note data for direct access:', error);
+            setError('Failed to load note data');
+          } finally {
+            setLoading(false);
+          }
+        }
+      }
+    };
+
+    handleDirectAccess();
+  }, [encounterId, notes, currentIndex, location.state, loadNoteData, allEncounters]);
 
   // Load data for current note when index changes
   useEffect(() => {
