@@ -13,9 +13,9 @@ Verify that the HPI follows proper structure and formatting requirements for bil
    - The order of the CCs in the HPI does not have to match the numbering of A&P
 
 2. **HPI Content Requirements**:
-   - Each chief complaint should have adequate detail
-   - Chronicity should be documented for chronic conditions
-   - Symptoms, duration, and relevant history should be present
+   - Each chief complaint that affect E/M complexity should have adequate detail
+   - Chronicity should be documented for chronic conditions that affect E/M complexity
+   - Symptoms, duration, and relevant history should be present for conditions that affect E/M complexity
 
 3. **Billing Impact Focus**:
    - Only flag issues that could affect visit E/M level determination

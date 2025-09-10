@@ -1334,6 +1334,92 @@ app.get('/notes/:encounterId/invalid-issues', validateSession, async (req: Reque
   }
 });
 
+// Mark an issue as resolved
+app.post('/notes/:encounterId/issues/:checkId/:issueIndex/mark-resolved', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { encounterId, checkId, issueIndex } = req.params;
+    const { reason, issueType, assessment, issueHash } = req.body;
+    const username = (req as any).user.username;
+    
+    if (!encounterId || !checkId || issueIndex === undefined) {
+      res.status(400).json({ error: 'Encounter ID, check ID, and issue index are required' });
+      return;
+    }
+    
+    if (!issueType || !assessment || !issueHash) {
+      res.status(400).json({ error: 'Issue type, assessment, and issue hash are required' });
+      return;
+    }
+    
+    await vitalSignsDb.markIssueAsResolved(
+      encounterId,
+      parseInt(checkId),
+      parseInt(issueIndex),
+      issueType,
+      assessment,
+      issueHash,
+      username,
+      reason
+    );
+    
+    res.json({ 
+      success: true, 
+      message: 'Issue marked as resolved successfully'
+    });
+  } catch (error: any) {
+    console.error('Error marking issue as resolved:', error);
+    res.status(500).json({ error: 'Failed to mark issue as resolved', details: error.message });
+  }
+});
+
+// Remove resolved marking from an issue
+app.delete('/notes/:encounterId/issues/:checkId/:issueIndex/mark-resolved', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { encounterId, checkId, issueIndex } = req.params;
+    
+    if (!encounterId || !checkId || issueIndex === undefined) {
+      res.status(400).json({ error: 'Encounter ID, check ID, and issue index are required' });
+      return;
+    }
+    
+    await vitalSignsDb.unmarkIssueAsResolved(
+      encounterId,
+      parseInt(checkId),
+      parseInt(issueIndex)
+    );
+    
+    res.json({ 
+      success: true, 
+      message: 'Resolved marking removed successfully'
+    });
+  } catch (error: any) {
+    console.error('Error removing resolved marking:', error);
+    res.status(500).json({ error: 'Failed to remove resolved marking', details: error.message });
+  }
+});
+
+// Get resolved issues for an encounter
+app.get('/notes/:encounterId/resolved-issues', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { encounterId } = req.params;
+    
+    if (!encounterId) {
+      res.status(400).json({ error: 'Encounter ID is required' });
+      return;
+    }
+    
+    const resolvedIssues = await vitalSignsDb.getResolvedIssues(encounterId);
+    
+    res.json({ 
+      success: true, 
+      resolvedIssues
+    });
+  } catch (error: any) {
+    console.error('Error fetching resolved issues:', error);
+    res.status(500).json({ error: 'Failed to fetch resolved issues', details: error.message });
+  }
+});
+
 // Bulk force re-check: Enqueue multiple notes for force re-check
 app.post('/notes/bulk-force-recheck', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {

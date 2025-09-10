@@ -42,12 +42,13 @@ import {
   Save,
   Cancel,
   ExpandMore,
-  ExpandLess
+  ExpandLess,
+  TaskAlt
 } from '@mui/icons-material';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useEncounters } from '../contexts/EncountersContext';
-import aiNoteCheckerService, { NoteCheckResult, AIAnalysisIssue, CareTeamMember, CreatedToDo, InvalidIssue } from '../services/aiNoteChecker.service';
+import aiNoteCheckerService, { NoteCheckResult, AIAnalysisIssue, CareTeamMember, CreatedToDo, InvalidIssue, ResolvedIssue } from '../services/aiNoteChecker.service';
 import MobileNoteDetailHeader from '../components/MobileNoteDetailHeader';
 import MobileNoteContent from '../components/MobileNoteContent';
 import MobileToDoDialog from '../components/MobileToDoDialog';
@@ -72,6 +73,7 @@ interface CachedNoteData {
   checkHistory: NoteCheckResult[];
   createdTodos: CreatedToDo[];
   invalidIssues: InvalidIssue[];
+  resolvedIssues: ResolvedIssue[];
 }
 
 const NoteDetail: React.FC = () => {
@@ -96,6 +98,7 @@ const NoteDetail: React.FC = () => {
   const [modalSuccess, setModalSuccess] = useState<string | null>(null);
   const [forceNewCheck, setForceNewCheck] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const [collapsedIssues, setCollapsedIssues] = useState<Set<string>>(new Set());
   const [careTeamCollapsed, setCareTeamCollapsed] = useState(true); // Default to collapsed on desktop
   const [showSignOffModal, setShowSignOffModal] = useState(false);
   const [signingOff, setSigningOff] = useState(false);
@@ -225,15 +228,17 @@ const NoteDetail: React.FC = () => {
   const checkHistory = currentNoteData?.checkHistory || [];
   const createdTodos = currentNoteData?.createdTodos || [];
   const invalidIssues = currentNoteData?.invalidIssues || [];
+  const resolvedIssues = currentNoteData?.resolvedIssues || [];
 
   // Load data for a specific encounter
   const loadNoteData = useCallback(async (encounterId: string, patientId: string) => {
     try {
-      const [noteResponse, history, todos, invalid] = await Promise.all([
+      const [noteResponse, history, todos, invalid, resolved] = await Promise.all([
         aiNoteCheckerService.getProgressNote(encounterId, patientId),
         fetchCheckHistory(encounterId),
         fetchCreatedTodos(encounterId),
-        fetchInvalidIssues(encounterId)
+        fetchInvalidIssues(encounterId),
+        fetchResolvedIssues(encounterId)
       ]);
 
       // Check if note is already signed off
@@ -245,7 +250,8 @@ const NoteDetail: React.FC = () => {
         careTeam: noteResponse.careTeam,
         checkHistory: history,
         createdTodos: todos,
-        invalidIssues: invalid
+        invalidIssues: invalid,
+        resolvedIssues: resolved
       }));
 
     } catch (err: any) {
@@ -303,6 +309,15 @@ const NoteDetail: React.FC = () => {
       return await aiNoteCheckerService.getInvalidIssues(encounterId);
     } catch (err: any) {
       console.error('Error fetching invalid issues:', err);
+      return [];
+    }
+  };
+
+  const fetchResolvedIssues = async (encounterId: string): Promise<ResolvedIssue[]> => {
+    try {
+      return await aiNoteCheckerService.getResolvedIssues(encounterId);
+    } catch (err: any) {
+      console.error('Error fetching resolved issues:', err);
       return [];
     }
   };
@@ -376,6 +391,39 @@ const NoteDetail: React.FC = () => {
     return invalidIssues.some(invalid => 
       invalid.checkId === checkId && invalid.issueIndex === issueIndex
     );
+  };
+
+  // Helper function to check if an issue is marked as resolved
+  const isIssueMarkedResolved = (checkId: number, issueIndex: number): boolean => {
+    return resolvedIssues.some(resolved => 
+      resolved.checkId === checkId && resolved.issueIndex === issueIndex
+    );
+  };
+
+  // Helper function to toggle collapsed state for issues
+  const toggleIssueCollapse = (checkId: number, issueIndex: number) => {
+    const issueKey = `${checkId}-${issueIndex}`;
+    setCollapsedIssues(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(issueKey)) {
+        newSet.delete(issueKey);
+      } else {
+        newSet.add(issueKey);
+      }
+      return newSet;
+    });
+  };
+
+  // Helper function to check if an issue is collapsed
+  const isIssueCollapsed = (checkId: number, issueIndex: number): boolean => {
+    const issueKey = `${checkId}-${issueIndex}`;
+    return collapsedIssues.has(issueKey);
+  };
+
+  // Helper function to auto-collapse an issue when marked
+  const autoCollapseIssue = (checkId: number, issueIndex: number) => {
+    const issueKey = `${checkId}-${issueIndex}`;
+    setCollapsedIssues(prev => new Set(prev).add(issueKey));
   };
 
   // Check if the current user is the attending provider for this note
@@ -504,6 +552,9 @@ const NoteDetail: React.FC = () => {
         reason
       );
 
+      // Auto-collapse the issue when marked as invalid
+      autoCollapseIssue(checkId, issueIndex);
+
       // Refresh invalid issues and update cache
       const newInvalid = await fetchInvalidIssues(currentNote.encounterId);
       setNoteDataCache(prev => {
@@ -515,7 +566,8 @@ const NoteDetail: React.FC = () => {
             careTeam: existing.careTeam,
             checkHistory: existing.checkHistory,
             createdTodos: existing.createdTodos,
-            invalidIssues: newInvalid
+            invalidIssues: newInvalid,
+            resolvedIssues: existing.resolvedIssues
           });
         }
         return newCache;
@@ -543,7 +595,8 @@ const NoteDetail: React.FC = () => {
             careTeam: existing.careTeam,
             checkHistory: existing.checkHistory,
             createdTodos: existing.createdTodos,
-            invalidIssues: newInvalid
+            invalidIssues: newInvalid,
+            resolvedIssues: existing.resolvedIssues
           });
         }
         return newCache;
@@ -551,6 +604,78 @@ const NoteDetail: React.FC = () => {
     } catch (err: any) {
       console.error('Error unmarking issue as invalid:', err);
       setError(err.message || 'Failed to unmark issue as invalid');
+    }
+  };
+
+  const markIssueAsResolved = async (checkId: number, issueIndex: number, issue: AIAnalysisIssue, reason?: string) => {
+    try {
+      if (!currentNote) return;
+
+      // Create a hash for the issue
+      const issueHash = await createIssueHash(issue);
+
+      await aiNoteCheckerService.markIssueAsResolved(
+        currentNote.encounterId,
+        checkId,
+        issueIndex,
+        issue.issue,
+        issue.assessment,
+        issueHash,
+        reason
+      );
+
+      // Auto-collapse the issue when marked as resolved
+      autoCollapseIssue(checkId, issueIndex);
+
+      // Refresh resolved issues and update cache
+      const newResolved = await fetchResolvedIssues(currentNote.encounterId);
+      setNoteDataCache(prev => {
+        const newCache = new Map(prev);
+        const existing = newCache.get(currentNote.encounterId) as CachedNoteData | undefined;
+        if (existing) {
+          newCache.set(currentNote.encounterId, {
+            progressNoteData: existing.progressNoteData,
+            careTeam: existing.careTeam,
+            checkHistory: existing.checkHistory,
+            createdTodos: existing.createdTodos,
+            invalidIssues: existing.invalidIssues,
+            resolvedIssues: newResolved
+          });
+        }
+        return newCache;
+      });
+    } catch (err: any) {
+      console.error('Error marking issue as resolved:', err);
+      setError(err.message || 'Failed to mark issue as resolved');
+    }
+  };
+
+  const unmarkIssueAsResolved = async (checkId: number, issueIndex: number) => {
+    try {
+      if (!currentNote) return;
+
+      await aiNoteCheckerService.unmarkIssueAsResolved(currentNote.encounterId, checkId, issueIndex);
+
+      // Refresh resolved issues and update cache
+      const newResolved = await fetchResolvedIssues(currentNote.encounterId);
+      setNoteDataCache(prev => {
+        const newCache = new Map(prev);
+        const existing = newCache.get(currentNote.encounterId) as CachedNoteData | undefined;
+        if (existing) {
+          newCache.set(currentNote.encounterId, {
+            progressNoteData: existing.progressNoteData,
+            careTeam: existing.careTeam,
+            checkHistory: existing.checkHistory,
+            createdTodos: existing.createdTodos,
+            invalidIssues: existing.invalidIssues,
+            resolvedIssues: newResolved
+          });
+        }
+        return newCache;
+      });
+    } catch (err: any) {
+      console.error('Error unmarking issue as resolved:', err);
+      setError(err.message || 'Failed to unmark issue as resolved');
     }
   };
 
@@ -622,7 +747,7 @@ const NoteDetail: React.FC = () => {
     }
   };
 
-  // Render individual issues with invalid marking functionality
+  // Render individual issues with invalid/resolved marking and collapse functionality
   const renderIssuesDetails = (issues: AIAnalysisIssue[], checkId: number) => {
     const issueTypeMap: { [key: string]: string } = {
       'no_explicit_plan': 'Missing Explicit Plan',
@@ -642,77 +767,157 @@ const NoteDetail: React.FC = () => {
       <Box sx={{ mt: 1 }}>
         {issues.map((issue, index) => {
           const isInvalid = isIssueMarkedInvalid(checkId, index);
+          const isResolved = isIssueMarkedResolved(checkId, index);
+          const isMarked = isInvalid || isResolved;
+          const isCollapsed = isIssueCollapsed(checkId, index);
+          
+          // Determine styling based on status
+          const getBorderColor = () => {
+            if (isInvalid) return 'action.disabled';
+            if (isResolved) return 'success.main';
+            return issueColors[issue.issue] + '.main';
+          };
+          
+          const getBgColor = () => {
+            if (isInvalid) return 'action.hover';
+            if (isResolved) return 'success.50';
+            return 'background.paper';
+          };
           
           return (
             <Box 
               key={index} 
               sx={{ 
                 mb: 2, 
-                p: 2, 
                 border: 1, 
-                borderColor: isInvalid ? 'action.disabled' : issueColors[issue.issue] + '.main',
+                borderColor: getBorderColor(),
                 borderRadius: 1,
-                bgcolor: isInvalid ? 'action.hover' : 'background.paper',
-                opacity: isInvalid ? 0.6 : 1
+                bgcolor: getBgColor(),
+                opacity: isMarked ? 0.8 : 1,
+                overflow: 'hidden'
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <Chip
-                  label={issueTypeMap[issue.issue] || issue.issue}
-                  color={isInvalid ? 'default' : (issueColors[issue.issue] || 'default')}
-                  size="small"
-                />
-                {isInvalid && (
+              {/* Issue Header - Always Visible */}
+              <Box sx={{ 
+                p: 2, 
+                pb: isMarked && isCollapsed ? 2 : 1,
+                cursor: isMarked ? 'pointer' : 'default'
+              }}
+              onClick={() => isMarked ? toggleIssueCollapse(checkId, index) : undefined}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: isMarked && isCollapsed ? 0 : 1 }}>
                   <Chip
-                    label="Invalid"
-                    color="default"
+                    label={issueTypeMap[issue.issue] || issue.issue}
+                    color={isInvalid ? 'default' : isResolved ? 'success' : (issueColors[issue.issue] || 'default')}
                     size="small"
-                    icon={<Block />}
                   />
+                  {isInvalid && (
+                    <Chip
+                      label="Invalid"
+                      color="default"
+                      size="small"
+                      icon={<Block />}
+                    />
+                  )}
+                  {isResolved && (
+                    <Chip
+                      label="Resolved"
+                      color="success"
+                      size="small"
+                      icon={<TaskAlt />}
+                    />
+                  )}
+                  {isMarked && (
+                    <IconButton 
+                      size="small" 
+                      sx={{ ml: 'auto', p: 0.25 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleIssueCollapse(checkId, index);
+                      }}
+                    >
+                      {isCollapsed ? <ExpandMore sx={{ fontSize: '1rem' }} /> : <ExpandLess sx={{ fontSize: '1rem' }} />}
+                    </IconButton>
+                  )}
+                </Box>
+                
+                {/* Show truncated assessment when collapsed */}
+                {isMarked && isCollapsed && (
+                  <Typography variant="body2" sx={{ fontSize: '0.8rem', color: 'text.secondary', fontStyle: 'italic' }}>
+                    {issue.assessment.substring(0, 80)}...
+                  </Typography>
                 )}
               </Box>
 
-              <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                Assessment: {issue.assessment}
-              </Typography>
+              {/* Issue Details - Collapsible */}
+              <Collapse in={!isMarked || !isCollapsed}>
+                <Box sx={{ px: 2, pb: 2 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                    Assessment: {issue.assessment}
+                  </Typography>
 
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                <strong>A&P Section:</strong> {issue.details['A&P']}
-              </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    <strong>A&P Section:</strong> {issue.details['A&P']}
+                  </Typography>
 
-              {issue.details.HPI && (
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  <strong>HPI Section:</strong> {issue.details.HPI}
-                </Typography>
-              )}
+                  {issue.details.HPI && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      <strong>HPI Section:</strong> {issue.details.HPI}
+                    </Typography>
+                  )}
 
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                <strong>Correction:</strong> {issue.details.correction}
-              </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    <strong>Correction:</strong> {issue.details.correction}
+                  </Typography>
 
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                {!isInvalid ? (
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    color="error"
-                    startIcon={<Block />}
-                    onClick={() => markIssueAsInvalid(checkId, index, issue)}
-                  >
-                    Mark as Invalid
-                  </Button>
-                ) : (
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    color="success"
-                    startIcon={<CheckCircle />}
-                    onClick={() => unmarkIssueAsInvalid(checkId, index)}
-                  >
-                    Mark as Valid
-                  </Button>
-                )}
-              </Box>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {!isInvalid && !isResolved && (
+                      <>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="error"
+                          startIcon={<Block />}
+                          onClick={() => markIssueAsInvalid(checkId, index, issue)}
+                        >
+                          Mark as Invalid
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="success"
+                          startIcon={<TaskAlt />}
+                          onClick={() => markIssueAsResolved(checkId, index, issue)}
+                        >
+                          Mark as Resolved
+                        </Button>
+                      </>
+                    )}
+                    {isInvalid && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="primary"
+                        startIcon={<CheckCircle />}
+                        onClick={() => unmarkIssueAsInvalid(checkId, index)}
+                      >
+                        Mark as Valid
+                      </Button>
+                    )}
+                    {isResolved && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="primary"
+                        startIcon={<Warning />}
+                        onClick={() => unmarkIssueAsResolved(checkId, index)}
+                      >
+                        Mark as Unresolved
+                      </Button>
+                    )}
+                  </Box>
+                </Box>
+              </Collapse>
             </Box>
           );
         })}
@@ -1128,7 +1333,8 @@ const NoteDetail: React.FC = () => {
             careTeam: existing.careTeam,
             checkHistory: newHistory,
             createdTodos: existing.createdTodos,
-            invalidIssues: existing.invalidIssues
+            invalidIssues: existing.invalidIssues,
+            resolvedIssues: existing.resolvedIssues
           });
         }
         return newCache;
@@ -1205,7 +1411,8 @@ const NoteDetail: React.FC = () => {
               careTeam: existing.careTeam,
               checkHistory: newHistory,
               createdTodos: newTodos,
-              invalidIssues: existing.invalidIssues
+              invalidIssues: existing.invalidIssues,
+              resolvedIssues: existing.resolvedIssues
             });
           }
           return newCache;
@@ -1711,6 +1918,7 @@ const NoteDetail: React.FC = () => {
           checkHistory={checkHistory}
           createdTodos={createdTodos}
           invalidIssues={invalidIssues}
+          resolvedIssues={resolvedIssues}
           loading={loading}
           noteSignedOff={noteSignedOff}
           editingHPI={editingHPI}
@@ -1722,6 +1930,8 @@ const NoteDetail: React.FC = () => {
           onHPITextChange={setHpiEditText}
           onMarkIssueInvalid={markIssueAsInvalid}
           onUnmarkIssueInvalid={unmarkIssueAsInvalid}
+          onMarkIssueResolved={markIssueAsResolved}
+          onUnmarkIssueResolved={unmarkIssueAsResolved}
         />
       ) : (
         /* Desktop Content */

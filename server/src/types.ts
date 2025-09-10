@@ -399,4 +399,17 @@ export interface InvalidIssue {
   markedInvalidBy: string;
   markedInvalidAt: Date;
   reason?: string;
+}
+
+export interface ResolvedIssue {
+  id: number;
+  encounterId: string;
+  checkId: number;
+  issueIndex: number;
+  issueType: string;
+  assessment: string;
+  issueHash: string;
+  markedResolvedBy: string;
+  markedResolvedAt: Date;
+  reason?: string;
 } 

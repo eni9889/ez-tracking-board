@@ -11,7 +11,8 @@ Verify that the Assessment & Plan (A&P) aligns and is consistent with the Histor
    - Cannot be "improved" in A&P if "getting worse" in HPI
    - Cannot be "stable" in A&P if "worsening" in HPI
    - Severity assessments should align between sections
-
+   - It is not your job to make sure that all assessments are found in the HPI. Your job is only to evaluate the Assessments that have corressponding documentation in the HPI.
+   
 2. **Documentation Clarity**:
    - Flag unclear, incomplete, or ambiguous documentation
    - Only flag if ambiguity affects E/M level determination

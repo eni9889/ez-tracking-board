@@ -98,6 +98,19 @@ export interface InvalidIssue {
   reason?: string;
 }
 
+export interface ResolvedIssue {
+  id: number;
+  encounterId: string;
+  checkId: number;
+  issueIndex: number;
+  issueType: string;
+  assessment: string;
+  issueHash: string;
+  markedResolvedBy: string;
+  markedResolvedAt: Date;
+  reason?: string;
+}
+
 export interface ProgressNoteResponse {
   progressNotes: Array<{
     sectionType: 'SUBJECTIVE' | 'OBJECTIVE' | 'ASSESSMENT_AND_PLAN';
@@ -819,6 +832,80 @@ class AINoteCheckerService {
     } catch (error: any) {
       console.error('Error fetching invalid issues:', error);
       throw new Error(error.response?.data?.error || 'Failed to fetch invalid issues');
+    }
+  }
+
+  /**
+   * Mark an issue as resolved
+   */
+  async markIssueAsResolved(
+    encounterId: string,
+    checkId: number,
+    issueIndex: number,
+    issueType: string,
+    assessment: string,
+    issueHash: string,
+    reason?: string
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/notes/${encounterId}/issues/${checkId}/${issueIndex}/mark-resolved`,
+        {
+          issueType,
+          assessment,
+          issueHash,
+          reason
+        },
+        {
+          headers: this.headers()
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Error marking issue as resolved:', error);
+      throw new Error(error.response?.data?.error || 'Failed to mark issue as resolved');
+    }
+  }
+
+  /**
+   * Remove resolved marking from an issue
+   */
+  async unmarkIssueAsResolved(
+    encounterId: string,
+    checkId: number,
+    issueIndex: number
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const response = await axios.delete(
+        `${API_BASE_URL}/notes/${encounterId}/issues/${checkId}/${issueIndex}/mark-resolved`,
+        {
+          headers: this.headers()
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Error removing resolved marking:', error);
+      throw new Error(error.response?.data?.error || 'Failed to remove resolved marking');
+    }
+  }
+
+  /**
+   * Get resolved issues for an encounter
+   */
+  async getResolvedIssues(encounterId: string): Promise<ResolvedIssue[]> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Returning mock resolved issues');
+      return [];
+    }
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/notes/${encounterId}/resolved-issues`, {
+        headers: this.headers()
+      });
+      return response.data.resolvedIssues || [];
+    } catch (error: any) {
+      console.error('Error fetching resolved issues:', error);
+      throw new Error(error.response?.data?.error || 'Failed to fetch resolved issues');
     }
   }
 
