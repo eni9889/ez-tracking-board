@@ -999,16 +999,41 @@ class AINoteCheckerService {
         apSections: [
           {
             encounterMedicalProblemInfo: {
-              id: "5359A557-C0D8-4C7E-8F5B-87377B08E9BC",
-              problemPointsV2: "CHRONIC_MILD",
-              name: "Assessment #1"
+              id: "f5f3ea5c-d679-4704-a5f1-9e6985e3c033",
+              problemPointsV2: "CHRONIC_SIGNIFICANT_CLINICAL_IMPROVEMENT",
+              name: "Assessment #1",
+              clinicalImpressionInfo: {
+                preferredTerm: "Atopic dermatitis"
+              }
             },
-            encounterMedicalProblemSectionElements: [
+            apSectionElements: [
               {
-                id: "problem-1",
+                id: "517f1cfb-85f4-4ea7-bebf-a558d27deafd",
+                type: "IMPRESSION",
+                title: "Impression",
+                text: "Atopic dermatitis",
+                sectionType: "ASSESSMENT"
+              },
+              {
+                id: "343ca9da-9589-4227-b92d-d593f2ac71da",
                 type: "PROBLEM_POINTS",
                 title: "Problem",
-                text: "Chronic - Mildly Worse"
+                text: "Chronic - Significant Clinical Improvement but the condition requires additional care to achieve therapeutic goal",
+                sectionType: "ASSESSMENT"
+              },
+              {
+                id: "b5d6381b-ba65-403c-b580-686beaa15779",
+                type: "MEDICATION",
+                title: "Medications",
+                text: "Eucrisa 2 % ointment topical, 1.0 Application, BID, 30 Days, 60 Grams, 2 Refills. 1(one) application(s) topical 2(two) times a day. Apply to affected areas.",
+                sectionType: "PLAN"
+              },
+              {
+                id: "3ed89524-5c29-4059-9e0f-0a72dfd5c571",
+                type: "FOLLOW_UP",
+                title: "Follow Up",
+                text: "In 3 Month(s)",
+                sectionType: "PLAN"
               }
             ]
           }

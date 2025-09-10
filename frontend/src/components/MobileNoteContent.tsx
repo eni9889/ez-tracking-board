@@ -334,14 +334,18 @@ const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
                             <CardHeader
                               title={
                                 <Typography variant="subtitle1" sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
-                                  {apSection.encounterMedicalProblemInfo?.name || `Assessment #${apIndex + 1}`}
+                                  {apSection.encounterMedicalProblemInfo?.clinicalImpressionInfo?.preferredTerm || 
+                                   apSection.encounterMedicalProblemInfo?.name || 
+                                   `Assessment #${apIndex + 1}`}
                                 </Typography>
                               }
                               sx={{ pb: 1, py: 1 }}
                             />
                             <CardContent sx={{ pt: 0, p: 1.5 }}>
                               <Stack spacing={1.5}>
-                                {apSection.encounterMedicalProblemSectionElements?.map((element: any, elementIndex: number) => (
+                                {apSection.apSectionElements?.filter((element: any) => 
+                                  element.enabled !== false || element.text
+                                ).map((element: any, elementIndex: number) => (
                                   <Box key={element.id || elementIndex}>
                                     <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 0.5, fontSize: '0.8rem' }}>
                                       {element.title}

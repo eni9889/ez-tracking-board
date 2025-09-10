@@ -653,7 +653,7 @@ const NoteDetail: React.FC = () => {
       // Find the current problem data from assessmentPlanData
       const currentSection = assessmentPlanData.apSections?.find((section: any) => 
         section.encounterMedicalProblemInfo?.id === editingProblem.problemId ||
-        section.encounterMedicalProblemSectionElements?.some((element: any) => element.id === editingProblem.problemId)
+        section.apSectionElements?.some((element: any) => element.id === editingProblem.problemId)
       );
       
       if (!currentSection) {
@@ -1130,12 +1130,18 @@ const NoteDetail: React.FC = () => {
                       {assessmentPlanData.apSections?.map((apSection: any, apIndex: number) => (
                         <Card key={apIndex} variant="outlined" sx={{ bgcolor: 'background.paper' }}>
                           <CardHeader
-                            title={apSection.encounterMedicalProblemInfo?.name || `Assessment #${apIndex + 1}`}
+                            title={
+                              apSection.encounterMedicalProblemInfo?.clinicalImpressionInfo?.preferredTerm || 
+                              apSection.encounterMedicalProblemInfo?.name || 
+                              `Assessment #${apIndex + 1}`
+                            }
                             sx={{ pb: 1 }}
                           />
                           <CardContent sx={{ pt: 0 }}>
                             <Stack spacing={2}>
-                              {apSection.encounterMedicalProblemSectionElements?.map((element: any, elementIndex: number) => (
+                              {apSection.apSectionElements?.filter((element: any) => 
+                                element.enabled !== false || element.text
+                              ).map((element: any, elementIndex: number) => (
                                 <Box key={element.id || elementIndex}>
                                   <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
                                     {element.title}
