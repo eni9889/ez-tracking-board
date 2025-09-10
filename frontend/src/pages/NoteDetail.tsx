@@ -944,11 +944,27 @@ const NoteDetail: React.FC = () => {
     }
   };
 
+  // Extract dropdown value from full problem text
+  const extractDropdownValue = (fullText: string): string => {
+    if (!fullText) return '';
+    
+    // Get all possible dropdown options
+    const allOptions = PROBLEM_OPTIONS.flatMap(group => group.options);
+    
+    // Find the option that's contained in the full text
+    const matchedOption = allOptions.find(option => 
+      fullText.toLowerCase().includes(option.toLowerCase())
+    );
+    
+    return matchedOption || '';
+  };
+
   // Render Problem field dropdown
   const renderProblemField = (problemElement: any, sectionIndex: number, problemId?: string) => {
     const actualProblemId = problemId || problemElement.id;
     const isEditing = editingProblem?.problemId === actualProblemId && editingProblem?.sectionIndex === sectionIndex;
-    const currentValue = problemElement.text || '';
+    const fullText = problemElement.text || '';
+    const currentValue = extractDropdownValue(fullText);
     
     if (isEditing) {
       return (
@@ -1023,11 +1039,11 @@ const NoteDetail: React.FC = () => {
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
         <Typography variant="body2" sx={{ flex: 1 }}>
-          {currentValue || 'No problem status set'}
+          {fullText || 'No problem status set'}
         </Typography>
         {isAttendingProvider() && !noteSignedOff && (
-          <IconButton
-            size="small"
+          <IconButton 
+            size="small" 
             onClick={() => handleEditProblem(actualProblemId, sectionIndex)}
             sx={{ color: 'primary.main' }}
           >
