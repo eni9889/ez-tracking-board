@@ -1811,14 +1811,25 @@ const NoteDetail: React.FC = () => {
                 </Tooltip>
               )}
             </Box>
-            <Typography variant="body2" sx={{ 
-              opacity: 0.6,
-              color: '#94a3b8',
-              fontSize: '0.8rem',
-              fontWeight: 400
-            }}>
-              {aiNoteCheckerService.formatTimeAgo(currentNote.dateOfService)}
-            </Typography>
+            <Box sx={{ textAlign: 'right' }}>
+              <Typography variant="body2" sx={{ 
+                opacity: 0.6,
+                color: '#94a3b8',
+                fontSize: '0.8rem',
+                fontWeight: 400
+              }}>
+                Service: {aiNoteCheckerService.formatTimeAgo(currentNote.dateOfService)}
+              </Typography>
+              <Typography variant="body2" sx={{ 
+                opacity: 0.5,
+                color: '#94a3b8',
+                fontSize: '0.75rem',
+                fontWeight: 400,
+                mt: 0.25
+              }}>
+                {aiNoteCheckerService.formatDate(currentNote.dateOfService)}
+              </Typography>
+            </Box>
           </Box>
         </Box>
         
@@ -2257,7 +2268,17 @@ const NoteDetail: React.FC = () => {
         </Paper>
 
         {/* Right Panel - Care Team & AI Check History with modern styling */}
-        <Box sx={{ width: '500px', display: 'flex', flexDirection: 'column', gap: 3, maxHeight: '100%' }}>
+        <Box sx={{ 
+          width: { 
+            md: '500px',   // Medium screens (900px-1200px): 500px (original)
+            lg: '600px',   // Large screens (1200px-1536px): 600px
+            xl: '700px'    // Extra large screens (1536px+): 700px
+          }, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: 3, 
+          maxHeight: '100%' 
+        }}>
           {/* Sign-off Information Section - only show if note is signed off */}
           {noteSignedOff && signOffInfo && (
             <Paper

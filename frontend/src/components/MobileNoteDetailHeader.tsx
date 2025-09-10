@@ -231,14 +231,27 @@ const MobileNoteDetailHeader: React.FC<MobileNoteDetailHeaderProps> = ({
             
             <Typography variant="caption" sx={{ 
               color: '#94a3b8',
-              fontSize: '0.7rem',
+              fontSize: '0.75rem',
               lineHeight: 1,
               display: 'block',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap'
             }}>
-              {chiefComplaint} • {aiNoteCheckerService.formatTimeAgo(dateOfService)}
+              {chiefComplaint}
+            </Typography>
+            <Typography variant="caption" sx={{ 
+              color: '#94a3b8',
+              fontSize: '0.7rem',
+              lineHeight: 1,
+              display: 'block',
+              opacity: 0.8,
+              mt: 0.25,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
+            }}>
+              Service: {aiNoteCheckerService.formatTimeAgo(dateOfService)} • {aiNoteCheckerService.formatDate(dateOfService)}
             </Typography>
           </Box>
         </Box>
