@@ -453,7 +453,6 @@ class AINoteChecker {
         console.log(`🔍 Parsed AI response for ${checkType}:`, JSON.stringify(parsedResponse, null, 2));
         
         analysisResult = this.normalizeAIResponse(parsedResponse);
-        console.log(`🔧 Normalized result for ${checkType}:`, JSON.stringify(analysisResult, null, 2));
       } catch (parseError) {
         console.error(`❌ Failed to parse AI response as JSON for ${checkType}:`, parseError);
         console.error('Raw response:', aiResponse);

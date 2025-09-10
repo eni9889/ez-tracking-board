@@ -7,15 +7,14 @@ Verify that the HPI follows proper structure and formatting requirements for bil
 
 ## Rules
 1. **Chief Complaint Structure**:
-   - Multiple chief complaints must be numbered sequentially (CC #1, CC #2, etc.)
+   - Multiple chief complaints must be numbered sequentially for example CC #1, CC #2, etc.
    - Only required if they are separate, billable problems affecting E/M complexity
    - Single billable complaint does not require numbering
-   - The order of the CCs in the HPI does not have to match the numbering of A&P
+   - The chief complaints can be in paragraph format or header and text format. Do not worry about sylistic choices as long as the content is there.
 
 2. **HPI Content Requirements**:
    - Each chief complaint that affect E/M complexity should have adequate detail
-   - Chronicity should be documented for chronic conditions that affect E/M complexity
-   - Symptoms, duration, and relevant history should be present for conditions that affect E/M complexity
+   - Symptoms, duration, and relevant history should be present for each chief complaint that affects E/M complexity
 
 3. **Billing Impact Focus**:
    - Only flag issues that could affect visit E/M level determination
