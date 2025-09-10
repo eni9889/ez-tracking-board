@@ -102,6 +102,7 @@ const NoteDetail: React.FC = () => {
   const [currentUserProviderId, setCurrentUserProviderId] = useState<string | null>(null);
   const [noteSignedOff, setNoteSignedOff] = useState(false);
   const [signOffInfo, setSignOffInfo] = useState<string | null>(null);
+  const [showSignOffSuccessAlert, setShowSignOffSuccessAlert] = useState(false);
   const [editingHPI, setEditingHPI] = useState<{ sectionIndex: number; itemIndex: number } | null>(null);
   const [hpiEditText, setHpiEditText] = useState('');
   const [savingHPI, setSavingHPI] = useState(false);
@@ -227,6 +228,19 @@ const NoteDetail: React.FC = () => {
     }
   }, [currentNote, noteDataCache, loadNoteData]);
 
+  // Check sign-off status whenever current note changes (even for cached data)
+  useEffect(() => {
+    if (currentNote && noteDataCache.has(currentNote.encounterId)) {
+      const cachedData = noteDataCache.get(currentNote.encounterId);
+      if (cachedData?.progressNoteData) {
+        checkIfNoteSignedOff(cachedData.progressNoteData);
+      }
+    }
+    
+    // Reset success alert when switching notes
+    setShowSignOffSuccessAlert(false);
+  }, [currentNote, noteDataCache]);
+
   // Helper functions to fetch data for a specific encounter
   const fetchCheckHistory = async (encounterId: string): Promise<NoteCheckResult[]> => {
     try {
@@ -344,7 +358,12 @@ const NoteDetail: React.FC = () => {
 
   // Check if note is already signed off by looking for POST_SIGNOFF_INFO section
   const checkIfNoteSignedOff = (progressNoteData: any) => {
-    if (!progressNoteData?.progressNotes) return;
+    if (!progressNoteData?.progressNotes) {
+      // No progress notes data - reset sign-off state
+      setNoteSignedOff(false);
+      setSignOffInfo(null);
+      return;
+    }
 
     const signOffSection = progressNoteData.progressNotes.find(
       (section: any) => section.sectionType === 'POST_SIGNOFF_INFO'
@@ -358,7 +377,15 @@ const NoteDetail: React.FC = () => {
       if (signOffItem?.text) {
         setNoteSignedOff(true);
         setSignOffInfo(signOffItem.text);
+      } else {
+        // Sign-off section exists but no text - reset state
+        setNoteSignedOff(false);
+        setSignOffInfo(null);
       }
+    } else {
+      // No sign-off section found - reset sign-off state
+      setNoteSignedOff(false);
+      setSignOffInfo(null);
     }
   };
 
@@ -498,10 +525,19 @@ const NoteDetail: React.FC = () => {
     try {
       await aiNoteCheckerService.signOffNote(currentNote.encounterId, currentNote.patientId);
       
-      // Update the UI to show signed-off status
-      setNoteSignedOff(true);
+      // Refresh the note data to get the updated sign-off information
+      setNoteDataCache(prev => {
+        const newCache = new Map(prev);
+        newCache.delete(currentNote.encounterId);
+        return newCache;
+      });
+      
+      // Reload the note data which will automatically check sign-off status
+      await loadNoteData(currentNote.encounterId, currentNote.patientId);
+      
       setError(null);
       setShowSignOffModal(false);
+      setShowSignOffSuccessAlert(true);
       
       console.log('✅ Note signed off successfully');
       
@@ -1592,11 +1628,11 @@ const NoteDetail: React.FC = () => {
       )}
 
       {/* Success Alert for Sign Off */}
-      {noteSignedOff && (
+      {showSignOffSuccessAlert && (
         <Box sx={{ px: 3, pt: 2 }}>
           <Alert 
             severity="success" 
-            onClose={() => setNoteSignedOff(false)}
+            onClose={() => setShowSignOffSuccessAlert(false)}
             sx={{
               backgroundColor: '#f0fdf4',
               border: '1px solid #bbf7d0',
