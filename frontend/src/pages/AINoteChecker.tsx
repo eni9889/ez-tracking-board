@@ -220,8 +220,8 @@ const AINoteChecker: React.FC = () => {
         note.dateOfService
       );
       
-      // Don't refresh the entire page - the check result is saved on the backend
-      // The user can manually refresh if they want to see updated status
+      // Refresh encounters to show updated AI check status immediately
+      await refreshEncounters();
       console.log(`✅ Note ${note.encounterId} check completed:`, checkResult.status);
       setLocalError(null);
       

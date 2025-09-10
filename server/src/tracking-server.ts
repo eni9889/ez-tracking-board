@@ -779,32 +779,43 @@ app.post('/notes/incomplete', validateSession, async (req: Request, res: Respons
       }
     });
     
-    // Add ToDo status and valid issues information to each encounter
-    const encountersWithTodoStatus = await Promise.all(
+    // Add ToDo status, valid issues information, and AI check results to each encounter
+    const encountersWithStatus = await Promise.all(
       encounters.map(async (encounter) => {
         try {
-          const createdTodos = await vitalSignsDb.getCreatedToDosForEncounter(encounter.encounterId);
-          const hasValidIssues = await vitalSignsDb.hasValidIssues(encounter.encounterId);
+          const [createdTodos, hasValidIssues, noteCheckResult] = await Promise.all([
+            vitalSignsDb.getCreatedToDosForEncounter(encounter.encounterId),
+            vitalSignsDb.hasValidIssues(encounter.encounterId),
+            vitalSignsDb.getNoteCheckResult(encounter.encounterId)
+          ]);
+          
           return {
             ...encounter,
             todoCreated: createdTodos.length > 0,
             todoCount: createdTodos.length,
-            hasValidIssues: hasValidIssues
+            hasValidIssues: hasValidIssues,
+            // Add AI check status fields
+            lastCheckStatus: noteCheckResult?.status || null,
+            lastCheckDate: noteCheckResult?.checkedAt || null,
+            issuesFound: noteCheckResult?.issuesFound || false
           };
         } catch (error) {
-          console.error(`Error fetching ToDo status for encounter ${encounter.encounterId}:`, error);
+          console.error(`Error fetching status for encounter ${encounter.encounterId}:`, error);
           return {
             ...encounter,
             todoCreated: false,
             todoCount: 0,
-            hasValidIssues: false
+            hasValidIssues: false,
+            lastCheckStatus: null,
+            lastCheckDate: null,
+            issuesFound: false
           };
         }
       })
     );
 
-    console.log(`📊 Processed ${encountersWithTodoStatus.length} eligible encounters from ${incompleteNotesData.length} batches (filtered by status and 2+ hour age requirement)`);
-    res.json({ success: true, encounters: encountersWithTodoStatus });
+    console.log(`📊 Processed ${encountersWithStatus.length} eligible encounters from ${incompleteNotesData.length} batches (filtered by status and 2+ hour age requirement)`);
+    res.json({ success: true, encounters: encountersWithStatus });
   } catch (error: any) {
     console.error('Error fetching incomplete notes:', error);
     res.status(500).json({ error: 'Failed to fetch incomplete notes', details: error.message });

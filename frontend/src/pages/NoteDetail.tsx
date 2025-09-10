@@ -80,7 +80,7 @@ const NoteDetail: React.FC = () => {
   const location = useLocation();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { user } = useAuth();
-  const { encounters: allEncounters, loading: encountersLoading } = useEncounters();
+  const { encounters: allEncounters, loading: encountersLoading, refreshEncounters } = useEncounters();
   const { isMobile, isDesktop } = useResponsive();
 
   // Simplified state management with data cache
@@ -1096,6 +1096,9 @@ const NoteDetail: React.FC = () => {
         }
         return newCache;
       });
+      
+      // Refresh the encounters context to update AI check status in note cards
+      await refreshEncounters();
       
       // Reset force checkbox after successful check
       setForceNewCheck(false);

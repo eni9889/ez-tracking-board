@@ -53,9 +53,9 @@ export const EncountersProvider: React.FC<EncountersProviderProps> = ({ children
     setError(null);
     
     try {
-      // Fetch incomplete notes from EZDerm (now with pagination to get ALL notes)
+      // Fetch incomplete notes from EZDerm (now includes AI check results in single request)
       const notes = await aiNoteCheckerService.getIncompleteNotes();
-      console.log(`📋 Context: Fetched ${notes.length} incomplete notes from API (with pagination)`);
+      console.log(`📋 Context: Fetched ${notes.length} incomplete notes from API with AI check status included`);
       
       // Remove duplicates (same logic as main page)
       const uniqueNotes = notes.filter((note, index, array) => 
@@ -66,35 +66,8 @@ export const EncountersProvider: React.FC<EncountersProviderProps> = ({ children
         console.log(`🔧 Context: Removed ${notes.length - uniqueNotes.length} duplicate notes`);
       }
       
-      // Get existing check results for these notes
-      const checkResults = await aiNoteCheckerService.getNoteCheckResults(100, 0);
-      console.log(`📊 Context: Fetched ${checkResults.length} check results from database`);
-      
-      const checkResultsMap = new Map(
-        checkResults.map(result => [result.encounterId, result])
-      );
-      
-      // Log some debug info about recent results
-      const recentResults = checkResults
-        .filter(result => result.checkedAt && new Date(result.checkedAt) > new Date(Date.now() - 5 * 60 * 1000))
-        .slice(0, 3);
-      if (recentResults.length > 0) {
-        console.log(`🕐 Context: Found ${recentResults.length} results from last 5 minutes:`, 
-          recentResults.map(r => `${r.encounterId}: ${r.status} (${r.issuesFound ? 'has issues' : 'clean'})`));
-      }
-      
-      // Combine the data - ToDo status is now included in the backend response
-      const notesWithStatus = uniqueNotes.map(note => {
-        return {
-          ...note,
-          lastCheckStatus: checkResultsMap.get(note.encounterId)?.status || null,
-          lastCheckDate: checkResultsMap.get(note.encounterId)?.checkedAt || null,
-          issuesFound: checkResultsMap.get(note.encounterId)?.issuesFound || false,
-          // ToDo status is now included directly from the backend
-          todoCreated: note.todoCreated || false,
-          todoCount: note.todoCount || 0
-        };
-      });
+      // No need to fetch check results separately - they're now included in the notes response
+      const notesWithStatus = uniqueNotes;
       
       // Sort by date of service (newest first)
       const sortedNotes = notesWithStatus.sort((a, b) => {
