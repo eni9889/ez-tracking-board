@@ -639,34 +639,64 @@ const AINoteChecker: React.FC = () => {
               </IconButton>
             </Tooltip>
             {selectedNotes.size > 0 && (
-              <Tooltip title={`Force Re-check ${selectedNotes.size} selected notes`}>
-                <IconButton 
-                  onClick={handleBulkForceRecheck}
-                  disabled={bulkProcessing || loading}
-                  sx={{ 
-                    color: '#f8fafc',
-                    backgroundColor: '#f59e0b',
-                    border: '1px solid #fbbf24',
-                    borderRadius: 2,
-                    p: 1.5,
-                    '&:hover': {
-                      backgroundColor: '#d97706',
-                      borderColor: '#f59e0b'
-                    },
-                    '&:disabled': {
-                      color: '#64748b',
-                      backgroundColor: '#0f0f0f',
-                      borderColor: '#1a1a1a'
-                    }
-                  }}
-                >
-                  {bulkProcessing ? (
-                    <CircularProgress size={20} sx={{ color: '#f8fafc' }} />
-                  ) : (
-                    <PlayArrow sx={{ fontSize: '1.25rem' }} />
-                  )}
-                </IconButton>
-              </Tooltip>
+              <>
+                <Tooltip title={`AI Check ${selectedNotes.size} selected notes`}>
+                  <IconButton 
+                    onClick={handleBulkCheck}
+                    disabled={bulkProcessing || loading}
+                    sx={{ 
+                      color: '#f8fafc',
+                      backgroundColor: '#3b82f6',
+                      border: '1px solid #2563eb',
+                      borderRadius: 2,
+                      p: 1.5,
+                      '&:hover': {
+                        backgroundColor: '#2563eb',
+                        borderColor: '#1d4ed8'
+                      },
+                      '&:disabled': {
+                        color: '#64748b',
+                        backgroundColor: '#0f0f0f',
+                        borderColor: '#1a1a1a'
+                      }
+                    }}
+                  >
+                    {bulkProcessing ? (
+                      <CircularProgress size={20} sx={{ color: '#f8fafc' }} />
+                    ) : (
+                      <Psychology sx={{ fontSize: '1.25rem' }} />
+                    )}
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title={`Force Re-check ${selectedNotes.size} selected notes`}>
+                  <IconButton 
+                    onClick={handleBulkForceRecheck}
+                    disabled={bulkProcessing || loading}
+                    sx={{ 
+                      color: '#f8fafc',
+                      backgroundColor: '#f59e0b',
+                      border: '1px solid #fbbf24',
+                      borderRadius: 2,
+                      p: 1.5,
+                      '&:hover': {
+                        backgroundColor: '#d97706',
+                        borderColor: '#f59e0b'
+                      },
+                      '&:disabled': {
+                        color: '#64748b',
+                        backgroundColor: '#0f0f0f',
+                        borderColor: '#1a1a1a'
+                      }
+                    }}
+                  >
+                    {bulkProcessing ? (
+                      <CircularProgress size={20} sx={{ color: '#f8fafc' }} />
+                    ) : (
+                      <PlayArrow sx={{ fontSize: '1.25rem' }} />
+                    )}
+                  </IconButton>
+                </Tooltip>
+              </>
             )}
             <Tooltip title="Logout">
               <IconButton 
