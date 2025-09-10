@@ -1792,6 +1792,13 @@ const NoteDetail: React.FC = () => {
               }}>
                 {currentNote.patientName}
               </Typography>
+              <Typography variant="body2" sx={{ 
+                color: '#94a3b8',
+                fontSize: '0.8rem',
+                fontWeight: 400
+              }}>
+                {aiNoteCheckerService.formatTimeAgo(currentNote.dateOfService)}
+              </Typography>
               {noteSignedOff && (
                 <Tooltip title={signOffInfo || 'Note has been signed off'}>
                   <Chip
@@ -1810,35 +1817,6 @@ const NoteDetail: React.FC = () => {
                   />
                 </Tooltip>
               )}
-            </Box>
-            <Box sx={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'flex-end',
-              gap: 0.5
-            }}>
-              <Typography variant="body2" sx={{ 
-                color: '#e2e8f0',
-                fontSize: '0.85rem',
-                fontWeight: 500
-              }}>
-                Service Date
-              </Typography>
-              <Typography variant="body2" sx={{ 
-                color: '#94a3b8',
-                fontSize: '0.8rem',
-                fontWeight: 400
-              }}>
-                {aiNoteCheckerService.formatTimeAgo(currentNote.dateOfService)}
-              </Typography>
-              <Typography variant="body2" sx={{ 
-                color: '#94a3b8',
-                fontSize: '0.75rem',
-                fontWeight: 400,
-                opacity: 0.8
-              }}>
-                {aiNoteCheckerService.formatDate(currentNote.dateOfService)}
-              </Typography>
             </Box>
           </Box>
         </Box>
