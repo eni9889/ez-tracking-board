@@ -78,43 +78,16 @@ interface CachedNoteData {
   invalidIssues: InvalidIssue[];
 }
 
-// Problem field dropdown options
+// Problem field dropdown options organized by category
 const PROBLEM_OPTIONS = [
-  // NEW OR ACUTE
-  'Self Limited or Minor',
-  
-  // NO MORBIDITY RISK  
-  'Low Morbidity Risk',
-  
-  // HIGH MORBIDITY RISK
-  'Uncertain Diagnosis',
-  'Systemic Symptoms',
-  
-  // INJURY
-  'Complicated Injury',
-  
-  // CHRONIC
-  
-  // TREATMENT GOAL ACHIEVED (STABLE)
-  'Resolved',
-  'Well-controlled', 
-  'Stable',
-  'Improved',
-  
-  // TREATMENT GOAL NOT ACHIEVED (NOT STABLE)
-  'Minimal Clinical Improvement',
-  'Moderate Clinical Improvement',
-  'Significant Clinical Improvement',
-  'Mildly Worse',
-  'Moderately Worse',
-  'Severely Worse',
-  
-  // SIDE EFFECT OF TREATMENT
-  'Not Severe',
-  'Severe',
-  
-  // LIFE-THREATENING
-  'Life-threatening'
+  { category: 'NEW OR ACUTE', options: ['Self Limited or Minor'] },
+  { category: 'NO MORBIDITY RISK', options: ['Low Morbidity Risk'] },
+  { category: 'HIGH MORBIDITY RISK', options: ['Uncertain Diagnosis', 'Systemic Symptoms'] },
+  { category: 'INJURY', options: ['Complicated Injury'] },
+  { category: 'CHRONIC - TREATMENT GOAL ACHIEVED (STABLE)', options: ['Resolved', 'Well-controlled', 'Stable', 'Improved'] },
+  { category: 'CHRONIC - TREATMENT GOAL NOT ACHIEVED (NOT STABLE)', options: ['Minimal Clinical Improvement', 'Moderate Clinical Improvement', 'Significant Clinical Improvement', 'Mildly Worse', 'Moderately Worse', 'Severely Worse'] },
+  { category: 'SIDE EFFECT OF TREATMENT', options: ['Not Severe', 'Severe'] },
+  { category: 'LIFE-THREATENING', options: ['Life-threatening'] }
 ];
 
 const NoteDetail: React.FC = () => {
@@ -988,11 +961,37 @@ const NoteDetail: React.FC = () => {
               onChange={(e) => handleSaveProblem(e.target.value)}
               disabled={savingProblem}
             >
-              {PROBLEM_OPTIONS.map((option) => (
-                <MenuItem key={option} value={option}>
-                  {option}
-                </MenuItem>
-              ))}
+              {PROBLEM_OPTIONS.map((group, groupIndex) => [
+                // Category header (disabled, used as visual separator)
+                <MenuItem 
+                  key={`header-${groupIndex}`} 
+                  disabled 
+                  sx={{ 
+                    fontWeight: 'bold', 
+                    color: 'primary.main',
+                    fontSize: '0.85rem',
+                    bgcolor: 'grey.100',
+                    '&.Mui-disabled': {
+                      opacity: 1
+                    }
+                  }}
+                >
+                  {group.category}
+                </MenuItem>,
+                // Options in this category
+                ...group.options.map((option) => (
+                  <MenuItem 
+                    key={option} 
+                    value={option}
+                    sx={{ 
+                      pl: 3, // Indent options under category
+                      fontSize: '0.9rem'
+                    }}
+                  >
+                    {option}
+                  </MenuItem>
+                ))
+              ]).flat()}
             </Select>
           </FormControl>
           <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
