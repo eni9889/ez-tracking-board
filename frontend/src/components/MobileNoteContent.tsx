@@ -106,7 +106,7 @@ interface MobileNoteContentProps {
   onEditProblem?: (problemId: string, sectionIndex: number) => void;
   onSaveProblem?: (problemValue: string) => void;
   onCancelProblemEdit?: () => void;
-  renderProblemField?: (problemElement: any, sectionIndex: number) => React.ReactNode;
+  renderProblemField?: (problemElement: any, sectionIndex: number, problemId?: string) => React.ReactNode;
   
   // Issue management
   onMarkIssueInvalid?: (checkId: number, issueIndex: number, issue: any, reason?: string) => void;
@@ -347,7 +347,7 @@ const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
                                       {element.title}
                                     </Typography>
                                     {element.type === 'PROBLEM_POINTS' && renderProblemField ? (
-                                      renderProblemField(element, apIndex)
+                                      renderProblemField(element, apIndex, apSection.encounterMedicalProblemInfo?.id)
                                     ) : (
                                       <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
                                         {element.text || 'No content'}

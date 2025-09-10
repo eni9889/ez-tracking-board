@@ -1159,6 +1159,133 @@ app.post('/notes/check/:encounterId', validateSession, async (req: Request, res:
   }
 });
 
+// Get Assessment and Plan data for an encounter
+app.get('/notes/assessment-plan/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const username = (req as any).user.username;
+    const { encounterId } = req.params;
+    let { patientId } = req.query;
+    
+    // Get valid tokens
+    const userTokens = await getValidTokens(username);
+    if (!userTokens) {
+      res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      return;
+    }
+    
+    if (!encounterId) {
+      res.status(400).json({ error: 'Encounter ID is required' });
+      return;
+    }
+    
+    if (!patientId) {
+      res.status(400).json({ error: 'Patient ID is required' });
+      return;
+    }
+
+    console.log(`🔍 Fetching Assessment & Plan for encounter ${encounterId}...`);
+    
+    // Make the API call to EZDerm
+    const response = await fetch('https://srvprod.ezinfra.net/ezderm-webservice/rest/assessmentAndPlanElement/getWrapper', {
+      method: 'POST',
+      headers: {
+        'Host': 'srvprod.ezinfra.net',
+        'accept': 'application/json',
+        'content-type': 'application/json',
+        'authorization': `Bearer ${userTokens.accessToken}`,
+        'encounterid': encounterId as string,
+        'patientid': patientId as string,
+        'user-agent': 'ezDerm/4.28.1 (build:133.1; macOS(Catalyst) 15.6.1)',
+        'accept-language': 'en-US;q=1.0'
+      },
+      body: JSON.stringify({
+        withExamLevel: true,
+        encounterId: encounterId,
+        refresh: false
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`EZDerm API error: ${response.status} ${response.statusText}`);
+    }
+
+    const assessmentPlanData = await response.json();
+    console.log(`✅ Assessment & Plan data fetched successfully for encounter ${encounterId}`);
+    
+    res.json({
+      success: true,
+      data: assessmentPlanData
+    });
+  } catch (error: any) {
+    console.error('Error fetching Assessment & Plan:', error);
+    res.status(500).json({ error: 'Failed to fetch Assessment & Plan', details: error.message });
+  }
+});
+
+// Update Assessment and Plan problem
+app.post('/notes/assessment-plan/update/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const username = (req as any).user.username;
+    const { encounterId } = req.params;
+    const { patientId, problemData } = req.body;
+    
+    // Get valid tokens
+    const userTokens = await getValidTokens(username);
+    if (!userTokens) {
+      res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      return;
+    }
+    
+    if (!encounterId) {
+      res.status(400).json({ error: 'Encounter ID is required' });
+      return;
+    }
+    
+    if (!patientId) {
+      res.status(400).json({ error: 'Patient ID is required' });
+      return;
+    }
+
+    if (!problemData) {
+      res.status(400).json({ error: 'Problem data is required' });
+      return;
+    }
+
+    console.log(`🔄 Updating Assessment & Plan for encounter ${encounterId}...`);
+    
+    // Make the API call to EZDerm
+    const response = await fetch('https://srvprod.ezinfra.net/ezderm-webservice/rest/encounterMedicalProblem/update', {
+      method: 'POST',
+      headers: {
+        'Host': 'srvprod.ezinfra.net',
+        'accept': 'application/json',
+        'content-type': 'application/json',
+        'authorization': `Bearer ${userTokens.accessToken}`,
+        'encounterid': encounterId,
+        'patientid': patientId,
+        'user-agent': 'ezDerm/4.28.1 (build:133.1; macOS(Catalyst) 15.6.1)',
+        'accept-language': 'en-US;q=1.0'
+      },
+      body: JSON.stringify(problemData)
+    });
+
+    if (!response.ok) {
+      throw new Error(`EZDerm API error: ${response.status} ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    console.log(`✅ Assessment & Plan updated successfully for encounter ${encounterId}`);
+    
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error: any) {
+    console.error('Error updating Assessment & Plan:', error);
+    res.status(500).json({ error: 'Failed to update Assessment & Plan', details: error.message });
+  }
+});
+
 // Process all eligible encounters
 app.post('/notes/check-all', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {

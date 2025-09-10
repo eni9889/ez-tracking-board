@@ -1017,24 +1017,18 @@ class AINoteCheckerService {
     }
 
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/assessment-plan/get`,
+      const response = await axios.get(
+        `${API_BASE_URL}/notes/assessment-plan/${encounterId}`,
         {
-          withExamLevel: true,
-          encounterId,
-          refresh: false
-        },
-        {
+          params: { patientId },
           headers: {
             'Authorization': `Bearer ${authService.getSessionToken()}`,
-            'Content-Type': 'application/json',
-            'encounterid': encounterId,
-            'patientid': patientId
+            'Content-Type': 'application/json'
           }
         }
       );
 
-      return response.data;
+      return response.data.data;
     } catch (error: any) {
       console.error('Error getting Assessment and Plan:', error);
       throw new Error(error.response?.data?.error || 'Failed to get Assessment and Plan');
@@ -1042,9 +1036,9 @@ class AINoteCheckerService {
   }
 
   // Update Problem field in Assessment and Plan
-  async updateProblemField(encounterId: string, patientId: string, problemId: string, problemValue: string): Promise<any> {
+  async updateProblemField(encounterId: string, patientId: string, problemData: any, problemPointsV2: string): Promise<any> {
     if (USE_MOCK_DATA) {
-      console.log('🔄 Mock: Updating Problem field', { encounterId, patientId, problemId, problemValue });
+      console.log('🔄 Mock: Updating Problem field', { encounterId, patientId, problemData, problemPointsV2 });
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 1000));
       return {
@@ -1054,13 +1048,44 @@ class AINoteCheckerService {
     }
 
     try {
+      // Map problemPointsV2 value to the proper format
+      const problemPointsMapping: { [key: string]: string } = {
+        'Self Limited or Minor': 'NEW_SELF_LIMITED',
+        'Low Morbidity Risk': 'LOW_MORBIDITY_RISK',
+        'Uncertain Diagnosis': 'HIGH_UNCERTAIN_DIAGNOSIS',
+        'Systemic Symptoms': 'HIGH_SYSTEMIC_SYMPTOMS',
+        'Complicated Injury': 'INJURY_COMPLICATED',
+        'Resolved': 'CHRONIC_RESOLVED',
+        'Well-controlled': 'CHRONIC_WELL_CONTROLLED',
+        'Stable': 'CHRONIC_STABLE',
+        'Improved': 'CHRONIC_IMPROVED',
+        'Minimal Clinical Improvement': 'CHRONIC_MINIMAL_IMPROVEMENT',
+        'Moderate Clinical Improvement': 'CHRONIC_MODERATE_IMPROVEMENT',
+        'Significant Clinical Improvement': 'CHRONIC_SIGNIFICANT_IMPROVEMENT',
+        'Mildly Worse': 'CHRONIC_MILD',
+        'Moderately Worse': 'CHRONIC_MODERATE',
+        'Severely Worse': 'CHRONIC_SEVERE',
+        'Not Severe': 'SIDE_EFFECT_NOT_SEVERE',
+        'Severe': 'SIDE_EFFECT_SEVERE',
+        'Life-threatening': 'LIFE_THREATENING'
+      };
+
+      const mappedProblemPoints = problemPointsMapping[problemPointsV2] || problemPointsV2;
+
+      // Build the payload based on the curl request structure
+      const payload = {
+        ...problemData,
+        problemPointsV2: mappedProblemPoints,
+        encounterId,
+        changeStatus: 'UPDATED',
+        active: 1
+      };
+
       const response = await axios.post(
-        `${API_BASE_URL}/assessment-plan/update-problem`,
+        `${API_BASE_URL}/notes/assessment-plan/update/${encounterId}`,
         {
-          encounterId,
           patientId,
-          problemId,
-          problemValue
+          problemData: payload
         },
         {
           headers: {

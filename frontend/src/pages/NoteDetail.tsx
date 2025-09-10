@@ -80,29 +80,40 @@ interface CachedNoteData {
 
 // Problem field dropdown options
 const PROBLEM_OPTIONS = [
-  'New or Acute',
-  'No Morbidity Risk',
-  'Low Morbidity Risk', 
-  'High Morbidity Risk',
+  // NEW OR ACUTE
+  'Self Limited or Minor',
+  
+  // NO MORBIDITY RISK  
+  'Low Morbidity Risk',
+  
+  // HIGH MORBIDITY RISK
   'Uncertain Diagnosis',
   'Systemic Symptoms',
+  
+  // INJURY
   'Complicated Injury',
-  'Chronic',
-  'Treatment Goal Achieved (Stable)',
+  
+  // CHRONIC
+  
+  // TREATMENT GOAL ACHIEVED (STABLE)
   'Resolved',
-  'Well-controlled',
+  'Well-controlled', 
   'Stable',
   'Improved',
-  'Treatment Goal Not Achieved (Not Stable)',
+  
+  // TREATMENT GOAL NOT ACHIEVED (NOT STABLE)
   'Minimal Clinical Improvement',
   'Moderate Clinical Improvement',
   'Significant Clinical Improvement',
   'Mildly Worse',
   'Moderately Worse',
   'Severely Worse',
-  'Side Effect of Treatment',
+  
+  // SIDE EFFECT OF TREATMENT
   'Not Severe',
   'Severe',
+  
+  // LIFE-THREATENING
   'Life-threatening'
 ];
 
@@ -247,12 +258,7 @@ const NoteDetail: React.FC = () => {
         invalidIssues: invalid
       }));
 
-      // Load Assessment & Plan data if user is provider (after cache is set so isAttendingProvider works)
-      setTimeout(async () => {
-        if (isAttendingProvider()) {
-          await loadAssessmentPlanData(encounterId, patientId);
-        }
-      }, 100);
+      // Load Assessment & Plan data if user is provider will be handled by useEffect
 
     } catch (err: any) {
       console.error('Error loading note data:', err);
@@ -284,6 +290,58 @@ const NoteDetail: React.FC = () => {
     // Reset success alert when switching notes
     setShowSignOffSuccessAlert(false);
   }, [currentNote, noteDataCache]);
+
+  // Check if the current user is the attending provider for this note
+  const isAttendingProvider = useCallback((): boolean => {
+    if (!currentUserProviderId || !careTeam.length) return false;
+    
+    // Find the attending provider in the care team
+    const attendingProvider = careTeam.find(member => 
+      member.encounterRoleType === 'PROVIDER' && member.active
+    );
+    
+    if (!attendingProvider) return false;
+    
+    // Check if the current user's provider ID matches the attending provider's ID
+    return currentUserProviderId === attendingProvider.providerId;
+  }, [currentUserProviderId, careTeam]);
+
+  // Load Assessment & Plan data for editing (only if user is provider)
+  const loadAssessmentPlanData = useCallback(async (encounterId: string, patientId: string) => {
+    if (!isAttendingProvider()) return;
+    
+    setLoadingAssessmentPlan(true);
+    try {
+      const data = await aiNoteCheckerService.getAssessmentAndPlan(encounterId, patientId);
+      setAssessmentPlanData(data);
+      console.log('✅ Assessment & Plan data loaded successfully');
+    } catch (err: any) {
+      console.error('Error loading Assessment & Plan data:', err);
+      setError(err.message || 'Failed to load Assessment & Plan data');
+    } finally {
+      setLoadingAssessmentPlan(false);
+    }
+  }, [isAttendingProvider]);
+
+  // Load Assessment & Plan data when user is provider and note data is available
+  useEffect(() => {
+    const loadAPDataWhenReady = async () => {
+      console.log('🔍 Assessment & Plan loading check:', {
+        hasCurrentNote: !!currentNote,
+        hasUserProviderId: !!currentUserProviderId,
+        careTeamLength: careTeam.length,
+        isAttending: isAttendingProvider(),
+        noteSignedOff
+      });
+      
+      if (currentNote && currentUserProviderId && careTeam.length > 0 && isAttendingProvider() && !noteSignedOff) {
+        console.log('🔄 Loading Assessment & Plan data for provider...');
+        await loadAssessmentPlanData(currentNote.encounterId, currentNote.patientId);
+      }
+    };
+
+    loadAPDataWhenReady();
+  }, [currentNote, currentUserProviderId, careTeam, loadAssessmentPlanData, noteSignedOff]);
 
   // Helper functions to fetch data for a specific encounter
   const fetchCheckHistory = async (encounterId: string): Promise<NoteCheckResult[]> => {
@@ -384,20 +442,6 @@ const NoteDetail: React.FC = () => {
     );
   };
 
-  // Check if the current user is the attending provider for this note
-  const isAttendingProvider = (): boolean => {
-    if (!currentUserProviderId || !careTeam.length) return false;
-    
-    // Find the attending provider in the care team
-    const attendingProvider = careTeam.find(member => 
-      member.encounterRoleType === 'PROVIDER' && member.active
-    );
-    
-    if (!attendingProvider) return false;
-    
-    // Check if the current user's provider ID matches the attending provider's ID
-    return currentUserProviderId === attendingProvider.providerId;
-  };
 
   // Check if note is already signed off by looking for POST_SIGNOFF_INFO section
   const checkIfNoteSignedOff = (progressNoteData: any) => {
@@ -592,23 +636,6 @@ const NoteDetail: React.FC = () => {
     }
   };
 
-  // Load Assessment & Plan data for editing (only if user is provider)
-  const loadAssessmentPlanData = async (encounterId: string, patientId: string) => {
-    if (!isAttendingProvider()) return;
-    
-    setLoadingAssessmentPlan(true);
-    try {
-      const data = await aiNoteCheckerService.getAssessmentAndPlan(encounterId, patientId);
-      setAssessmentPlanData(data);
-      console.log('✅ Assessment & Plan data loaded successfully');
-    } catch (err: any) {
-      console.error('Error loading Assessment & Plan data:', err);
-      setError(err.message || 'Failed to load Assessment & Plan data');
-    } finally {
-      setLoadingAssessmentPlan(false);
-    }
-  };
-
   // Handle problem field editing
   const handleEditProblem = (problemId: string, sectionIndex: number) => {
     setEditingProblem({ problemId, sectionIndex });
@@ -619,14 +646,34 @@ const NoteDetail: React.FC = () => {
   };
 
   const handleSaveProblem = async (problemValue: string) => {
-    if (!currentNote || !editingProblem) return;
+    if (!currentNote || !editingProblem || !assessmentPlanData) return;
     
     setSavingProblem(true);
     try {
+      // Find the current problem data from assessmentPlanData
+      const currentSection = assessmentPlanData.apSections?.find((section: any) => 
+        section.encounterMedicalProblemInfo?.id === editingProblem.problemId ||
+        section.encounterMedicalProblemSectionElements?.some((element: any) => element.id === editingProblem.problemId)
+      );
+      
+      if (!currentSection) {
+        throw new Error('Problem data not found');
+      }
+      
+      // Use the encounterMedicalProblemInfo as the base data for the update
+      const problemData = {
+        ...currentSection.encounterMedicalProblemInfo,
+        // Include any additional fields that might be needed
+        medicalProblemSiteInfoList: currentSection.encounterMedicalProblemInfo?.medicalProblemSiteInfoList || [],
+        clinicalDescriptionInfo: currentSection.encounterMedicalProblemInfo?.clinicalDescriptionInfo || {},
+        clinicalImpressionInfo: currentSection.encounterMedicalProblemInfo?.clinicalImpressionInfo || {},
+        problemProcedureLinkInfoList: currentSection.encounterMedicalProblemInfo?.problemProcedureLinkInfoList || []
+      };
+      
       await aiNoteCheckerService.updateProblemField(
         currentNote.encounterId, 
         currentNote.patientId, 
-        editingProblem.problemId, 
+        problemData,
         problemValue
       );
       
@@ -925,8 +972,9 @@ const NoteDetail: React.FC = () => {
   };
 
   // Render Problem field dropdown
-  const renderProblemField = (problemElement: any, sectionIndex: number) => {
-    const isEditing = editingProblem?.problemId === problemElement.id && editingProblem?.sectionIndex === sectionIndex;
+  const renderProblemField = (problemElement: any, sectionIndex: number, problemId?: string) => {
+    const actualProblemId = problemId || problemElement.id;
+    const isEditing = editingProblem?.problemId === actualProblemId && editingProblem?.sectionIndex === sectionIndex;
     const currentValue = problemElement.text || '';
     
     if (isEditing) {
@@ -981,7 +1029,7 @@ const NoteDetail: React.FC = () => {
         {isAttendingProvider() && !noteSignedOff && (
           <IconButton
             size="small"
-            onClick={() => handleEditProblem(problemElement.id, sectionIndex)}
+            onClick={() => handleEditProblem(actualProblemId, sectionIndex)}
             sx={{ color: 'primary.main' }}
           >
             <Edit fontSize="small" />
@@ -1034,6 +1082,17 @@ const NoteDetail: React.FC = () => {
           const isCollapsed = collapsedSections.has(sectionType);
           const sectionColor = getSectionColor(sectionType);
           
+          // Debug logging for Assessment & Plan sections
+          if (sectionType === 'ASSESSMENT_AND_PLAN') {
+            console.log('🔍 Assessment & Plan section found:', {
+              sectionType,
+              isAttendingProvider: isAttendingProvider(),
+              hasAssessmentPlanData: !!assessmentPlanData,
+              assessmentPlanData,
+              noteSignedOff
+            });
+          }
+          
           return (
             <Card 
               key={sectionType} 
@@ -1082,7 +1141,7 @@ const NoteDetail: React.FC = () => {
                                     {element.title}
                                   </Typography>
                                   {element.type === 'PROBLEM_POINTS' ? (
-                                    renderProblemField(element, apIndex)
+                                    renderProblemField(element, apIndex, apSection.encounterMedicalProblemInfo?.id)
                                   ) : (
                                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                                       {element.text || 'No content'}
