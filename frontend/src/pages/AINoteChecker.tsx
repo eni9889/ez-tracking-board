@@ -308,6 +308,48 @@ const AINoteChecker: React.FC = () => {
     }
   };
 
+  // Bulk AI check functionality - ENQUEUE JOBS, don't run synchronously
+  const handleBulkCheck = async () => {
+    if (selectedNotes.size === 0) {
+      setLocalError('Please select at least one note to check');
+      return;
+    }
+
+    setBulkProcessing(true);
+    setLocalError(null);
+
+    try {
+      const selectedNotesArray = incompleteNotes.filter(note => 
+        selectedNotes.has(note.encounterId)
+      );
+
+      // Enqueue all selected notes as jobs for regular AI check
+      const jobs = selectedNotesArray.map(note => ({
+        encounterId: note.encounterId,
+        patientId: note.patientId,
+        patientName: note.patientName,
+        chiefComplaint: note.chiefComplaint,
+        dateOfService: note.dateOfService
+      }));
+
+      // Call the backend to enqueue all jobs at once
+      await aiNoteCheckerService.enqueueBulkCheck(jobs);
+
+      // Clear selection after enqueuing
+      setSelectedNotes(new Set());
+
+      // Show success message
+      setLocalError(null);
+      console.log(`✅ Enqueued ${jobs.length} notes for AI check`);
+
+    } catch (err: any) {
+      console.error('Error enqueuing bulk AI check jobs:', err);
+      setLocalError(err.message || 'Failed to enqueue bulk AI check jobs');
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
   const getStatusChip = (note: IncompleteNote) => {
     if (checking.has(note.encounterId)) {
       return (
@@ -1187,7 +1229,8 @@ const AINoteChecker: React.FC = () => {
       <MobileFAB
         selectedCount={selectedNotes.size}
         onRefresh={refreshEncounters}
-        onBulkCheck={selectedNotes.size > 0 ? handleBulkForceRecheck : undefined}
+        onBulkCheck={selectedNotes.size > 0 ? handleBulkCheck : undefined}
+        onBulkForceRecheck={selectedNotes.size > 0 ? handleBulkForceRecheck : undefined}
         refreshing={loading || autoRefreshing}
         bulkProcessing={bulkProcessing}
       />

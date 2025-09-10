@@ -9,12 +9,10 @@ import {
   Badge
 } from '@mui/material';
 import {
-  Add,
   Refresh,
   PlayArrow,
   Psychology,
-  FilterList,
-  Search
+  FilterList
 } from '@mui/icons-material';
 import useResponsive from '../hooks/useResponsive';
 
@@ -22,6 +20,7 @@ interface MobileFABProps {
   selectedCount?: number;
   onRefresh?: () => void;
   onBulkCheck?: () => void;
+  onBulkForceRecheck?: () => void;
   onQuickFilter?: () => void;
   refreshing?: boolean;
   bulkProcessing?: boolean;
@@ -31,6 +30,7 @@ const MobileFAB: React.FC<MobileFABProps> = ({
   selectedCount = 0,
   onRefresh,
   onBulkCheck,
+  onBulkForceRecheck,
   onQuickFilter,
   refreshing = false,
   bulkProcessing = false
@@ -53,14 +53,25 @@ const MobileFAB: React.FC<MobileFABProps> = ({
     },
     {
       icon: (
+        <Badge badgeContent={selectedCount} color="primary" max={99}>
+          <Psychology />
+        </Badge>
+      ),
+      name: `AI Check (${selectedCount})`,
+      onClick: onBulkCheck,
+      disabled: bulkProcessing || selectedCount === 0,
+      show: !!onBulkCheck && selectedCount > 0
+    },
+    {
+      icon: (
         <Badge badgeContent={selectedCount} color="error" max={99}>
           <PlayArrow />
         </Badge>
       ),
       name: `Force Re-check (${selectedCount})`,
-      onClick: onBulkCheck,
+      onClick: onBulkForceRecheck,
       disabled: bulkProcessing || selectedCount === 0,
-      show: !!onBulkCheck && selectedCount > 0
+      show: !!onBulkForceRecheck && selectedCount > 0
     },
     {
       icon: <FilterList />,

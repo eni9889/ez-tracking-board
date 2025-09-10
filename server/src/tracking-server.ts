@@ -1366,6 +1366,68 @@ app.post('/notes/bulk-force-recheck', validateSession, async (req: Request, res:
   }
 });
 
+// Bulk check: Enqueue multiple notes for AI check (without force)
+app.post('/notes/bulk-check', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { jobs } = req.body;
+    
+    if (!jobs || !Array.isArray(jobs) || jobs.length === 0) {
+      res.status(400).json({ error: 'Jobs array is required and must not be empty' });
+      return;
+    }
+    
+    console.log(`🤖 Bulk AI check requested for ${jobs.length} notes`);
+    
+    // Import the aiNoteCheckQueue from jobProcessor
+    const { aiNoteCheckQueue } = require('./jobProcessor');
+    
+    let enqueuedCount = 0;
+    const scanId = `bulk-check-${Date.now()}`;
+    
+    // Enqueue each job without force flag (regular AI check)
+    for (const [index, job] of jobs.entries()) {
+      const { encounterId, patientId, patientName, chiefComplaint, dateOfService } = job;
+      
+      if (!encounterId || !patientId || !patientName || !chiefComplaint || !dateOfService) {
+        console.warn(`⚠️ Skipping invalid job data for encounter ${encounterId}`);
+        continue;
+      }
+      
+      try {
+        // Add individual note check job directly to the queue without force flag
+        await aiNoteCheckQueue.add('check-note', {
+          encounterId,
+          patientId,
+          patientName,
+          chiefComplaint,
+          dateOfService,
+          scanId,
+          force: false // Regular AI check (respects MD5 cache)
+        }, {
+          delay: index * 1500, // Stagger jobs every 1.5 seconds (slightly faster than force)
+          attempts: 1,
+          removeOnComplete: 10,
+          removeOnFail: 50
+        });
+        
+        enqueuedCount++;
+        console.log(`✅ Enqueued AI check for encounter ${encounterId} (${patientName})`);
+      } catch (jobError: any) {
+        console.error(`❌ Failed to enqueue job for encounter ${encounterId}:`, jobError);
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Successfully enqueued ${enqueuedCount} out of ${jobs.length} notes for AI check`,
+      enqueuedCount
+    });
+  } catch (error: any) {
+    console.error('Error processing bulk AI check:', error);
+    res.status(500).json({ error: 'Failed to process bulk AI check', details: error.message });
+  }
+});
+
 // Get current user's provider info
 app.get('/user/provider-info', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {

@@ -834,6 +834,40 @@ class AINoteCheckerService {
     }
   }
 
+  /**
+   * Enqueue bulk AI check jobs (without force)
+   */
+  async enqueueBulkCheck(jobs: Array<{
+    encounterId: string;
+    patientId: string;
+    patientName: string;
+    chiefComplaint: string;
+    dateOfService: string;
+  }>): Promise<{ success: boolean; message: string; enqueuedCount: number }> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Simulating bulk AI check job enqueue');
+      return {
+        success: true,
+        message: `Enqueued ${jobs.length} notes for AI check (mock mode)`,
+        enqueuedCount: jobs.length
+      };
+    }
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}/notes/bulk-check`, 
+        { jobs },
+        {
+          headers: this.headers()
+        }
+      );
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error enqueuing bulk AI check jobs:', error);
+      throw new Error(error.response?.data?.error || 'Failed to enqueue bulk AI check jobs');
+    }
+  }
+
   // Get current user's provider info
   async getCurrentUserProviderInfo(): Promise<{ username: string; providerId: string }> {
     if (USE_MOCK_DATA) {
