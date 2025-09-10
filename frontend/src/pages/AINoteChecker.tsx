@@ -1313,7 +1313,7 @@ const AINoteChecker: React.FC = () => {
               </Box>
             )}
           </TableContainer>
-            )}
+            )
           </PullToRefresh>
         </Paper>
       </Box>
