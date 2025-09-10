@@ -389,6 +389,19 @@ export interface CreatedToDo {
   createdAt: Date;
 }
 
+export interface EZDermToDoStatus {
+  id: string;
+  status: string;
+  active: boolean;
+  subject: string;
+  description: string;
+  dateCreated: string;
+  overdue: boolean;
+  commentCount: number;
+  unread: boolean;
+  important: boolean;
+}
+
 export interface InvalidIssue {
   id: number;
   encounterId: string;

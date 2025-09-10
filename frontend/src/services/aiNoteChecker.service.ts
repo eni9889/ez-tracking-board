@@ -112,6 +112,19 @@ export interface ResolvedIssue {
   reason?: string;
 }
 
+export interface EZDermToDoStatus {
+  id: string;
+  status: string;
+  active: boolean;
+  subject: string;
+  description: string;
+  dateCreated: string;
+  overdue: boolean;
+  commentCount: number;
+  unread: boolean;
+  important: boolean;
+}
+
 export interface ProgressNoteResponse {
   progressNotes: Array<{
     sectionType: 'SUBJECTIVE' | 'OBJECTIVE' | 'ASSESSMENT_AND_PLAN';
@@ -1073,6 +1086,48 @@ class AINoteCheckerService {
     } catch (error: any) {
       console.error('Error modifying HPI:', error);
       throw new Error(error.response?.data?.error || 'Failed to modify HPI');
+    }
+  }
+
+  /**
+   * Get ToDo status from EZDerm
+   */
+  async getToDoStatus(todoId: string, patientId: string): Promise<any> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Returning mock ToDo status');
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Mock different statuses based on todoId
+      const statuses = ['OPEN', 'COMPLETED', 'CLOSED'];
+      const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
+      
+      return {
+        id: todoId,
+        status: randomStatus,
+        active: randomStatus === 'OPEN',
+        subject: 'Note Deficiencies - Mock',
+        description: 'Mock ToDo for testing',
+        dateCreated: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        overdue: false,
+        commentCount: 0,
+        unread: false,
+        important: false
+      };
+    }
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/todos/${todoId}/status`, {
+        headers: this.headers(),
+        params: { patientId }
+      });
+
+      return response.data.todo;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null; // ToDo not found
+      }
+      console.error('Error fetching ToDo status:', error);
+      throw new Error(error.response?.data?.error || 'Failed to fetch ToDo status');
     }
   }
 }

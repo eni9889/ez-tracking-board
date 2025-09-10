@@ -1070,6 +1070,102 @@ class AINoteChecker {
       throw new Error(`Failed to create ToDo: ${error.message}`);
     }
   }
+
+  /**
+   * Fetch ToDo status from EZDerm by ToDo ID
+   */
+  async fetchToDoStatus(accessToken: string, todoId: string, patientId: string): Promise<any> {
+    try {
+      console.log('📋 Fetching ToDo status for ID:', todoId);
+
+      // Use the getByFilter endpoint with the specific ToDo ID
+      const requestData = {
+        unread: false,
+        linkEntityId: patientId,
+        important: false,
+        reminder: "ACTIVATED",
+        maxResults: 50,
+        status: "OPEN", // We'll try OPEN first, then if not found, try with no status filter
+        linkType: "PATIENT",
+        searchText: ""
+      };
+
+      const response: AxiosResponse<any> = await axios.post(
+        `${this.EZDERM_API_BASE}/ezderm-webservice/rest/task/getByFilter`,
+        requestData,
+        {
+          headers: {
+            'Host': 'srvprod.ezinfra.net',
+            'accept': 'application/json',
+            'content-type': 'application/json',
+            'authorization': `Bearer ${accessToken}`,
+            'user-agent': 'ezDerm/4.28.1 (build:133.1; macOS(Catalyst) 15.6.1)',
+            'accept-language': 'en-US;q=1.0'
+          }
+        }
+      );
+
+      if (response.data && response.data.tasks) {
+        // Find the specific ToDo by ID
+        const todo = response.data.tasks.find((task: any) => task.id === todoId);
+        if (todo) {
+          return {
+            id: todo.id,
+            status: todo.status,
+            active: todo.active,
+            subject: todo.subject,
+            description: todo.description,
+            dateCreated: todo.dateCreated,
+            overdue: todo.overdue,
+            commentCount: todo.commentCount,
+            unread: todo.unread,
+            important: todo.important
+          };
+        }
+
+        // If not found in OPEN status, try without status filter
+        const { status, ...requestDataAll } = requestData;
+
+        const responseAll: AxiosResponse<any> = await axios.post(
+          `${this.EZDERM_API_BASE}/ezderm-webservice/rest/task/getByFilter`,
+          requestDataAll,
+          {
+            headers: {
+              'Host': 'srvprod.ezinfra.net',
+              'accept': 'application/json',
+              'content-type': 'application/json',
+              'authorization': `Bearer ${accessToken}`,
+              'user-agent': 'ezDerm/4.28.1 (build:133.1; macOS(Catalyst) 15.6.1)',
+              'accept-language': 'en-US;q=1.0'
+            }
+          }
+        );
+
+        if (responseAll.data && responseAll.data.tasks) {
+          const todoAll = responseAll.data.tasks.find((task: any) => task.id === todoId);
+          if (todoAll) {
+            return {
+              id: todoAll.id,
+              status: todoAll.status,
+              active: todoAll.active,
+              subject: todoAll.subject,
+              description: todoAll.description,
+              dateCreated: todoAll.dateCreated,
+              overdue: todoAll.overdue,
+              commentCount: todoAll.commentCount,
+              unread: todoAll.unread,
+              important: todoAll.important
+            };
+          }
+        }
+      }
+
+      return null; // ToDo not found
+    } catch (error: any) {
+      console.error('❌ Error fetching ToDo status:', error.message);
+      throw new Error(`Failed to fetch ToDo status: ${error.message}`);
+    }
+  }
 }
 
 // Export singleton instance

@@ -102,6 +102,11 @@ interface MobileNoteContentProps {
   onUnmarkIssueInvalid?: (checkId: number, issueIndex: number) => void;
   onMarkIssueResolved?: (checkId: number, issueIndex: number, issue: any, reason?: string) => void;
   onUnmarkIssueResolved?: (checkId: number, issueIndex: number) => void;
+  
+  // ToDo status
+  todoStatuses?: Map<string, any>;
+  renderToDoStatusChip?: (todo: any) => React.ReactNode;
+  onFetchToDoStatus?: (todoId: string, patientId: string) => Promise<any>;
 }
 
 const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
@@ -123,7 +128,10 @@ const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
   onMarkIssueInvalid,
   onUnmarkIssueInvalid,
   onMarkIssueResolved,
-  onUnmarkIssueResolved
+  onUnmarkIssueResolved,
+  todoStatuses,
+  renderToDoStatusChip,
+  onFetchToDoStatus
 }) => {
   const { isMobile } = useResponsive();
   const [currentTab, setCurrentTab] = useState(0);
@@ -923,10 +931,10 @@ const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
           {createdTodos.map((todo) => (
             <Card key={todo.id} sx={{ border: '1px solid', borderColor: 'success.main', bgcolor: 'success.50' }}>
               <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <CheckCircle color="success" sx={{ fontSize: '1rem' }} />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                  <Assignment color="success" sx={{ fontSize: '1rem' }} />
                   <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'success.dark', fontSize: '0.85rem' }}>
-                    ToDo #{todo.ezDermToDoId}
+                    {todo.subject}
                   </Typography>
                   <Chip 
                     label={`${todo.issuesCount} issues`} 
@@ -934,13 +942,22 @@ const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
                     color="warning"
                     sx={{ fontSize: '0.7rem' }}
                   />
+                  {renderToDoStatusChip && renderToDoStatusChip(todo)}
                 </Box>
                 <Typography variant="body2" sx={{ mb: 1, fontSize: '0.8rem' }}>
                   <strong>Assigned to:</strong> {todo.assignedToName}
                 </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                  Created {aiNoteCheckerService.formatTimeAgo(todo.createdAt.toString())} by {todo.createdBy}
-                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                    Created {aiNoteCheckerService.formatTimeAgo(todo.createdAt.toString())} by {todo.createdBy}
+                    <Typography component="span" variant="caption" sx={{ ml: 1, opacity: 0.6, fontSize: '0.65rem' }}>
+                      (ID: {todo.ezDermToDoId})
+                    </Typography>
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontWeight: 'bold' }}>
+                    {aiNoteCheckerService.formatDate(todo.createdAt.toString())}
+                  </Typography>
+                </Box>
               </CardContent>
             </Card>
           ))}

@@ -1113,6 +1113,54 @@ app.get('/notes/:encounterId/todos', validateSession, async (req: Request, res: 
   }
 });
 
+// Get ToDo status from EZDerm for a specific ToDo
+app.get('/todos/:todoId/status', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { todoId } = req.params;
+    const { patientId } = req.query;
+    const username = (req as any).user.username;
+    
+    if (!todoId) {
+      res.status(400).json({ error: 'ToDo ID is required' });
+      return;
+    }
+
+    if (!patientId) {
+      res.status(400).json({ error: 'Patient ID is required as query parameter' });
+      return;
+    }
+    
+    // Get valid tokens
+    const userTokens = await getValidTokens(username);
+    if (!userTokens) {
+      res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      return;
+    }
+
+    // Fetch ToDo status from EZDerm
+    const todoStatus = await aiNoteChecker.fetchToDoStatus(
+      userTokens.accessToken, 
+      todoId, 
+      patientId as string
+    );
+    
+    if (todoStatus) {
+      res.json({ 
+        success: true, 
+        todo: todoStatus
+      });
+    } else {
+      res.status(404).json({ 
+        error: 'ToDo not found',
+        success: false 
+      });
+    }
+  } catch (error: any) {
+    console.error('Error fetching ToDo status:', error);
+    res.status(500).json({ error: 'Failed to fetch ToDo status', details: error.message });
+  }
+});
+
 // Check specific encounter note with AI
 app.post('/notes/check/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {

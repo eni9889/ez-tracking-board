@@ -100,7 +100,9 @@ const NoteDetail: React.FC = () => {
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [collapsedIssues, setCollapsedIssues] = useState<Set<string>>(new Set());
   const [careTeamCollapsed, setCareTeamCollapsed] = useState(true); // Default to collapsed on desktop
+  const [todosCollapsed, setTodosCollapsed] = useState(false); // Default to expanded for todos
   const [showSignOffModal, setShowSignOffModal] = useState(false);
+  const [todoStatuses, setTodoStatuses] = useState<Map<string, any>>(new Map());
   const [signingOff, setSigningOff] = useState(false);
   const [currentUserProviderId, setCurrentUserProviderId] = useState<string | null>(null);
   const [noteSignedOff, setNoteSignedOff] = useState(false);
@@ -405,6 +407,64 @@ const NoteDetail: React.FC = () => {
       console.error('Error fetching resolved issues:', err);
       return [];
     }
+  };
+
+  // Function to fetch ToDo status from EZDerm
+  const fetchToDoStatus = async (todoId: string, patientId: string) => {
+    try {
+      const status = await aiNoteCheckerService.getToDoStatus(todoId, patientId);
+      if (status) {
+        setTodoStatuses(prev => new Map(prev).set(todoId, status));
+      }
+      return status;
+    } catch (error) {
+      console.error(`Failed to fetch status for ToDo ${todoId}:`, error);
+      return null;
+    }
+  };
+
+  // Function to render ToDo status chip
+  const renderToDoStatusChip = (todo: CreatedToDo) => {
+    const status = todoStatuses.get(todo.ezDermToDoId);
+    
+    // If we haven't fetched the status yet, fetch it
+    if (!status && currentNote) {
+      // Fetch status asynchronously
+      fetchToDoStatus(todo.ezDermToDoId, currentNote.patientId);
+      
+      return (
+        <Chip
+          label="Loading..."
+          size="small"
+          color="info"
+          sx={{ fontSize: '0.7rem' }}
+        />
+      );
+    }
+
+    if (!status) {
+      return (
+        <Chip
+          label="Status Unknown"
+          size="small"
+          color="default"
+          sx={{ fontSize: '0.7rem' }}
+        />
+      );
+    }
+
+    // Determine color and label based on status
+    const isCompleted = status.status === 'COMPLETED' || status.status === 'CLOSED';
+    const isOpen = status.status === 'OPEN';
+    
+    return (
+      <Chip
+        label={isCompleted ? 'Completed' : isOpen ? 'Open' : status.status}
+        size="small"
+        color={isCompleted ? 'success' : isOpen ? 'warning' : 'default'}
+        sx={{ fontSize: '0.7rem', fontWeight: 'bold' }}
+      />
+    );
   };
 
   // Simple navigation functions
@@ -2083,6 +2143,9 @@ const NoteDetail: React.FC = () => {
           onUnmarkIssueInvalid={unmarkIssueAsInvalid}
           onMarkIssueResolved={markIssueAsResolved}
           onUnmarkIssueResolved={unmarkIssueAsResolved}
+          todoStatuses={todoStatuses}
+          onFetchToDoStatus={fetchToDoStatus}
+          renderToDoStatusChip={renderToDoStatusChip}
         />
       ) : (
         /* Desktop Content */
@@ -2312,9 +2375,15 @@ const NoteDetail: React.FC = () => {
             <>
               <Box sx={{ 
                 p: 2, 
-                borderBottom: '2px solid #f1f5f9',
-                background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)'
-              }}>
+                borderBottom: todosCollapsed ? 'none' : '2px solid #f1f5f9',
+                background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+                cursor: 'pointer',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)'
+                }
+              }}
+              onClick={() => setTodosCollapsed(!todosCollapsed)}
+              >
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
                   <Assignment sx={{ fontSize: '1.5rem', color: '#10b981' }} />
                   <Typography variant="h6" sx={{ 
@@ -2324,6 +2393,18 @@ const NoteDetail: React.FC = () => {
                   }}>
                     Created ToDos ({createdTodos.length})
                   </Typography>
+                  <IconButton
+                    size="small"
+                    sx={{
+                      ml: 'auto',
+                      color: '#10b981',
+                      '&:hover': {
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)'
+                      }
+                    }}
+                  >
+                    {todosCollapsed ? <ExpandMore /> : <ExpandLess />}
+                  </IconButton>
                 </Box>
                 <Typography variant="body2" sx={{ 
                   color: '#64748b',
@@ -2333,35 +2414,43 @@ const NoteDetail: React.FC = () => {
                   ToDos created for note deficiencies
                 </Typography>
               </Box>
-              <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9' }}>
-                <Stack spacing={1}>
-                  {createdTodos.map((todo, index) => (
-                    <Paper key={todo.id} sx={{ p: 2, bgcolor: 'success.50' }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                        <CheckCircle color="success" sx={{ fontSize: '1rem' }} />
-                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'success.dark' }}>
-                          ToDo #{todo.ezDermToDoId}
+              <Collapse in={!todosCollapsed}>
+                <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9' }}>
+                  <Stack spacing={1}>
+                    {createdTodos.map((todo, index) => (
+                      <Paper key={todo.id} sx={{ p: 2, bgcolor: 'success.50' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <Assignment color="success" sx={{ fontSize: '1rem' }} />
+                          <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'success.dark' }}>
+                            {todo.subject}
+                          </Typography>
+                          <Chip 
+                            label={`${todo.issuesCount} issues`} 
+                            size="small" 
+                            color="warning"
+                            sx={{ fontSize: '0.7rem' }}
+                          />
+                          {renderToDoStatusChip(todo)}
+                        </Box>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          <strong>Assigned to:</strong> {todo.assignedToName}
                         </Typography>
-                        <Chip 
-                          label={`${todo.issuesCount} issues`} 
-                          size="small" 
-                          color="warning"
-                          sx={{ fontSize: '0.7rem' }}
-                        />
-                      </Box>
-                      <Typography variant="body2" sx={{ mb: 1 }}>
-                        <strong>Subject:</strong> {todo.subject}
-                      </Typography>
-                      <Typography variant="body2" sx={{ mb: 1 }}>
-                        <strong>Assigned to:</strong> {todo.assignedToName}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Created {aiNoteCheckerService.formatTimeAgo(todo.createdAt.toString())} by {todo.createdBy}
-                      </Typography>
-                    </Paper>
-                  ))}
-                </Stack>
-              </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Created {aiNoteCheckerService.formatTimeAgo(todo.createdAt.toString())} by {todo.createdBy}
+                            <Typography component="span" variant="caption" sx={{ ml: 1, opacity: 0.6, fontSize: '0.7rem' }}>
+                              (ID: {todo.ezDermToDoId})
+                            </Typography>
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                            {aiNoteCheckerService.formatDate(todo.createdAt.toString())}
+                          </Typography>
+                        </Box>
+                      </Paper>
+                    ))}
+                  </Stack>
+                </Box>
+              </Collapse>
             </>
           )}
 

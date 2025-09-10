@@ -66,6 +66,7 @@ const AINoteChecker: React.FC = () => {
   const [currentFilter, setCurrentFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('dateAsc');
+  const [todoStatuses, setTodoStatuses] = useState<Map<string, any>>(new Map());
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { user, logout } = useAuth();
@@ -278,6 +279,120 @@ const AINoteChecker: React.FC = () => {
       setSelectedNotes(new Set(filteredNotes.map(note => note.encounterId)));
     } else {
       setSelectedNotes(new Set());
+    }
+  };
+
+  // Function to fetch ToDo status for a specific encounter
+  const fetchToDoStatusForEncounter = async (encounterId: string, patientId: string) => {
+    try {
+      // First, get the created ToDos for this encounter to get the EZDerm ToDo IDs
+      const todosResponse = await aiNoteCheckerService.getCreatedToDos(encounterId);
+      if (todosResponse && todosResponse.length > 0) {
+        // Fetch status for each ToDo
+        const statusPromises = todosResponse.map(async (todo: any) => {
+          try {
+            const status = await aiNoteCheckerService.getToDoStatus(todo.ezDermToDoId, patientId);
+            return { todoId: todo.ezDermToDoId, status };
+          } catch (error) {
+            console.error(`Failed to fetch status for ToDo ${todo.ezDermToDoId}:`, error);
+            return { todoId: todo.ezDermToDoId, status: null };
+          }
+        });
+        
+        const statuses = await Promise.all(statusPromises);
+        
+        // Store the statuses
+        setTodoStatuses(prev => {
+          const newMap = new Map(prev);
+          newMap.set(encounterId, statuses.filter(s => s.status !== null));
+          return newMap;
+        });
+      }
+    } catch (error) {
+      console.error(`Failed to fetch ToDo status for encounter ${encounterId}:`, error);
+    }
+  };
+
+  // Function to render ToDo status chip with real EZDerm status
+  const renderToDoStatusChip = (note: IncompleteNote) => {
+    const encounterStatuses = todoStatuses.get(note.encounterId);
+    
+    if (!note.todoCreated) {
+      return (
+        <Chip
+          label="No ToDo"
+          color="default"
+          size="small"
+          variant="outlined"
+        />
+      );
+    }
+
+    // If we haven't fetched the status yet, fetch it and show loading
+    if (!encounterStatuses) {
+      // Trigger fetch (only once per encounter)
+      if (!todoStatuses.has(note.encounterId + '_fetching')) {
+        setTodoStatuses(prev => new Map(prev).set(note.encounterId + '_fetching', true));
+        fetchToDoStatusForEncounter(note.encounterId, note.patientId);
+      }
+      
+      return (
+        <Chip
+          icon={<Assignment />}
+          label="Loading..."
+          color="info"
+          size="small"
+          sx={{ fontWeight: 'bold' }}
+        />
+      );
+    }
+
+    // Show status based on EZDerm data
+    if (encounterStatuses.length === 0) {
+      return (
+        <Chip
+          icon={<Assignment />}
+          label="ToDo Not Found"
+          color="error"
+          size="small"
+          sx={{ fontWeight: 'bold' }}
+        />
+      );
+    }
+
+    const hasOpen = encounterStatuses.some((s: any) => s.status?.status === 'OPEN');
+    const hasCompleted = encounterStatuses.some((s: any) => s.status?.status === 'COMPLETED' || s.status?.status === 'CLOSED');
+    
+    if (hasOpen) {
+      return (
+        <Chip
+          icon={<Assignment />}
+          label={encounterStatuses.length > 1 ? `${encounterStatuses.length} ToDos (Open)` : 'ToDo (Open)'}
+          color="warning"
+          size="small"
+          sx={{ fontWeight: 'bold' }}
+        />
+      );
+    } else if (hasCompleted) {
+      return (
+        <Chip
+          icon={<Assignment />}
+          label={encounterStatuses.length > 1 ? `${encounterStatuses.length} ToDos (Completed)` : 'ToDo (Completed)'}
+          color="success"
+          size="small"
+          sx={{ fontWeight: 'bold' }}
+        />
+      );
+    } else {
+      return (
+        <Chip
+          icon={<Assignment />}
+          label={encounterStatuses.length > 1 ? `${encounterStatuses.length} ToDos` : 'ToDo Created'}
+          color="info"
+          size="small"
+          sx={{ fontWeight: 'bold' }}
+        />
+      );
     }
   };
 
@@ -1246,22 +1361,7 @@ const AINoteChecker: React.FC = () => {
                         display: isMobile ? 'none' : 'table-cell'
                       }}
                     >
-                      {note.todoCreated ? (
-                        <Chip
-                          icon={<Assignment />}
-                          label={note.todoCount && note.todoCount > 1 ? `${note.todoCount} ToDos` : 'ToDo Created'}
-                          color="success"
-                          size="small"
-                          sx={{ fontWeight: 'bold' }}
-                        />
-                      ) : (
-                        <Chip
-                          label="No ToDo"
-                          color="default"
-                          size="small"
-                          variant="outlined"
-                        />
-                      )}
+                      {renderToDoStatusChip(note)}
                     </TableCell>
                     <TableCell 
                       align="center" 
@@ -1313,7 +1413,7 @@ const AINoteChecker: React.FC = () => {
               </Box>
             )}
           </TableContainer>
-            )
+            )}
           </PullToRefresh>
         </Paper>
       </Box>
