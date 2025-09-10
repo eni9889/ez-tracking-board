@@ -24,7 +24,7 @@ Verify that every diagnosis in the Assessment & Plan (A&P) matches the chronicit
 4. **Excluded Diagnoses**: Ignore when evaluating:
    - Actinic Keratosis, ISK, Verruca, Molluscum (when treated with destruction/injection)
    - Ignore History of BCC, SCC, Melanoma
-   - Ignore ISK (inflamed seborrheic keratosis), AK (Actinic Keratosis)
+   - Ignore ISK (inflamed seborrheic keratosis), AK (Actinic Keratosis), Verruca (Warts)
    
 ## Output Format
 Return valid JSON only:
