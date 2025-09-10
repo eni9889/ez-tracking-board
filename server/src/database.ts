@@ -855,6 +855,38 @@ class VitalSignsDatabase {
     };
   }
 
+  async getNoteCheckHistory(encounterId: string): Promise<any[]> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      SELECT id, encounter_id, patient_id, patient_name, chief_complaint, 
+             date_of_service, status, ai_analysis, issues_found, 
+             checked_at, checked_by, error_message
+      FROM note_checks 
+      WHERE encounter_id = $1
+      ORDER BY checked_at DESC
+    `;
+
+    const result = await this.pool.query(query, [encounterId]);
+    
+    return result.rows.map(row => ({
+      id: row.id,
+      encounterId: row.encounter_id,
+      patientId: row.patient_id,
+      patientName: row.patient_name,
+      chiefComplaint: row.chief_complaint,
+      dateOfService: row.date_of_service,
+      status: row.status,
+      aiAnalysis: row.ai_analysis,
+      issuesFound: row.issues_found,
+      checkedAt: row.checked_at,
+      checkedBy: row.checked_by,
+      errorMessage: row.error_message
+    }));
+  }
+
   async getNoteCheckResults(limit: number = 50, offset: number = 0): Promise<any[]> {
     if (!this.pool) {
       throw new Error('Database not initialized');

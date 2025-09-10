@@ -244,8 +244,7 @@ const NoteDetail: React.FC = () => {
   // Helper functions to fetch data for a specific encounter
   const fetchCheckHistory = async (encounterId: string): Promise<NoteCheckResult[]> => {
     try {
-      const allResults = await aiNoteCheckerService.getNoteCheckResults(100, 0);
-      return allResults.filter(result => result.encounterId === encounterId);
+      return await aiNoteCheckerService.getNoteCheckHistory(encounterId);
     } catch (err) {
       console.error('Error fetching check history:', err);
       return [];

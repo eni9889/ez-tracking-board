@@ -579,6 +579,29 @@ class AINoteCheckerService {
   }
 
   /**
+   * Get AI check history for specific encounter
+   */
+  async getNoteCheckHistory(encounterId: string): Promise<NoteCheckResult[]> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Finding mock note check history');
+      await new Promise(resolve => setTimeout(resolve, 200)); // Simulate API delay
+      
+      return this.mockNoteCheckResults.filter(result => result.encounterId === encounterId);
+    }
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/notes/history/${encounterId}`, {
+        headers: this.headers()
+      });
+
+      return response.data.history;
+    } catch (error: any) {
+      console.error('Error fetching note check history:', error);
+      throw new Error(error.response?.data?.error || 'Failed to fetch note check history');
+    }
+  }
+
+  /**
    * Format time ago from ISO string
    */
   formatTimeAgo(isoString: string): string {

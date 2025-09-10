@@ -1234,6 +1234,25 @@ app.get('/notes/result/:encounterId', validateSession, async (req: Request, res:
   }
 });
 
+// Get AI check history for specific encounter
+app.get('/notes/history/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { encounterId } = req.params;
+    
+    if (!encounterId || typeof encounterId !== 'string') {
+      res.status(400).json({ error: 'Encounter ID is required' });
+      return;
+    }
+    
+    const history = await vitalSignsDb.getNoteCheckHistory(encounterId);
+    
+    res.json({ success: true, history });
+  } catch (error: any) {
+    console.error('Error fetching note check history:', error);
+    res.status(500).json({ error: 'Failed to fetch history', details: error.message });
+  }
+});
+
 // Mark an issue as invalid
 app.post('/notes/:encounterId/issues/:checkId/:issueIndex/mark-invalid', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
