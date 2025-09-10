@@ -1786,12 +1786,11 @@ const NoteDetail: React.FC = () => {
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Typography variant="body1" sx={{ 
-                opacity: 0.8,
                 color: '#e2e8f0',
-                fontSize: '0.95rem',
-                fontWeight: 500
+                fontSize: '1.1rem',
+                fontWeight: 600
               }}>
-                {currentNote.patientName} • {currentNote.chiefComplaint}
+                {currentNote.patientName}
               </Typography>
               {noteSignedOff && (
                 <Tooltip title={signOffInfo || 'Note has been signed off'}>
@@ -1803,6 +1802,7 @@ const NoteDetail: React.FC = () => {
                       color: 'white',
                       fontWeight: 700,
                       fontSize: '0.75rem',
+                      ml: 2,
                       '& .MuiChip-icon': {
                         color: 'white'
                       }
@@ -1811,21 +1811,31 @@ const NoteDetail: React.FC = () => {
                 </Tooltip>
               )}
             </Box>
-            <Box sx={{ textAlign: 'right' }}>
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'flex-end',
+              gap: 0.5
+            }}>
               <Typography variant="body2" sx={{ 
-                opacity: 0.6,
+                color: '#e2e8f0',
+                fontSize: '0.85rem',
+                fontWeight: 500
+              }}>
+                Service Date
+              </Typography>
+              <Typography variant="body2" sx={{ 
                 color: '#94a3b8',
                 fontSize: '0.8rem',
                 fontWeight: 400
               }}>
-                Service: {aiNoteCheckerService.formatTimeAgo(currentNote.dateOfService)}
+                {aiNoteCheckerService.formatTimeAgo(currentNote.dateOfService)}
               </Typography>
               <Typography variant="body2" sx={{ 
-                opacity: 0.5,
                 color: '#94a3b8',
                 fontSize: '0.75rem',
                 fontWeight: 400,
-                mt: 0.25
+                opacity: 0.8
               }}>
                 {aiNoteCheckerService.formatDate(currentNote.dateOfService)}
               </Typography>
@@ -2188,6 +2198,23 @@ const NoteDetail: React.FC = () => {
                 }}>
                   Progress Note
                 </Typography>
+                <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                  <Typography variant="body2" sx={{ 
+                    color: '#64748b',
+                    fontSize: '0.8rem',
+                    fontWeight: 500
+                  }}>
+                    Service: {aiNoteCheckerService.formatTimeAgo(currentNote.dateOfService)}
+                  </Typography>
+                  <Typography variant="body2" sx={{ 
+                    color: '#64748b',
+                    fontSize: '0.75rem',
+                    fontWeight: 400,
+                    opacity: 0.8
+                  }}>
+                    {currentNote.chiefComplaint} • {aiNoteCheckerService.formatDate(currentNote.dateOfService)}
+                  </Typography>
+                </Box>
               </Box>
               <Stack direction="row" spacing={1}>
                 <Tooltip title="Expand all sections">

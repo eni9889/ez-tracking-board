@@ -234,11 +234,10 @@ const MobileNoteDetailHeader: React.FC<MobileNoteDetailHeaderProps> = ({
               fontSize: '0.75rem',
               lineHeight: 1,
               display: 'block',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
+              opacity: 0.9,
+              fontWeight: 500
             }}>
-              {chiefComplaint}
+              Service Date
             </Typography>
             <Typography variant="caption" sx={{ 
               color: '#94a3b8',
@@ -251,7 +250,7 @@ const MobileNoteDetailHeader: React.FC<MobileNoteDetailHeaderProps> = ({
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap'
             }}>
-              Service: {aiNoteCheckerService.formatTimeAgo(dateOfService)} • {aiNoteCheckerService.formatDate(dateOfService)}
+              {aiNoteCheckerService.formatTimeAgo(dateOfService)} • {aiNoteCheckerService.formatDate(dateOfService)}
             </Typography>
           </Box>
         </Box>
