@@ -15,6 +15,7 @@ Verify that the HPI follows proper structure and formatting requirements for bil
 2. **HPI Content Requirements**:
    - Each chief complaint that affect E/M complexity should have adequate detail
    - Symptoms, duration, and relevant history should be present for each chief complaint that affects E/M complexity
+   - Do not worry about the Assessment nad Plan, just worry about the HPI. It is not your job to check the A&P.
 
 3. **Billing Impact Focus**:
    - Only flag issues that could affect visit E/M level determination
