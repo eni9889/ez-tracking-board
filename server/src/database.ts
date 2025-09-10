@@ -749,17 +749,29 @@ class VitalSignsDatabase {
     issuesFound: boolean = false,
     errorMessage?: string,
     noteContentMd5?: string,
-    noteContent?: string
+    noteContent?: string,
+    triggeredByUpdate: boolean = false,
+    noteLastModified?: Date
   ): Promise<number> {
     if (!this.pool) {
       throw new Error('Database not initialized');
     }
 
+    // First, get the existing record to preserve the previous MD5 if this is an update
+    let previousMd5: string | null = null;
+    const existingCheck = await this.getNoteCheckByEncounterId(encounterId);
+    if (existingCheck && existingCheck.note_content_md5 && noteContentMd5 && 
+        existingCheck.note_content_md5 !== noteContentMd5) {
+      previousMd5 = existingCheck.note_content_md5;
+      console.log(`🔄 Note content changed for encounter ${encounterId}: ${previousMd5} -> ${noteContentMd5}`);
+    }
+
     const query = `
       INSERT INTO note_checks 
       (encounter_id, patient_id, patient_name, chief_complaint, date_of_service, 
-       status, ai_analysis, issues_found, checked_by, error_message, note_content_md5, note_content, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP)
+       status, ai_analysis, issues_found, checked_by, error_message, note_content_md5, note_content, 
+       triggered_by_update, note_last_modified, previous_note_content_md5, needs_recheck, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, false, CURRENT_TIMESTAMP)
       ON CONFLICT (encounter_id) 
       DO UPDATE SET 
         status = EXCLUDED.status,
@@ -767,8 +779,16 @@ class VitalSignsDatabase {
         issues_found = EXCLUDED.issues_found,
         checked_by = EXCLUDED.checked_by,
         error_message = EXCLUDED.error_message,
+        previous_note_content_md5 = CASE 
+          WHEN note_checks.note_content_md5 != EXCLUDED.note_content_md5 
+          THEN note_checks.note_content_md5 
+          ELSE note_checks.previous_note_content_md5 
+        END,
         note_content_md5 = EXCLUDED.note_content_md5,
         note_content = EXCLUDED.note_content,
+        triggered_by_update = EXCLUDED.triggered_by_update,
+        note_last_modified = EXCLUDED.note_last_modified,
+        needs_recheck = false,
         checked_at = CURRENT_TIMESTAMP,
         updated_at = CURRENT_TIMESTAMP
       RETURNING id
@@ -776,11 +796,12 @@ class VitalSignsDatabase {
 
     const result = await this.pool.query(query, [
       encounterId, patientId, patientName, chiefComplaint, dateOfService,
-      status, JSON.stringify(aiAnalysis), issuesFound, checkedBy, errorMessage, noteContentMd5, noteContent
+      status, JSON.stringify(aiAnalysis), issuesFound, checkedBy, errorMessage, 
+      noteContentMd5, noteContent, triggeredByUpdate, noteLastModified, previousMd5
     ]);
 
     const savedId = result.rows[0].id;
-    console.log(`💾 Database: Saved note check result for encounter ${encounterId}, status: ${status}, issues: ${issuesFound}, id: ${savedId}`);
+    console.log(`💾 Database: Saved note check result for encounter ${encounterId}, status: ${status}, issues: ${issuesFound}, id: ${savedId}, triggeredByUpdate: ${triggeredByUpdate}`);
     
     return savedId;
   }
@@ -951,6 +972,95 @@ class VitalSignsDatabase {
 
     await this.pool.query(query);
     console.log(`Cleaned up note checks older than ${daysOld} days`);
+  }
+
+  // Note update detection methods
+  async markNoteNeedsRecheck(encounterId: string, reason: string = 'Note content changed'): Promise<void> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      UPDATE note_checks 
+      SET needs_recheck = true,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE encounter_id = $1
+    `;
+
+    await this.pool.query(query, [encounterId]);
+    console.log(`📝 Marked encounter ${encounterId} as needing recheck: ${reason}`);
+  }
+
+  async getNotesNeedingRecheck(limit: number = 50): Promise<any[]> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      SELECT encounter_id, patient_id, patient_name, chief_complaint, 
+             date_of_service, note_content_md5, previous_note_content_md5,
+             auto_recheck_attempts, max_auto_recheck_attempts
+      FROM note_checks 
+      WHERE needs_recheck = true 
+        AND auto_recheck_attempts < max_auto_recheck_attempts
+      ORDER BY updated_at ASC
+      LIMIT $1
+    `;
+
+    const result = await this.pool.query(query, [limit]);
+    return result.rows.map(row => ({
+      encounterId: row.encounter_id,
+      patientId: row.patient_id,
+      patientName: row.patient_name,
+      chiefComplaint: row.chief_complaint,
+      dateOfService: row.date_of_service,
+      noteContentMd5: row.note_content_md5,
+      previousNoteContentMd5: row.previous_note_content_md5,
+      autoRecheckAttempts: row.auto_recheck_attempts,
+      maxAutoRecheckAttempts: row.max_auto_recheck_attempts
+    }));
+  }
+
+  async incrementAutoRecheckAttempts(encounterId: string): Promise<void> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      UPDATE note_checks 
+      SET auto_recheck_attempts = auto_recheck_attempts + 1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE encounter_id = $1
+    `;
+
+    await this.pool.query(query, [encounterId]);
+  }
+
+  async detectNoteChanges(encounterId: string, currentNoteContentMd5: string): Promise<{
+    hasChanged: boolean;
+    previousMd5?: string;
+    currentMd5: string;
+  }> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const existing = await this.getNoteCheckByEncounterId(encounterId);
+    
+    if (!existing || !existing.note_content_md5) {
+      return {
+        hasChanged: false, // No previous check to compare against
+        currentMd5: currentNoteContentMd5
+      };
+    }
+
+    const hasChanged = existing.note_content_md5 !== currentNoteContentMd5;
+    
+    return {
+      hasChanged,
+      previousMd5: existing.note_content_md5,
+      currentMd5: currentNoteContentMd5
+    };
   }
 
   async saveCreatedToDo(

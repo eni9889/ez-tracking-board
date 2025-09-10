@@ -46,6 +46,8 @@ interface NoteCardListProps {
   onViewNote: (note: IncompleteNote) => void;
   bulkProcessing?: boolean;
   currentFilter?: string;
+  checkingUpdates?: Set<string>;
+  notesWithUpdates?: Set<string>;
 }
 
 const NoteCardList: React.FC<NoteCardListProps> = ({
@@ -57,7 +59,9 @@ const NoteCardList: React.FC<NoteCardListProps> = ({
   onCheckNote,
   onViewNote,
   bulkProcessing = false,
-  currentFilter = 'all'
+  currentFilter = 'all',
+  checkingUpdates = new Set(),
+  notesWithUpdates = new Set()
 }) => {
   const { isMobile } = useResponsive();
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
@@ -237,6 +241,8 @@ const NoteCardList: React.FC<NoteCardListProps> = ({
             showSelection={showBulkActions}
             expanded={expandedCards.has(note.encounterId)}
             onToggleExpand={handleToggleExpand}
+            hasUpdates={notesWithUpdates.has(note.encounterId)}
+            isCheckingUpdates={checkingUpdates.has(note.encounterId)}
           />
         ))}
       </Stack>

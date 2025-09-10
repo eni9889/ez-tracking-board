@@ -23,6 +23,8 @@ import {
   Warning,
   Error as ErrorIcon,
   ExpandMore,
+  Update,
+  Sync,
   ExpandLess,
   Circle
 } from '@mui/icons-material';
@@ -53,6 +55,8 @@ interface NoteCardProps {
   showSelection?: boolean;
   expanded?: boolean;
   onToggleExpand?: (encounterId: string) => void;
+  hasUpdates?: boolean;
+  isCheckingUpdates?: boolean;
 }
 
 const NoteCard: React.FC<NoteCardProps> = ({
@@ -64,7 +68,9 @@ const NoteCard: React.FC<NoteCardProps> = ({
   onView,
   showSelection = false,
   expanded = false,
-  onToggleExpand
+  onToggleExpand,
+  hasUpdates = false,
+  isCheckingUpdates = false
 }) => {
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -76,6 +82,24 @@ const NoteCard: React.FC<NoteCardProps> = ({
   };
 
   const getAIStatusInfo = () => {
+    if (isCheckingUpdates) {
+      return {
+        icon: <Sync sx={{ color: '#8b5cf6' }} />,
+        label: 'Checking Updates...',
+        color: '#8b5cf6',
+        bgColor: '#f3f4f6'
+      };
+    }
+
+    if (hasUpdates) {
+      return {
+        icon: <Update sx={{ color: '#f59e0b' }} />,
+        label: 'Note Updated',
+        color: '#f59e0b',
+        bgColor: '#fef3c7'
+      };
+    }
+
     if (isChecking) {
       return {
         icon: <Psychology sx={{ color: '#3b82f6' }} />,

@@ -64,6 +64,8 @@ const AINoteChecker: React.FC = () => {
   const [currentFilter, setCurrentFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('dateDesc');
+  const [checkingUpdates, setCheckingUpdates] = useState<Set<string>>(new Set());
+  const [notesWithUpdates, setNotesWithUpdates] = useState<Set<string>>(new Set());
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { user, logout } = useAuth();
@@ -82,6 +84,37 @@ const AINoteChecker: React.FC = () => {
   // Check if we're in mock data mode
   const isUsingMockData = process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_MOCK_DATA === 'true';
 
+  // Function to check for note updates
+  const checkForUpdates = async (notes: IncompleteNote[]) => {
+    const updatePromises = notes
+      .filter(note => note.lastCheckStatus) // Only check notes that have been checked before
+      .slice(0, 10) // Limit to first 10 to avoid overwhelming the API
+      .map(async (note) => {
+        try {
+          setCheckingUpdates(prev => new Set(prev).add(note.encounterId));
+          const updateStatus = await aiNoteCheckerService.checkForUpdates(note.encounterId, note.patientId);
+          
+          if (updateStatus.hasUpdate) {
+            console.log(`📝 Update detected for encounter ${note.encounterId}`);
+            setNotesWithUpdates(prev => new Set(prev).add(note.encounterId));
+            return note.encounterId;
+          }
+          return null;
+        } catch (error) {
+          console.error(`Error checking updates for ${note.encounterId}:`, error);
+          return null;
+        } finally {
+          setCheckingUpdates(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(note.encounterId);
+            return newSet;
+          });
+        }
+      });
+
+    await Promise.all(updatePromises);
+  };
+
   useEffect(() => {
     loadEncounters();
     
@@ -91,6 +124,12 @@ const AINoteChecker: React.FC = () => {
       setAutoRefreshing(true);
       try {
         await refreshEncounters();
+        
+        // Also check for note updates periodically
+        if (incompleteNotes.length > 0) {
+          console.log('🔍 Checking for note updates...');
+          await checkForUpdates(incompleteNotes);
+        }
       } catch (error) {
         console.error('Error during auto-refresh:', error);
       } finally {
@@ -99,7 +138,7 @@ const AINoteChecker: React.FC = () => {
     }, 15000); // 15 seconds (reduced from 30)
     
     return () => clearInterval(refreshInterval);
-  }, [loadEncounters, refreshEncounters]);
+  }, [loadEncounters, refreshEncounters, incompleteNotes]);
 
   // Check for returnToFilter state when component mounts (from back navigation)
   useEffect(() => {
@@ -212,13 +251,26 @@ const AINoteChecker: React.FC = () => {
     setChecking(prev => new Set(prev).add(note.encounterId));
     
     try {
+      // Check if note has updates and force recheck if so
+      const hasUpdates = notesWithUpdates.has(note.encounterId);
+      
       await aiNoteCheckerService.checkSingleNote(
         note.encounterId,
         note.patientId,
         note.patientName,
         note.chiefComplaint,
-        note.dateOfService
+        note.dateOfService,
+        hasUpdates // Force recheck if note has updates
       );
+      
+      // Clear the update status since we just rechecked
+      if (hasUpdates) {
+        setNotesWithUpdates(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(note.encounterId);
+          return newSet;
+        });
+      }
       
       // Refresh the notes list to show updated status
       await refreshEncounters();
@@ -948,6 +1000,8 @@ const AINoteChecker: React.FC = () => {
                 onViewNote={handleViewNote}
                 bulkProcessing={bulkProcessing}
                 currentFilter={currentFilter}
+                checkingUpdates={checkingUpdates}
+                notesWithUpdates={notesWithUpdates}
               />
             ) : (
               /* Desktop Table */

@@ -41,6 +41,8 @@ interface SwipeableNoteCardProps {
   showSelection?: boolean;
   expanded?: boolean;
   onToggleExpand?: (encounterId: string) => void;
+  hasUpdates?: boolean;
+  isCheckingUpdates?: boolean;
 }
 
 const SwipeableNoteCard: React.FC<SwipeableNoteCardProps> = ({
@@ -53,7 +55,9 @@ const SwipeableNoteCard: React.FC<SwipeableNoteCardProps> = ({
   onQuickAction,
   showSelection = false,
   expanded = false,
-  onToggleExpand
+  onToggleExpand,
+  hasUpdates = false,
+  isCheckingUpdates = false
 }) => {
   const { isMobile } = useResponsive();
   const theme = useTheme();
@@ -77,6 +81,8 @@ const SwipeableNoteCard: React.FC<SwipeableNoteCardProps> = ({
         showSelection={showSelection}
         expanded={expanded}
         onToggleExpand={onToggleExpand}
+        hasUpdates={hasUpdates}
+        isCheckingUpdates={isCheckingUpdates}
       />
     );
   }
@@ -267,6 +273,8 @@ const SwipeableNoteCard: React.FC<SwipeableNoteCardProps> = ({
           showSelection={showSelection}
           expanded={expanded}
           onToggleExpand={onToggleExpand}
+          hasUpdates={hasUpdates}
+          isCheckingUpdates={isCheckingUpdates}
         />
       </Box>
 

@@ -1102,6 +1102,41 @@ app.get('/notes/:encounterId/todos', validateSession, async (req: Request, res: 
   }
 });
 
+// Check for note updates
+app.get('/notes/check-updates/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const username = (req as any).user.username;
+    const { encounterId } = req.params;
+    const { patientId } = req.query;
+    
+    if (!patientId || typeof patientId !== 'string') {
+      res.status(400).json({ error: 'Patient ID is required as query parameter' });
+      return;
+    }
+    
+    // Get valid tokens
+    const userTokens = await getValidTokens(username);
+    if (!userTokens) {
+      res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      return;
+    }
+    
+    const updateStatus = await aiNoteChecker.checkForNoteUpdate(
+      userTokens.accessToken,
+      encounterId,
+      patientId as string
+    );
+    
+    res.json({
+      success: true,
+      updateStatus
+    });
+  } catch (error: any) {
+    console.error('Error checking note updates:', error);
+    res.status(500).json({ error: 'Failed to check note updates', details: error.message });
+  }
+});
+
 // Check specific encounter note with AI
 app.post('/notes/check/:encounterId', validateSession, async (req: Request, res: Response): Promise<void> => {
   try {
@@ -1126,6 +1161,25 @@ app.post('/notes/check/:encounterId', validateSession, async (req: Request, res:
       return;
     }
 
+    // Check for note updates first if not forcing
+    if (!force) {
+      try {
+        const updateStatus = await aiNoteChecker.checkForNoteUpdate(
+          userTokens.accessToken,
+          encounterId,
+          patientId
+        );
+        
+        if (updateStatus.hasUpdate) {
+          console.log(`📝 Note update detected for encounter ${encounterId}, setting force=true for fresh analysis`);
+          // Note has been updated, force a new check
+          req.body.force = true;
+        }
+      } catch (updateError: any) {
+        console.warn(`⚠️ Failed to check for note updates, proceeding with normal check: ${updateError.message}`);
+      }
+    }
+
     const result = await aiNoteChecker.checkSingleNote(
       userTokens.accessToken,
       encounterId,
@@ -1134,7 +1188,7 @@ app.post('/notes/check/:encounterId', validateSession, async (req: Request, res:
       chiefComplaint || 'Unknown',
       dateOfService || new Date().toISOString(),
       username,
-      Boolean(force) // Convert to boolean, default to false
+      Boolean(req.body.force) // Use potentially updated force flag
     );
     
     res.json({ 
@@ -1145,6 +1199,100 @@ app.post('/notes/check/:encounterId', validateSession, async (req: Request, res:
   } catch (error: any) {
     console.error('Error checking note:', error);
     res.status(500).json({ error: 'Failed to check note', details: error.message });
+  }
+});
+
+// Get notes that need auto-recheck due to updates
+app.get('/notes/needs-recheck', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const notesNeedingRecheck = await vitalSignsDb.getNotesNeedingRecheck(50);
+    
+    res.json({
+      success: true,
+      notes: notesNeedingRecheck,
+      count: notesNeedingRecheck.length
+    });
+  } catch (error: any) {
+    console.error('Error fetching notes needing recheck:', error);
+    res.status(500).json({ error: 'Failed to fetch notes needing recheck', details: error.message });
+  }
+});
+
+// Trigger auto-recheck for updated notes
+app.post('/notes/auto-recheck', validateSession, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const username = (req as any).user.username;
+    const { limit = 10 } = req.body;
+    
+    // Get notes that need rechecking
+    const notesNeedingRecheck = await vitalSignsDb.getNotesNeedingRecheck(limit);
+    
+    if (notesNeedingRecheck.length === 0) {
+      res.json({
+        success: true,
+        message: 'No notes need auto-recheck',
+        processed: 0
+      });
+      return;
+    }
+    
+    // Get valid tokens
+    const userTokens = await getValidTokens(username);
+    if (!userTokens) {
+      res.status(401).json({ error: 'Unable to obtain valid tokens. Please login again.' });
+      return;
+    }
+    
+    const results = [];
+    
+    for (const note of notesNeedingRecheck) {
+      try {
+        // Increment attempt counter
+        await vitalSignsDb.incrementAutoRecheckAttempts(note.encounterId);
+        
+        console.log(`🔄 Auto-rechecking updated note: ${note.encounterId} (attempt ${note.autoRecheckAttempts + 1})`);
+        
+        // Perform the check with force=true since this is an update recheck
+        const checkResult = await aiNoteChecker.checkSingleNote(
+          userTokens.accessToken,
+          note.encounterId,
+          note.patientId,
+          note.patientName,
+          note.chiefComplaint,
+          note.dateOfService.toISOString(),
+          `auto-recheck-${username}`,
+          true // force = true for auto-recheck
+        );
+        
+        results.push({
+          encounterId: note.encounterId,
+          success: true,
+          checkId: checkResult.id
+        });
+        
+      } catch (error: any) {
+        console.error(`❌ Auto-recheck failed for ${note.encounterId}:`, error.message);
+        results.push({
+          encounterId: note.encounterId,
+          success: false,
+          error: error.message
+        });
+      }
+    }
+    
+    const successCount = results.filter(r => r.success).length;
+    const failureCount = results.filter(r => !r.success).length;
+    
+    res.json({
+      success: true,
+      message: `Auto-recheck completed: ${successCount} successful, ${failureCount} failed`,
+      processed: results.length,
+      results
+    });
+    
+  } catch (error: any) {
+    console.error('Error during auto-recheck:', error);
+    res.status(500).json({ error: 'Failed to perform auto-recheck', details: error.message });
   }
 });
 
@@ -1575,6 +1723,15 @@ app.post('/notes/modify-hpi', validateSession, async (req: Request, res: Respons
     );
     
     console.log(`✅ HPI modified successfully for encounter ${encounterId}`);
+    
+    // Mark the note as needing recheck since it was just modified
+    try {
+      await vitalSignsDb.markNoteNeedsRecheck(encounterId, 'HPI section modified');
+      console.log(`📝 Marked encounter ${encounterId} for recheck after HPI modification`);
+    } catch (markError: any) {
+      console.warn(`⚠️ Failed to mark note for recheck: ${markError.message}`);
+      // Don't fail the HPI modification if marking fails
+    }
     
     res.json(response.data);
   } catch (error: any) {

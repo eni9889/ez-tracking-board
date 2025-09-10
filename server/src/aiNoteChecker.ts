@@ -706,7 +706,9 @@ class AINoteChecker {
         issuesFound,
         undefined, // errorMessage
         noteContentMd5,
-        noteContent
+        noteContent,
+        force, // triggeredByUpdate - force flag often indicates manual re-check after update
+        new Date() // noteLastModified
       );
 
       console.log(`✅ Note check completed for encounter: ${encounterId} (Issues found: ${issuesFound})`);
@@ -738,7 +740,11 @@ class AINoteChecker {
         checkedBy,
         undefined,
         false,
-        error.message
+        error.message,
+        undefined, // noteContentMd5
+        undefined, // noteContent
+        force, // triggeredByUpdate
+        new Date() // noteLastModified
       );
 
       return {
@@ -753,6 +759,46 @@ class AINoteChecker {
         checkedAt: new Date(),
         checkedBy,
         errorMessage: error.message
+      };
+    }
+  }
+
+  /**
+   * Check if a note has been updated since last check
+   */
+  async checkForNoteUpdate(
+    accessToken: string,
+    encounterId: string,
+    patientId: string
+  ): Promise<{
+    hasUpdate: boolean;
+    previousMd5?: string;
+    currentMd5: string;
+    needsRecheck: boolean;
+  }> {
+    try {
+      // Fetch current progress note
+      const progressNote = await this.fetchProgressNote(accessToken, encounterId, patientId);
+      const currentMd5 = this.calculateNoteContentMd5(progressNote);
+      
+      // Check against stored MD5
+      const changeDetection = await vitalSignsDb.detectNoteChanges(encounterId, currentMd5);
+      
+      console.log(`🔍 Note update check for encounter ${encounterId}: changed=${changeDetection.hasChanged}, currentMd5=${currentMd5}`);
+      
+      return {
+        hasUpdate: changeDetection.hasChanged,
+        previousMd5: changeDetection.previousMd5 || undefined,
+        currentMd5: changeDetection.currentMd5,
+        needsRecheck: changeDetection.hasChanged
+      };
+      
+    } catch (error: any) {
+      console.error(`❌ Failed to check note update for encounter ${encounterId}:`, error.message);
+      return {
+        hasUpdate: false,
+        currentMd5: '',
+        needsRecheck: false
       };
     }
   }

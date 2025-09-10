@@ -444,6 +444,42 @@ class AINoteCheckerService {
   }
 
   /**
+   * Check for note updates
+   */
+  async checkForUpdates(encounterId: string, patientId: string): Promise<{
+    hasUpdate: boolean;
+    previousMd5?: string;
+    currentMd5: string;
+    needsRecheck: boolean;
+  }> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Simulating note update check');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Randomly simulate updates for demo
+      const hasUpdate = Math.random() < 0.3; // 30% chance of update
+      return {
+        hasUpdate,
+        previousMd5: hasUpdate ? 'old_mock_md5_123' : undefined,
+        currentMd5: 'new_mock_md5_456',
+        needsRecheck: hasUpdate
+      };
+    }
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/notes/check-updates/${encounterId}`, {
+        params: { patientId },
+        headers: this.headers()
+      });
+
+      return response.data.updateStatus;
+    } catch (error: any) {
+      console.error('Error checking for note updates:', error);
+      throw new Error(error.response?.data?.error || 'Failed to check for note updates');
+    }
+  }
+
+  /**
    * Check a specific note with AI
    */
   async checkSingleNote(
@@ -487,6 +523,61 @@ class AINoteCheckerService {
     } catch (error: any) {
       console.error('Error checking note:', error);
       throw new Error(error.response?.data?.error || 'Failed to check note');
+    }
+  }
+
+  /**
+   * Get notes that need auto-recheck due to updates
+   */
+  async getNotesNeedingRecheck(): Promise<any[]> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Simulating notes needing recheck');
+      return [];
+    }
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/notes/needs-recheck`, {
+        headers: this.headers()
+      });
+
+      return response.data.notes;
+    } catch (error: any) {
+      console.error('Error fetching notes needing recheck:', error);
+      throw new Error(error.response?.data?.error || 'Failed to fetch notes needing recheck');
+    }
+  }
+
+  /**
+   * Trigger auto-recheck for updated notes
+   */
+  async triggerAutoRecheck(limit: number = 10): Promise<{
+    success: boolean;
+    message: string;
+    processed: number;
+    results: any[];
+  }> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Simulating auto-recheck');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return {
+        success: true,
+        message: 'Mock auto-recheck completed',
+        processed: 0,
+        results: []
+      };
+    }
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}/notes/auto-recheck`, {
+        limit
+      }, {
+        headers: this.headers()
+      });
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error triggering auto-recheck:', error);
+      throw new Error(error.response?.data?.error || 'Failed to trigger auto-recheck');
     }
   }
 
