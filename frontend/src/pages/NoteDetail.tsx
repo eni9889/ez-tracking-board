@@ -316,6 +316,67 @@ const NoteDetail: React.FC = () => {
     loadAPDataWhenReady();
   }, [currentNote, currentUserProviderId, careTeam, loadAssessmentPlanData, noteSignedOff]);
 
+  // Assessment & Plan editing handlers
+  const handleEditProblem = (problemId: string, sectionIndex: number) => {
+    setEditingProblem({ problemId, sectionIndex });
+  };
+
+  const handleCancelProblemEdit = () => {
+    setEditingProblem(null);
+  };
+
+  const handleSaveProblem = async (problemValue: string) => {
+    if (!currentNote || !editingProblem || !assessmentPlanData) {
+      return;
+    }
+
+    setSavingProblem(true);
+    
+    try {
+      // Find the current section/problem being edited
+      const currentSection = assessmentPlanData.apSections?.find((section: any) => 
+        section.encounterMedicalProblemInfo?.id === editingProblem.problemId ||
+        section.apSectionElements?.some((element: any) => element.id === editingProblem.problemId)
+      );
+
+      if (!currentSection) {
+        throw new Error('Problem data not found');
+      }
+
+      // Build the complete problem data structure that EZDerm expects
+      const problemData = {
+        ...currentSection.encounterMedicalProblemInfo,
+        // Ensure all required arrays exist with defaults if not present
+        medicalProblemSiteInfoList: currentSection.encounterMedicalProblemInfo?.medicalProblemSiteInfoList || [],
+        clinicalDescriptionInfo: currentSection.encounterMedicalProblemInfo?.clinicalDescriptionInfo || {},
+        clinicalImpressionInfo: currentSection.encounterMedicalProblemInfo?.clinicalImpressionInfo || {},
+        problemProcedureLinkInfoList: currentSection.encounterMedicalProblemInfo?.problemProcedureLinkInfoList || []
+      };
+
+      // Update the problem field via the API
+      await aiNoteCheckerService.updateProblemField(
+        currentNote.encounterId,
+        currentNote.patientId,
+        problemData,
+        problemValue
+      );
+
+      // Reload the Assessment & Plan data to get updated values
+      await loadAssessmentPlanData(currentNote.encounterId, currentNote.patientId);
+      
+      // Clear editing state
+      setEditingProblem(null);
+      setError(null);
+      
+      console.log('✅ Problem field updated successfully');
+    } catch (err: any) {
+      console.error('Error updating problem field:', err);
+      setError(err.message || 'Failed to update problem field');
+    } finally {
+      setSavingProblem(false);
+    }
+  };
+
   // Helper functions to fetch data for a specific encounter
   const fetchCheckHistory = async (encounterId: string): Promise<NoteCheckResult[]> => {
     try {
@@ -606,64 +667,6 @@ const NoteDetail: React.FC = () => {
       setError(err.message || 'Failed to sign off note');
     } finally {
       setSigningOff(false);
-    }
-  };
-
-  // Handle problem field editing
-  const handleEditProblem = (problemId: string, sectionIndex: number) => {
-    setEditingProblem({ problemId, sectionIndex });
-  };
-
-  const handleCancelProblemEdit = () => {
-    setEditingProblem(null);
-  };
-
-  const handleSaveProblem = async (problemValue: string) => {
-    if (!currentNote || !editingProblem || !assessmentPlanData) return;
-    
-    setSavingProblem(true);
-    try {
-      // Find the current problem data from assessmentPlanData
-      const currentSection = assessmentPlanData.apSections?.find((section: any) => 
-        section.encounterMedicalProblemInfo?.id === editingProblem.problemId ||
-        section.apSectionElements?.some((element: any) => element.id === editingProblem.problemId)
-      );
-      
-      if (!currentSection) {
-        throw new Error('Problem data not found');
-      }
-      
-      // Use the encounterMedicalProblemInfo as the base data for the update
-      const problemData = {
-        ...currentSection.encounterMedicalProblemInfo,
-        // Include any additional fields that might be needed
-        medicalProblemSiteInfoList: currentSection.encounterMedicalProblemInfo?.medicalProblemSiteInfoList || [],
-        clinicalDescriptionInfo: currentSection.encounterMedicalProblemInfo?.clinicalDescriptionInfo || {},
-        clinicalImpressionInfo: currentSection.encounterMedicalProblemInfo?.clinicalImpressionInfo || {},
-        problemProcedureLinkInfoList: currentSection.encounterMedicalProblemInfo?.problemProcedureLinkInfoList || []
-      };
-      
-      await aiNoteCheckerService.updateProblemField(
-        currentNote.encounterId, 
-        currentNote.patientId, 
-        problemData,
-        problemValue
-      );
-      
-      // Refresh the Assessment & Plan data to show the updated value
-      await loadAssessmentPlanData(currentNote.encounterId, currentNote.patientId);
-      
-      // Clear editing state
-      setEditingProblem(null);
-      setError(null);
-      
-      console.log('✅ Problem field updated successfully');
-      
-    } catch (err: any) {
-      console.error('Error updating Problem field:', err);
-      setError(err.message || 'Failed to update Problem field');
-    } finally {
-      setSavingProblem(false);
     }
   };
 
