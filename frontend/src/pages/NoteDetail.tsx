@@ -1140,7 +1140,7 @@ const NoteDetail: React.FC = () => {
                           <CardContent sx={{ pt: 0 }}>
                             <Stack spacing={2}>
                               {apSection.apSectionElements?.filter((element: any) => 
-                                element.enabled !== false || element.text
+                                element.text && element.text.trim() !== ''
                               ).map((element: any, elementIndex: number) => (
                                 <Box key={element.id || elementIndex}>
                                   <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>

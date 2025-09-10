@@ -344,7 +344,7 @@ const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
                             <CardContent sx={{ pt: 0, p: 1.5 }}>
                               <Stack spacing={1.5}>
                                 {apSection.apSectionElements?.filter((element: any) => 
-                                  element.enabled !== false || element.text
+                                  element.text && element.text.trim() !== ''
                                 ).map((element: any, elementIndex: number) => (
                                   <Box key={element.id || elementIndex}>
                                     <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 0.5, fontSize: '0.8rem' }}>
