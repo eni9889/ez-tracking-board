@@ -72,6 +72,7 @@ const AINoteChecker: React.FC = () => {
   const { 
     encounters: incompleteNotes, 
     loading, 
+    refreshing,
     error, 
     lastRefresh, 
     loadEncounters, 
@@ -417,7 +418,8 @@ const AINoteChecker: React.FC = () => {
     }
   };
 
-  if (loading) {
+  // Only show full page loading on initial load, not on refresh
+  if (loading && incompleteNotes.length === 0) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
         <CircularProgress />
@@ -486,23 +488,40 @@ const AINoteChecker: React.FC = () => {
             }}>
               AI Note Checker
             </Typography>
-            <Typography variant="body2" sx={{ 
-              opacity: 0.8,
-              color: '#e2e8f0',
-              fontSize: '0.875rem',
-              fontWeight: 400
-            }}>
-              {new Date().toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                month: 'short', 
-                day: 'numeric' 
-              })} • Updated: {lastRefresh ? lastRefresh.toLocaleTimeString() : 'Never'}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="body2" sx={{ 
+                opacity: 0.8,
+                color: '#e2e8f0',
+                fontSize: '0.875rem',
+                fontWeight: 400
+              }}>
+                {new Date().toLocaleDateString('en-US', { 
+                  weekday: 'long', 
+                  month: 'short', 
+                  day: 'numeric' 
+                })} • Updated: {lastRefresh ? lastRefresh.toLocaleTimeString() : 'Never'}
+              </Typography>
+              {(refreshing || autoRefreshing) && (
+                <CircularProgress 
+                  size={12} 
+                  sx={{ 
+                    color: '#64748b',
+                    opacity: 0.8
+                  }} 
+                />
+              )}
+            </Box>
           </Box>
         </Box>
 
         {/* Integrated Summary Stats */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 4,
+          opacity: refreshing ? 0.6 : 1,
+          transition: 'opacity 0.3s ease'
+        }}>
           <Box sx={{ 
             textAlign: 'center',
             px: 2,
@@ -967,24 +986,34 @@ const AINoteChecker: React.FC = () => {
             onRefresh={async () => {
               await refreshEncounters();
             }}
-            disabled={loading || autoRefreshing}
+            disabled={refreshing || autoRefreshing}
           >
             {/* Mobile Card List */}
             {isMobile ? (
-              <NoteCardList
-                notes={filteredNotes}
-                selectedNotes={selectedNotes}
-                checkingNotes={checking}
-                onSelectNote={handleSelectNote}
-                onSelectAll={handleSelectAll}
-                onCheckNote={handleCheckNote}
-                onViewNote={handleViewNote}
-                bulkProcessing={bulkProcessing}
-                currentFilter={currentFilter}
-              />
+              <Box sx={{
+                opacity: refreshing ? 0.7 : 1,
+                transition: 'opacity 0.3s ease'
+              }}>
+                <NoteCardList
+                  notes={filteredNotes}
+                  selectedNotes={selectedNotes}
+                  checkingNotes={checking}
+                  onSelectNote={handleSelectNote}
+                  onSelectAll={handleSelectAll}
+                  onCheckNote={handleCheckNote}
+                  onViewNote={handleViewNote}
+                  bulkProcessing={bulkProcessing}
+                  currentFilter={currentFilter}
+                />
+              </Box>
             ) : (
               /* Desktop Table */
-              <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
+              <TableContainer sx={{ 
+                flex: 1, 
+                overflow: 'auto',
+                opacity: refreshing ? 0.7 : 1,
+                transition: 'opacity 0.3s ease'
+              }}>
             <Table stickyHeader size={isMobile ? "medium" : "small"} sx={{ 
               tableLayout: isMobile ? 'auto' : 'fixed',
               minWidth: isMobile ? 'unset' : '1200px'
@@ -1264,7 +1293,7 @@ const AINoteChecker: React.FC = () => {
         onRefresh={refreshEncounters}
         onBulkCheck={selectedNotes.size > 0 ? handleBulkCheck : undefined}
         onBulkForceRecheck={selectedNotes.size > 0 ? handleBulkForceRecheck : undefined}
-        refreshing={loading || autoRefreshing}
+        refreshing={refreshing || autoRefreshing}
         bulkProcessing={bulkProcessing}
       />
     </Box>

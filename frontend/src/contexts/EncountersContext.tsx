@@ -19,6 +19,7 @@ interface IncompleteNote {
 interface EncountersContextType {
   encounters: IncompleteNote[];
   loading: boolean;
+  refreshing: boolean;
   error: string | null;
   lastRefresh: Date | null;
   loadEncounters: () => Promise<void>;
@@ -45,6 +46,7 @@ interface EncountersProviderProps {
 export const EncountersProvider: React.FC<EncountersProviderProps> = ({ children }) => {
   const [encounters, setEncounters] = useState<IncompleteNote[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
@@ -88,8 +90,42 @@ export const EncountersProvider: React.FC<EncountersProviderProps> = ({ children
 
   const refreshEncounters = useCallback(async () => {
     console.log('🔄 Context: Refreshing encounters...');
-    await loadEncounters();
-  }, [loadEncounters]);
+    setRefreshing(true);
+    setError(null);
+    
+    try {
+      // Fetch incomplete notes from EZDerm (now includes AI check results in single request)
+      const notes = await aiNoteCheckerService.getIncompleteNotes();
+      console.log(`📋 Context: Fetched ${notes.length} incomplete notes from API with AI check status included`);
+      
+      // Remove duplicates (same logic as main page)
+      const uniqueNotes = notes.filter((note, index, array) => 
+        array.findIndex(n => n.encounterId === note.encounterId) === index
+      );
+      
+      if (uniqueNotes.length !== notes.length) {
+        console.log(`🔧 Context: Removed ${notes.length - uniqueNotes.length} duplicate notes`);
+      }
+      
+      // No need to fetch check results separately - they're now included in the notes response
+      const notesWithStatus = uniqueNotes;
+      
+      // Sort by date of service (newest first)
+      const sortedNotes = notesWithStatus.sort((a, b) => {
+        return new Date(b.dateOfService).getTime() - new Date(a.dateOfService).getTime();
+      });
+      
+      setEncounters(sortedNotes);
+      setLastRefresh(new Date());
+      console.log(`✅ Context: Refreshed ${sortedNotes.length} encounters`);
+      
+    } catch (err: any) {
+      setError(err.message || 'Failed to refresh encounters');
+      console.error('❌ Context: Error refreshing encounters:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   const getCurrentIndex = useCallback((encounterId: string): number => {
     const index = encounters.findIndex(encounter => encounter.encounterId === encounterId);
@@ -131,6 +167,7 @@ export const EncountersProvider: React.FC<EncountersProviderProps> = ({ children
   const value: EncountersContextType = {
     encounters,
     loading,
+    refreshing,
     error,
     lastRefresh,
     loadEncounters,
