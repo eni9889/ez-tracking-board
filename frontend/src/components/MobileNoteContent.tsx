@@ -20,7 +20,11 @@ import {
   Button,
   TextField,
   CircularProgress,
-  Badge
+  Badge,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import {
   Description,
@@ -93,6 +97,17 @@ interface MobileNoteContentProps {
   onCancelHPIEdit?: () => void;
   onHPITextChange?: (text: string) => void;
   
+  // Assessment & Plan editing
+  assessmentPlanData?: any;
+  loadingAssessmentPlan?: boolean;
+  editingProblem?: { problemId: string; sectionIndex: number } | null;
+  savingProblem?: boolean;
+  isAttendingProvider?: boolean;
+  onEditProblem?: (problemId: string, sectionIndex: number) => void;
+  onSaveProblem?: (problemValue: string) => void;
+  onCancelProblemEdit?: () => void;
+  renderProblemField?: (problemElement: any, sectionIndex: number) => React.ReactNode;
+  
   // Issue management
   onMarkIssueInvalid?: (checkId: number, issueIndex: number, issue: any, reason?: string) => void;
   onUnmarkIssueInvalid?: (checkId: number, issueIndex: number) => void;
@@ -113,6 +128,16 @@ const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
   onSaveHPI,
   onCancelHPIEdit,
   onHPITextChange,
+  // Assessment & Plan editing props
+  assessmentPlanData,
+  loadingAssessmentPlan = false,
+  editingProblem,
+  savingProblem = false,
+  isAttendingProvider = false,
+  onEditProblem,
+  onSaveProblem,
+  onCancelProblemEdit,
+  renderProblemField,
   onMarkIssueInvalid,
   onUnmarkIssueInvalid
 }) => {
@@ -301,7 +326,47 @@ const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
                 />
                 <Collapse in={!isCollapsed}>
                   <CardContent sx={{ p: 2 }}>
-                    {section.items && section.items.length > 0 ? (
+                    {/* Special handling for Assessment & Plan sections when user is provider */}
+                    {sectionType === 'ASSESSMENT_AND_PLAN' && isAttendingProvider && assessmentPlanData ? (
+                      <Stack spacing={2}>
+                        {assessmentPlanData.apSections?.map((apSection: any, apIndex: number) => (
+                          <Card key={apIndex} variant="outlined" sx={{ bgcolor: 'background.paper' }}>
+                            <CardHeader
+                              title={
+                                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                                  {apSection.encounterMedicalProblemInfo?.name || `Assessment #${apIndex + 1}`}
+                                </Typography>
+                              }
+                              sx={{ pb: 1, py: 1 }}
+                            />
+                            <CardContent sx={{ pt: 0, p: 1.5 }}>
+                              <Stack spacing={1.5}>
+                                {apSection.encounterMedicalProblemSectionElements?.map((element: any, elementIndex: number) => (
+                                  <Box key={element.id || elementIndex}>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 0.5, fontSize: '0.8rem' }}>
+                                      {element.title}
+                                    </Typography>
+                                    {element.type === 'PROBLEM_POINTS' && renderProblemField ? (
+                                      renderProblemField(element, apIndex)
+                                    ) : (
+                                      <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
+                                        {element.text || 'No content'}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                ))}
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        ))}
+                        {loadingAssessmentPlan && (
+                          <Box sx={{ display: 'flex', justifyContent: 'center', p: 1 }}>
+                            <CircularProgress size={20} />
+                            <Typography variant="body2" sx={{ ml: 1, fontSize: '0.8rem' }}>Loading Assessment & Plan...</Typography>
+                          </Box>
+                        )}
+                      </Stack>
+                    ) : section.items && section.items.length > 0 ? (
                       <Stack spacing={1.5}>
                         {section.items.map((item: any, itemIndex: number) => (
                           <Box key={itemIndex}>

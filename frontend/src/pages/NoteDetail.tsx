@@ -16,7 +16,11 @@ import {
   Stack,
   FormControlLabel,
   Checkbox,
-  TextField
+  TextField,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import {
   ArrowBack,
@@ -74,6 +78,34 @@ interface CachedNoteData {
   invalidIssues: InvalidIssue[];
 }
 
+// Problem field dropdown options
+const PROBLEM_OPTIONS = [
+  'New or Acute',
+  'No Morbidity Risk',
+  'Low Morbidity Risk', 
+  'High Morbidity Risk',
+  'Uncertain Diagnosis',
+  'Systemic Symptoms',
+  'Complicated Injury',
+  'Chronic',
+  'Treatment Goal Achieved (Stable)',
+  'Resolved',
+  'Well-controlled',
+  'Stable',
+  'Improved',
+  'Treatment Goal Not Achieved (Not Stable)',
+  'Minimal Clinical Improvement',
+  'Moderate Clinical Improvement',
+  'Significant Clinical Improvement',
+  'Mildly Worse',
+  'Moderately Worse',
+  'Severely Worse',
+  'Side Effect of Treatment',
+  'Not Severe',
+  'Severe',
+  'Life-threatening'
+];
+
 const NoteDetail: React.FC = () => {
   const { encounterId } = useParams<{ encounterId: string }>();
   const navigate = useNavigate();
@@ -106,6 +138,11 @@ const NoteDetail: React.FC = () => {
   const [editingHPI, setEditingHPI] = useState<{ sectionIndex: number; itemIndex: number } | null>(null);
   const [hpiEditText, setHpiEditText] = useState('');
   const [savingHPI, setSavingHPI] = useState(false);
+  // Assessment & Plan editing state
+  const [assessmentPlanData, setAssessmentPlanData] = useState<any>(null);
+  const [loadingAssessmentPlan, setLoadingAssessmentPlan] = useState(false);
+  const [editingProblem, setEditingProblem] = useState<{ problemId: string; sectionIndex: number } | null>(null);
+  const [savingProblem, setSavingProblem] = useState(false);
 
   // Fetch current user's provider ID
   useEffect(() => {
@@ -209,6 +246,13 @@ const NoteDetail: React.FC = () => {
         createdTodos: todos,
         invalidIssues: invalid
       }));
+
+      // Load Assessment & Plan data if user is provider (after cache is set so isAttendingProvider works)
+      setTimeout(async () => {
+        if (isAttendingProvider()) {
+          await loadAssessmentPlanData(encounterId, patientId);
+        }
+      }, 100);
 
     } catch (err: any) {
       console.error('Error loading note data:', err);
@@ -548,6 +592,61 @@ const NoteDetail: React.FC = () => {
     }
   };
 
+  // Load Assessment & Plan data for editing (only if user is provider)
+  const loadAssessmentPlanData = async (encounterId: string, patientId: string) => {
+    if (!isAttendingProvider()) return;
+    
+    setLoadingAssessmentPlan(true);
+    try {
+      const data = await aiNoteCheckerService.getAssessmentAndPlan(encounterId, patientId);
+      setAssessmentPlanData(data);
+      console.log('✅ Assessment & Plan data loaded successfully');
+    } catch (err: any) {
+      console.error('Error loading Assessment & Plan data:', err);
+      setError(err.message || 'Failed to load Assessment & Plan data');
+    } finally {
+      setLoadingAssessmentPlan(false);
+    }
+  };
+
+  // Handle problem field editing
+  const handleEditProblem = (problemId: string, sectionIndex: number) => {
+    setEditingProblem({ problemId, sectionIndex });
+  };
+
+  const handleCancelProblemEdit = () => {
+    setEditingProblem(null);
+  };
+
+  const handleSaveProblem = async (problemValue: string) => {
+    if (!currentNote || !editingProblem) return;
+    
+    setSavingProblem(true);
+    try {
+      await aiNoteCheckerService.updateProblemField(
+        currentNote.encounterId, 
+        currentNote.patientId, 
+        editingProblem.problemId, 
+        problemValue
+      );
+      
+      // Refresh the Assessment & Plan data to show the updated value
+      await loadAssessmentPlanData(currentNote.encounterId, currentNote.patientId);
+      
+      // Clear editing state
+      setEditingProblem(null);
+      setError(null);
+      
+      console.log('✅ Problem field updated successfully');
+      
+    } catch (err: any) {
+      console.error('Error updating Problem field:', err);
+      setError(err.message || 'Failed to update Problem field');
+    } finally {
+      setSavingProblem(false);
+    }
+  };
+
   // Handle HPI editing
   const handleEditHPI = (sectionIndex: number, itemIndex: number, currentText: string) => {
     setEditingHPI({ sectionIndex, itemIndex });
@@ -825,6 +924,73 @@ const NoteDetail: React.FC = () => {
     }
   };
 
+  // Render Problem field dropdown
+  const renderProblemField = (problemElement: any, sectionIndex: number) => {
+    const isEditing = editingProblem?.problemId === problemElement.id && editingProblem?.sectionIndex === sectionIndex;
+    const currentValue = problemElement.text || '';
+    
+    if (isEditing) {
+      return (
+        <Box sx={{ mt: 1 }}>
+          <FormControl fullWidth size="small">
+            <InputLabel>Problem</InputLabel>
+            <Select
+              value={currentValue}
+              label="Problem"
+              onChange={(e) => handleSaveProblem(e.target.value)}
+              disabled={savingProblem}
+            >
+              {PROBLEM_OPTIONS.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
+            <Button
+              size="small"
+              variant="contained"
+              color="primary"
+              disabled={savingProblem}
+              startIcon={savingProblem ? <CircularProgress size={16} /> : <Save />}
+              onClick={() => {/* The onChange above handles saving */}}
+            >
+              {savingProblem ? 'Saving...' : 'Save'}
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={handleCancelProblemEdit}
+              disabled={savingProblem}
+              startIcon={<Cancel />}
+            >
+              Cancel
+            </Button>
+          </Box>
+        </Box>
+      );
+    }
+
+    // Display mode with edit button (only if user is provider)
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+        <Typography variant="body2" sx={{ flex: 1 }}>
+          {currentValue || 'No problem status set'}
+        </Typography>
+        {isAttendingProvider() && !noteSignedOff && (
+          <IconButton
+            size="small"
+            onClick={() => handleEditProblem(problemElement.id, sectionIndex)}
+            sx={{ color: 'primary.main' }}
+          >
+            <Edit fontSize="small" />
+          </IconButton>
+        )}
+      </Box>
+    );
+  };
+
   const renderProgressNote = (progressNote: any) => {
     if (!progressNote) {
       return (
@@ -899,7 +1065,43 @@ const NoteDetail: React.FC = () => {
               />
               <Collapse in={!isCollapsed}>
                 <CardContent sx={{ pt: 2 }}>
-                  {section.items && section.items.length > 0 ? (
+                  {/* Special handling for Assessment & Plan sections when user is provider */}
+                  {sectionType === 'ASSESSMENT_AND_PLAN' && isAttendingProvider() && assessmentPlanData ? (
+                    <Stack spacing={3}>
+                      {assessmentPlanData.apSections?.map((apSection: any, apIndex: number) => (
+                        <Card key={apIndex} variant="outlined" sx={{ bgcolor: 'background.paper' }}>
+                          <CardHeader
+                            title={apSection.encounterMedicalProblemInfo?.name || `Assessment #${apIndex + 1}`}
+                            sx={{ pb: 1 }}
+                          />
+                          <CardContent sx={{ pt: 0 }}>
+                            <Stack spacing={2}>
+                              {apSection.encounterMedicalProblemSectionElements?.map((element: any, elementIndex: number) => (
+                                <Box key={element.id || elementIndex}>
+                                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                                    {element.title}
+                                  </Typography>
+                                  {element.type === 'PROBLEM_POINTS' ? (
+                                    renderProblemField(element, apIndex)
+                                  ) : (
+                                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                      {element.text || 'No content'}
+                                    </Typography>
+                                  )}
+                                </Box>
+                              ))}
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      ))}
+                      {loadingAssessmentPlan && (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                          <CircularProgress size={24} />
+                          <Typography variant="body2" sx={{ ml: 2 }}>Loading Assessment & Plan data...</Typography>
+                        </Box>
+                      )}
+                    </Stack>
+                  ) : section.items && section.items.length > 0 ? (
                     <Stack spacing={2}>
                       {section.items.map((item: any, itemIndex: number) => (
                         <Box key={itemIndex}>
@@ -1672,6 +1874,16 @@ const NoteDetail: React.FC = () => {
           onHPITextChange={setHpiEditText}
           onMarkIssueInvalid={markIssueAsInvalid}
           onUnmarkIssueInvalid={unmarkIssueAsInvalid}
+          // Assessment & Plan editing props
+          assessmentPlanData={assessmentPlanData}
+          loadingAssessmentPlan={loadingAssessmentPlan}
+          editingProblem={editingProblem}
+          savingProblem={savingProblem}
+          isAttendingProvider={isAttendingProvider()}
+          onEditProblem={handleEditProblem}
+          onSaveProblem={handleSaveProblem}
+          onCancelProblemEdit={handleCancelProblemEdit}
+          renderProblemField={renderProblemField}
         />
       ) : (
         /* Desktop Content */

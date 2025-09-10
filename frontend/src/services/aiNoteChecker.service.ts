@@ -987,6 +987,95 @@ class AINoteCheckerService {
       throw new Error(error.response?.data?.error || 'Failed to modify HPI');
     }
   }
+
+  // Get Assessment and Plan data
+  async getAssessmentAndPlan(encounterId: string, patientId: string): Promise<any> {
+    if (USE_MOCK_DATA) {
+      console.log('🔄 Mock: Getting Assessment and Plan', { encounterId, patientId });
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return {
+        orderedItems: [],
+        apSections: [
+          {
+            encounterMedicalProblemInfo: {
+              id: "5359A557-C0D8-4C7E-8F5B-87377B08E9BC",
+              problemPointsV2: "CHRONIC_MILD",
+              name: "Assessment #1"
+            },
+            encounterMedicalProblemSectionElements: [
+              {
+                id: "problem-1",
+                type: "PROBLEM_POINTS",
+                title: "Problem",
+                text: "Chronic - Mildly Worse"
+              }
+            ]
+          }
+        ]
+      };
+    }
+
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/assessment-plan/get`,
+        {
+          withExamLevel: true,
+          encounterId,
+          refresh: false
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${authService.getSessionToken()}`,
+            'Content-Type': 'application/json',
+            'encounterid': encounterId,
+            'patientid': patientId
+          }
+        }
+      );
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting Assessment and Plan:', error);
+      throw new Error(error.response?.data?.error || 'Failed to get Assessment and Plan');
+    }
+  }
+
+  // Update Problem field in Assessment and Plan
+  async updateProblemField(encounterId: string, patientId: string, problemId: string, problemValue: string): Promise<any> {
+    if (USE_MOCK_DATA) {
+      console.log('🔄 Mock: Updating Problem field', { encounterId, patientId, problemId, problemValue });
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return {
+        success: true,
+        message: 'Problem field updated successfully'
+      };
+    }
+
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/assessment-plan/update-problem`,
+        {
+          encounterId,
+          patientId,
+          problemId,
+          problemValue
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${authService.getSessionToken()}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error updating Problem field:', error);
+      throw new Error(error.response?.data?.error || 'Failed to update Problem field');
+    }
+  }
 }
 
 const aiNoteCheckerService = new AINoteCheckerService();
