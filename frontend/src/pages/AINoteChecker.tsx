@@ -212,7 +212,7 @@ const AINoteChecker: React.FC = () => {
     setChecking(prev => new Set(prev).add(note.encounterId));
     
     try {
-      await aiNoteCheckerService.checkSingleNote(
+      const checkResult = await aiNoteCheckerService.checkSingleNote(
         note.encounterId,
         note.patientId,
         note.patientName,
@@ -220,8 +220,11 @@ const AINoteChecker: React.FC = () => {
         note.dateOfService
       );
       
-      // Refresh the notes list to show updated status
-      await refreshEncounters();
+      // Don't refresh the entire page - the check result is saved on the backend
+      // The user can manually refresh if they want to see updated status
+      console.log(`✅ Note ${note.encounterId} check completed:`, checkResult.status);
+      setLocalError(null);
+      
     } catch (err: any) {
       console.error('Error checking note:', err);
       setLocalError(err.message || 'Failed to check note');
