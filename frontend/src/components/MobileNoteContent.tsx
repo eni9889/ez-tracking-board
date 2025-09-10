@@ -660,160 +660,234 @@ const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
                       Issues ({getValidIssues(result).length} valid, {result.aiAnalysis.issues.length} total):
                     </Typography>
                     
-                    <Stack spacing={1}>
-                      {result.aiAnalysis.issues.map((issue: any, issueIndex: number) => {
-                        const isInvalid = isIssueMarkedInvalid(result.id!, issueIndex);
-                        const isResolved = isIssueMarkedResolved(result.id!, issueIndex);
-                        const isMarked = isInvalid || isResolved;
-                        const isCollapsed = isIssueCollapsed(result.id!, issueIndex);
-                        
-                        // Determine border color and background based on status
-                        const getBorderColor = () => {
-                          if (isInvalid) return 'action.disabled';
-                          if (isResolved) return 'success.main';
-                          return 'warning.main';
-                        };
-                        
-                        const getBgColor = () => {
-                          if (isInvalid) return 'action.hover';
-                          if (isResolved) return 'success.50';
-                          return 'background.paper';
-                        };
-                        
-                        return (
-                          <Paper
-                            key={issueIndex}
-                            sx={{
-                              border: 1,
-                              borderColor: getBorderColor(),
-                              borderRadius: 1,
-                              bgcolor: getBgColor(),
-                              opacity: isMarked ? 0.8 : 1,
-                              overflow: 'hidden'
-                            }}
-                          >
-                            {/* Issue Header - Always Visible */}
-                            <Box sx={{ 
-                              p: 1.5, 
-                              pb: isMarked && isCollapsed ? 1.5 : 1,
-                              cursor: isMarked ? 'pointer' : 'default'
-                            }}
-                            onClick={() => isMarked ? toggleIssueCollapse(result.id!, issueIndex) : undefined}
-                            >
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: isMarked && isCollapsed ? 0 : 1 }}>
-                                <Chip
-                                  label={issue.issue.replace(/_/g, ' ')}
-                                  color={isInvalid ? 'default' : isResolved ? 'success' : 'warning'}
-                                  size="small"
-                                  sx={{ fontSize: '0.7rem' }}
-                                />
-                                {isInvalid && (
-                                  <Chip
-                                    label="Invalid"
-                                    color="default"
+                    {(() => {
+                      // Group issues by check type for mobile view  
+                      const checkTypeMap: { [key: string]: string } = {
+                        'chronicity-check': 'Chronicity Analysis',
+                        'hpi-structure-check': 'HPI Structure Analysis', 
+                        'plan-check': 'Plan Documentation Analysis',
+                        'accuracy-check': 'Accuracy & Consistency Analysis',
+                        'vital-signs-check': 'Vital Signs Validation'
+                      };
+
+                      const checkTypeColors: { [key: string]: string } = {
+                        'chronicity-check': '#ff5722',
+                        'hpi-structure-check': '#2196f3',
+                        'plan-check': '#ff9800',
+                        'accuracy-check': '#4caf50',
+                        'vital-signs-check': '#9c27b0'
+                      };
+
+                      const issuesByCheckType = result.aiAnalysis.issues.reduce((groups: any, issue: any, issueIndex: number) => {
+                        const checkType = issue.checkType || 'unknown';
+                        if (!groups[checkType]) {
+                          groups[checkType] = [];
+                        }
+                        groups[checkType].push({ issue, issueIndex });
+                        return groups;
+                      }, {});
+
+                      return (
+                        <Stack spacing={2}>
+                          {Object.entries(issuesByCheckType).map(([checkType, issueItems]: [string, any]) => (
+                            <Box key={checkType}>
+                              {/* Check Type Header for Mobile */}
+                              <Box sx={{ 
+                                p: 1.5, 
+                                borderRadius: 1,
+                                bgcolor: 'grey.50',
+                                border: '1px solid',
+                                borderColor: 'grey.200',
+                                mb: 1
+                              }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Box sx={{
+                                    width: 3,
+                                    height: 16,
+                                    bgcolor: checkTypeColors[checkType] || '#757575',
+                                    borderRadius: 0.5
+                                  }} />
+                                  <Typography variant="body2" sx={{ 
+                                    fontWeight: 'bold',
+                                    color: checkTypeColors[checkType] || '#757575',
+                                    fontSize: '0.8rem'
+                                  }}>
+                                    {checkTypeMap[checkType] || `${checkType} Check`}
+                                  </Typography>
+                                  <Chip 
+                                    label={`${issueItems.length}`}
                                     size="small"
-                                    icon={<Block />}
-                                    sx={{ fontSize: '0.7rem' }}
-                                  />
-                                )}
-                                {isResolved && (
-                                  <Chip
-                                    label="Resolved"
-                                    color="success"
-                                    size="small"
-                                    icon={<TaskAlt />}
-                                    sx={{ fontSize: '0.7rem' }}
-                                  />
-                                )}
-                                {isMarked && (
-                                  <IconButton 
-                                    size="small" 
-                                    sx={{ ml: 'auto', p: 0.25 }}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleIssueCollapse(result.id!, issueIndex);
+                                    sx={{ 
+                                      bgcolor: checkTypeColors[checkType] || '#757575',
+                                      color: 'white',
+                                      fontWeight: 'bold',
+                                      fontSize: '0.65rem',
+                                      height: '20px'
                                     }}
-                                  >
-                                    {isCollapsed ? <ExpandMore sx={{ fontSize: '1rem' }} /> : <ExpandLess sx={{ fontSize: '1rem' }} />}
-                                  </IconButton>
-                                )}
-                              </Box>
-                              
-                              {/* Show truncated assessment when collapsed */}
-                              {isMarked && isCollapsed && (
-                                <Typography variant="body2" sx={{ fontSize: '0.75rem', color: 'text.secondary', fontStyle: 'italic' }}>
-                                  {issue.assessment.substring(0, 60)}...
-                                </Typography>
-                              )}
-                            </Box>
-
-                            {/* Issue Details - Collapsible */}
-                            <Collapse in={!isMarked || !isCollapsed}>
-                              <Box sx={{ px: 1.5, pb: 1.5 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 0.5, fontSize: '0.8rem' }}>
-                                  {issue.assessment}
-                                </Typography>
-
-                                <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 1, color: 'text.secondary' }}>
-                                  {issue.details.correction}
-                                </Typography>
-
-                                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                                  {!isInvalid && !isResolved && (
-                                    <>
-                                      <Button
-                                        size="small"
-                                        variant="outlined"
-                                        color="error"
-                                        startIcon={<Block />}
-                                        onClick={() => onMarkIssueInvalid?.(result.id, issueIndex, issue)}
-                                        sx={{ fontSize: '0.7rem', py: 0.25 }}
-                                      >
-                                        Mark Invalid
-                                      </Button>
-                                      <Button
-                                        size="small"
-                                        variant="outlined"
-                                        color="success"
-                                        startIcon={<TaskAlt />}
-                                        onClick={() => onMarkIssueResolved?.(result.id, issueIndex, issue)}
-                                        sx={{ fontSize: '0.7rem', py: 0.25 }}
-                                      >
-                                        Mark Resolved
-                                      </Button>
-                                    </>
-                                  )}
-                                  {isInvalid && (
-                                    <Button
-                                      size="small"
-                                      variant="outlined"
-                                      color="primary"
-                                      startIcon={<CheckCircle />}
-                                      onClick={() => onUnmarkIssueInvalid?.(result.id, issueIndex)}
-                                      sx={{ fontSize: '0.7rem', py: 0.25 }}
-                                    >
-                                      Mark Valid
-                                    </Button>
-                                  )}
-                                  {isResolved && (
-                                    <Button
-                                      size="small"
-                                      variant="outlined"
-                                      color="primary"
-                                      startIcon={<Warning />}
-                                      onClick={() => onUnmarkIssueResolved?.(result.id, issueIndex)}
-                                      sx={{ fontSize: '0.7rem', py: 0.25 }}
-                                    >
-                                      Mark Unresolved
-                                    </Button>
-                                  )}
+                                  />
                                 </Box>
                               </Box>
-                            </Collapse>
-                          </Paper>
-                        );
-                      })}
-                    </Stack>
+
+                              {/* Issues for this check type */}
+                              <Stack spacing={1}>
+                                {issueItems.map(({ issue, issueIndex }: { issue: any, issueIndex: number }) => {
+                                  const isInvalid = isIssueMarkedInvalid(result.id!, issueIndex);
+                                  const isResolved = isIssueMarkedResolved(result.id!, issueIndex);
+                                  const isMarked = isInvalid || isResolved;
+                                  const isCollapsed = isIssueCollapsed(result.id!, issueIndex);
+                                  
+                                  // Determine border color and background based on status
+                                  const getBorderColor = () => {
+                                    if (isInvalid) return 'action.disabled';
+                                    if (isResolved) return 'success.main';
+                                    return 'warning.main';
+                                  };
+                                  
+                                  const getBgColor = () => {
+                                    if (isInvalid) return 'action.hover';
+                                    if (isResolved) return 'success.50';
+                                    return 'background.paper';
+                                  };
+                                  
+                                  return (
+                                    <Paper
+                                      key={issueIndex}
+                                      sx={{
+                                        border: 1,
+                                        borderColor: getBorderColor(),
+                                        borderRadius: 1,
+                                        bgcolor: getBgColor(),
+                                        opacity: isMarked ? 0.8 : 1,
+                                        overflow: 'hidden'
+                                      }}
+                                    >
+                                      {/* Issue Header - Always Visible */}
+                                      <Box sx={{ 
+                                        p: 1.5, 
+                                        pb: isMarked && isCollapsed ? 1.5 : 1,
+                                        cursor: isMarked ? 'pointer' : 'default'
+                                      }}
+                                      onClick={() => isMarked ? toggleIssueCollapse(result.id!, issueIndex) : undefined}
+                                      >
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: isMarked && isCollapsed ? 0 : 1 }}>
+                                          <Chip
+                                            label={issue.issue.replace(/_/g, ' ')}
+                                            color={isInvalid ? 'default' : isResolved ? 'success' : 'warning'}
+                                            size="small"
+                                            sx={{ fontSize: '0.7rem' }}
+                                          />
+                                          {isInvalid && (
+                                            <Chip
+                                              label="Invalid"
+                                              color="default"
+                                              size="small"
+                                              icon={<Block />}
+                                              sx={{ fontSize: '0.7rem' }}
+                                            />
+                                          )}
+                                          {isResolved && (
+                                            <Chip
+                                              label="Resolved"
+                                              color="success"
+                                              size="small"
+                                              icon={<TaskAlt />}
+                                              sx={{ fontSize: '0.7rem' }}
+                                            />
+                                          )}
+                                          {isMarked && (
+                                            <IconButton 
+                                              size="small" 
+                                              sx={{ ml: 'auto', p: 0.25 }}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleIssueCollapse(result.id!, issueIndex);
+                                              }}
+                                            >
+                                              {isCollapsed ? <ExpandMore sx={{ fontSize: '1rem' }} /> : <ExpandLess sx={{ fontSize: '1rem' }} />}
+                                            </IconButton>
+                                          )}
+                                        </Box>
+                                        
+                                        {/* Show truncated assessment when collapsed */}
+                                        {isMarked && isCollapsed && (
+                                          <Typography variant="body2" sx={{ fontSize: '0.75rem', color: 'text.secondary', fontStyle: 'italic' }}>
+                                            {issue.assessment.substring(0, 60)}...
+                                          </Typography>
+                                        )}
+                                      </Box>
+
+                                      {/* Issue Details - Collapsible */}
+                                      <Collapse in={!isMarked || !isCollapsed}>
+                                        <Box sx={{ px: 1.5, pb: 1.5 }}>
+                                          <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 0.5, fontSize: '0.8rem' }}>
+                                            {issue.assessment}
+                                          </Typography>
+
+                                          <Typography variant="body2" sx={{ fontSize: '0.75rem', mb: 1, color: 'text.secondary' }}>
+                                            {issue.details.correction}
+                                          </Typography>
+
+                                          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                            {!isInvalid && !isResolved && (
+                                              <>
+                                                <Button
+                                                  size="small"
+                                                  variant="outlined"
+                                                  color="error"
+                                                  startIcon={<Block />}
+                                                  onClick={() => onMarkIssueInvalid?.(result.id, issueIndex, issue)}
+                                                  sx={{ fontSize: '0.7rem', py: 0.25 }}
+                                                >
+                                                  Mark Invalid
+                                                </Button>
+                                                <Button
+                                                  size="small"
+                                                  variant="outlined"
+                                                  color="success"
+                                                  startIcon={<TaskAlt />}
+                                                  onClick={() => onMarkIssueResolved?.(result.id, issueIndex, issue)}
+                                                  sx={{ fontSize: '0.7rem', py: 0.25 }}
+                                                >
+                                                  Mark Resolved
+                                                </Button>
+                                              </>
+                                            )}
+                                            {isInvalid && (
+                                              <Button
+                                                size="small"
+                                                variant="outlined"
+                                                color="primary"
+                                                startIcon={<CheckCircle />}
+                                                onClick={() => onUnmarkIssueInvalid?.(result.id, issueIndex)}
+                                                sx={{ fontSize: '0.7rem', py: 0.25 }}
+                                              >
+                                                Mark Valid
+                                              </Button>
+                                            )}
+                                            {isResolved && (
+                                              <Button
+                                                size="small"
+                                                variant="outlined"
+                                                color="primary"
+                                                startIcon={<Warning />}
+                                                onClick={() => onUnmarkIssueResolved?.(result.id, issueIndex)}
+                                                sx={{ fontSize: '0.7rem', py: 0.25 }}
+                                              >
+                                                Mark Unresolved
+                                              </Button>
+                                            )}
+                                          </Box>
+                                        </Box>
+                                      </Collapse>
+                                    </Paper>
+                                  );
+                                })}
+                              </Stack>
+                            </Box>
+                          ))}
+                        </Stack>
+                      );
+                    })()}
                   </Box>
                 )}
 

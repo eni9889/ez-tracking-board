@@ -501,7 +501,10 @@ class AINoteChecker {
       
       // Perform all checks in parallel for better performance
       const checkPromises = Object.values(this.CHECK_TYPES).map(checkType => 
-        this.performSingleCheck(checkType, progressNote)
+        this.performSingleCheck(checkType, progressNote).then(result => ({
+          checkType,
+          result
+        }))
       );
 
       console.log(`🔄 Running ${checkPromises.length} AI checks in parallel...`);
@@ -509,7 +512,7 @@ class AINoteChecker {
       const aiCheckResults = await Promise.all(checkPromises);
 
       // Perform local vital signs check (no AI call needed)
-      const vitalSignsResult = this.checkVitalSigns(progressNote);
+      const vitalSignsResult = { checkType: 'vital-signs-check', result: this.checkVitalSigns(progressNote) };
 
       // Combine all results (AI checks + vital signs check)
       const allCheckResults = [...aiCheckResults, vitalSignsResult];
@@ -610,14 +613,19 @@ class AINoteChecker {
   /**
    * Combine results from multiple AI checks into a single result
    */
-  private combineCheckResults(checkResults: AIAnalysisResult[]): AIAnalysisResult {
+  private combineCheckResults(checkResults: { checkType: string; result: AIAnalysisResult }[]): AIAnalysisResult {
     const allIssues: AIAnalysisIssue[] = [];
     let hasIssues = false;
 
-    // Collect all issues from all checks
-    for (const result of checkResults) {
+    // Collect all issues from all checks, adding check type information
+    for (const { checkType, result } of checkResults) {
       if (result.status === 'corrections_needed' && result.issues) {
-        allIssues.push(...result.issues);
+        // Add check type to each issue
+        const issuesWithCheckType = result.issues.map(issue => ({
+          ...issue,
+          checkType
+        }));
+        allIssues.push(...issuesWithCheckType);
         hasIssues = true;
       }
     }
