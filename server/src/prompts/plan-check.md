@@ -14,7 +14,8 @@ Verify that every billable assessment in the Assessment & Plan (A&P) has a clear
 2. **Excluded Assessments**:
    - Diagnoses treated with procedures (destruction, excision, injection) - ignore
    - Actinic Keratosis, ISK, Verruca, Molluscum when treated procedurally
-
+   - Do not worry about medication refills
+   
 3. **Plan Types** (any of these satisfy requirement):
    - **Treatment**: Medications, topical therapy, procedures
    - **Monitoring**: Follow-up appointments, watch and wait

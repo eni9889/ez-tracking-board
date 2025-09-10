@@ -12,16 +12,22 @@ Verify that the Assessment & Plan (A&P) aligns and is consistent with the Histor
    - Cannot be "stable" in A&P if "worsening" in HPI
    - Severity assessments should align between sections
    - It is not your job to make sure that all assessments are found in the HPI. Your job is only to evaluate the Assessments that have corressponding documentation in the HPI.
-   
+
 2. **Documentation Clarity**:
    - Flag unclear, incomplete, or ambiguous documentation
    - Only flag if ambiguity affects E/M level determination
    - Do not flag trivial ambiguity with no billing impact
+   - Do not worry about medication refills
 
 4. **Error Handling**:
    - Do not assume or infer intent
    - Flag only when inconsistencies could impact billing accuracy
    - Focus on documentation that affects E/M level determination
+
+5. **Excluded Diagnoses**: Ignore when evaluating:
+   - Ignore History of BCC, SCC, Melanoma
+   - Ignore ISK (inflamed seborrheic keratosis), AK (Actinic Keratosis)
+
 
 ## Output Format
 Return valid JSON only:
