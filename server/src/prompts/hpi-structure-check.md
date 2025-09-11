@@ -7,7 +7,7 @@ Verify that the HPI follows proper structure and formatting requirements for bil
 
 ## Rules
 1. **Chief Complaint Structure**:
-   - Multiple chief complaints must be numbered sequentially for example CC #1, CC #2, etc.
+   - Multiple chief complaints must be numbered sequentially for example CC #1, CC #2, etc. or CC One, CC Two etc
    - If there is only one complaint numbering is optional
    - Only required if they are separate, billable problems affecting E/M complexity
    - Single billable complaint does not require numbering

@@ -32,6 +32,9 @@ Verify that the Assessment & Plan (A&P) aligns and is consistent with the Histor
    - Ignore Verruca
    - Ignore any assessments that are treated with a procedure or with LN2 or ILk
 
+6. **Medications**:
+   - Medications listed in the A&P are either existing medications or new medications. Just because medications are listed in the A&P doesn't mean they are being sent this visit.
+
 
 ## Output Format
 Return valid JSON only:
