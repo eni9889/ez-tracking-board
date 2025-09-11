@@ -27,6 +27,7 @@ Verify that the Assessment & Plan (A&P) aligns and is consistent with the Histor
 
 5. **Excluded Diagnoses**: Ignore when evaluating:
    - Ignore History of BCC, SCC, Melanoma
+   - Ignore any Neoplasm of uncertain behavior of skin or Puch Rash or Biopsy
    - Ignore ISK (inflamed seborrheic keratosis), AK (Actinic Keratosis), Cherry Angiomas, Other Benign Skin findings
 
 
