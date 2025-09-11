@@ -18,6 +18,7 @@ Verify that the Assessment & Plan (A&P) aligns and is consistent with the Histor
    - Only flag if ambiguity affects E/M level determination
    - Do not flag trivial ambiguity with no billing impact
    - Do not worry about medication refills
+   - You are not a doctor, you do not make decisions 
 
 4. **Error Handling**:
    - Do not assume or infer intent
@@ -26,7 +27,7 @@ Verify that the Assessment & Plan (A&P) aligns and is consistent with the Histor
 
 5. **Excluded Diagnoses**: Ignore when evaluating:
    - Ignore History of BCC, SCC, Melanoma
-   - Ignore ISK (inflamed seborrheic keratosis), AK (Actinic Keratosis)
+   - Ignore ISK (inflamed seborrheic keratosis), AK (Actinic Keratosis), Cherry Angiomas
 
 
 ## Output Format
