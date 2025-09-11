@@ -912,7 +912,6 @@ const NoteDetail: React.FC = () => {
       'chronicity-check': 'Chronicity Analysis',
       'hpi-structure-check': 'HPI Structure Analysis', 
       'plan-check': 'Plan Documentation Analysis',
-      'accuracy-check': 'Accuracy & Consistency Analysis',
       'vital-signs-check': 'Vital Signs Validation'
     };
 
@@ -920,7 +919,6 @@ const NoteDetail: React.FC = () => {
       'chronicity-check': '#ff5722',
       'hpi-structure-check': '#2196f3',
       'plan-check': '#ff9800',
-      'accuracy-check': '#4caf50',
       'vital-signs-check': '#9c27b0'
     };
 

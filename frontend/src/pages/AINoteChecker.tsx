@@ -55,7 +55,7 @@ interface IncompleteNote {
   hasValidIssues?: boolean;
 }
 
-type FilterType = 'all' | 'clean' | 'issues' | 'unchecked' | 'issues-no-todos';
+type FilterType = 'all' | 'clean' | 'issues' | 'unchecked' | 'issues-no-todos' | 'issues-with-todos';
 
 const AINoteChecker: React.FC = () => {
   const [checking, setChecking] = useState<Set<string>>(new Set());
@@ -152,6 +152,11 @@ const AINoteChecker: React.FC = () => {
           note.lastCheckStatus === 'completed' && note.hasValidIssues && !note.todoCreated
         );
         break;
+      case 'issues-with-todos':
+        filtered = incompleteNotes.filter(note => 
+          note.lastCheckStatus === 'completed' && note.hasValidIssues && note.todoCreated
+        );
+        break;
       case 'all':
       default:
         filtered = incompleteNotes;
@@ -213,6 +218,9 @@ const AINoteChecker: React.FC = () => {
       ).length,
       'issues-no-todos': incompleteNotes.filter(note => 
         note.lastCheckStatus === 'completed' && note.hasValidIssues && !note.todoCreated
+      ).length,
+      'issues-with-todos': incompleteNotes.filter(note => 
+        note.lastCheckStatus === 'completed' && note.hasValidIssues && note.todoCreated
       ).length,
     };
   };
@@ -1063,6 +1071,28 @@ const AINoteChecker: React.FC = () => {
             } 
             value="issues-no-todos" 
           />
+          <Tab 
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <span>Issues With ToDos</span>
+                <Box sx={{
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  color: '#059669',
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: '12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  minWidth: '28px',
+                  textAlign: 'center',
+                  border: '1px solid rgba(16, 185, 129, 0.3)'
+                }}>
+                  {noteCounts['issues-with-todos']}
+                </Box>
+              </Box>
+            } 
+            value="issues-with-todos" 
+          />
         </Tabs>
         </Box>
       )}
@@ -1401,6 +1431,7 @@ const AINoteChecker: React.FC = () => {
                         currentFilter === 'clean' ? 'clean ' :
                         currentFilter === 'issues' ? 'notes with issues ' :
                         currentFilter === 'issues-no-todos' ? 'notes with issues without ToDos ' :
+                        currentFilter === 'issues-with-todos' ? 'notes with issues with ToDos ' :
                         'unchecked '}notes found`
                   }
                 </Typography>

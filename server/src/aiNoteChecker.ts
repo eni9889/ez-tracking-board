@@ -30,8 +30,7 @@ class AINoteChecker {
   private readonly CHECK_TYPES = {
     CHRONICITY: 'chronicity-check',
     HPI_STRUCTURE: 'hpi-structure-check',
-    PLAN: 'plan-check',
-    ACCURACY: 'accuracy-check'
+    PLAN: 'plan-check'
   } as const;
 
   // Model configuration for different check types
@@ -41,7 +40,6 @@ class AINoteChecker {
     'chronicity-check': 'gpt-5',     // Simple chronicity detection
     'hpi-structure-check': 'gpt-5-nano',       // Complex HPI structure analysis
     'plan-check': 'gpt-5-mini',                // Detailed plan evaluation
-    'accuracy-check': 'gpt-5-mini'        // Basic accuracy validation
   } as const;
 
   // Default model fallback
@@ -88,8 +86,6 @@ class AINoteChecker {
         return `You are a dermatology medical coder. Check if the HPI structure is correct for billing. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
       case this.CHECK_TYPES.PLAN:
         return `You are a dermatology medical coder. Check if every assessment in the A&P has a documented plan. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
-      case this.CHECK_TYPES.ACCURACY:
-        return `You are a dermatology medical coder. Check if the A&P aligns with the HPI. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
       default:
         return `You are a dermatology medical coder. Analyze the note for issues. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
     }
@@ -311,8 +307,7 @@ class AINoteChecker {
           return sectionType === 'SUBJECTIVE';
         
         case this.CHECK_TYPES.CHRONICITY:
-        case this.CHECK_TYPES.ACCURACY:
-          // Chronicity and Accuracy checks: only SUBJECTIVE (HPI) and ASSESSMENT_AND_PLAN
+          // Chronicity checks: only SUBJECTIVE (HPI) and ASSESSMENT_AND_PLAN
           return sectionType === 'SUBJECTIVE' || sectionType === 'ASSESSMENT_AND_PLAN';
         
         case this.CHECK_TYPES.PLAN:
@@ -338,8 +333,7 @@ class AINoteChecker {
           return elementType === 'HISTORY_OF_PRESENT_ILLNESS';
         
         case this.CHECK_TYPES.CHRONICITY:
-        case this.CHECK_TYPES.ACCURACY:
-          // Chronicity and Accuracy checks: include HPI and A&P elements, exclude PHYSICAL_EXAM
+          // Chronicity checks: include HPI and A&P elements, exclude PHYSICAL_EXAM
           if (sectionType === 'SUBJECTIVE') {
             return elementType === 'HISTORY_OF_PRESENT_ILLNESS';
           }

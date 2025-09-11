@@ -28,11 +28,12 @@ import {
   FilterList,
   Sort,
   ExpandMore,
-  ExpandLess
+  ExpandLess,
+  Assignment
 } from '@mui/icons-material';
 import useResponsive from '../hooks/useResponsive';
 
-type FilterType = 'all' | 'clean' | 'issues' | 'unchecked' | 'issues-no-todos';
+type FilterType = 'all' | 'clean' | 'issues' | 'unchecked' | 'issues-no-todos' | 'issues-with-todos';
 
 interface NoteCounts {
   all: number;
@@ -40,6 +41,7 @@ interface NoteCounts {
   issues: number;
   unchecked: number;
   'issues-no-todos': number;
+  'issues-with-todos': number;
 }
 
 interface MobileFiltersProps {
@@ -100,6 +102,13 @@ const MobileFilters: React.FC<MobileFiltersProps> = ({
       count: noteCounts['issues-no-todos'],
       color: '#dc2626',
       icon: <Block sx={{ fontSize: '1rem' }} />
+    },
+    {
+      value: 'issues-with-todos' as FilterType,
+      label: 'Issues With ToDos',
+      count: noteCounts['issues-with-todos'],
+      color: '#059669',
+      icon: <Assignment sx={{ fontSize: '1rem' }} />
     }
   ];
 
