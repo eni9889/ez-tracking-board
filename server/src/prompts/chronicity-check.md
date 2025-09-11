@@ -26,7 +26,8 @@ Verify that every diagnosis in the Assessment & Plan (A&P) matches the chronicit
    - Ignore History of BCC, SCC, Melanoma
    - Ignore any Neoplasm of uncertain behavior of skin or Puch Rash or Biopsy
    - Ignore ISK (inflamed seborrheic keratosis), AK (Actinic Keratosis), Verruca (Warts)
-   - Ignore any assessments that are treated with a procedure or with LN2 or ILk
+   - Ignore Verruca
+   - Ignore any assessments that are treated with a procedure or with LN2 or ILk or biopsy
    
 ## Output Format
 Return valid JSON only:

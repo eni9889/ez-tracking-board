@@ -30,7 +30,7 @@ Verify that the Assessment & Plan (A&P) aligns and is consistent with the Histor
    - Ignore any Neoplasm of uncertain behavior of skin or Puch Rash or Biopsy
    - Ignore ISK (inflamed seborrheic keratosis), AK (Actinic Keratosis), Cherry Angiomas, Other Benign Skin findings
    - Ignore Verruca
-   - Ignore any assessments that are treated with a procedure or with LN2 or ILk
+   - Ignore any assessments that are treated with a procedure or with LN2 or ILk or biopsy
 
 6. **Medications**:
    - Medications listed in the A&P are either existing medications or new medications. Just because medications are listed in the A&P doesn't mean they are being sent this visit.
