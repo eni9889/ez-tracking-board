@@ -753,12 +753,12 @@ app.post('/notes/incomplete', validateSession, async (req: Request, res: Respons
               return;
             }
             
-            // Apply eligibility filter: only show encounters with appropriate status and > 2 hours old
+            // Apply eligibility filter: only show encounters with appropriate status and > 30 minutes old
             const eligibleStatuses = ['PENDING_COSIGN', 'CHECKED_OUT', 'WITH_PROVIDER'];
-            const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+            const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
             const serviceDate = new Date(encounter.dateOfService);
             
-            const isEligible = eligibleStatuses.includes(encounter.status) && serviceDate < twoHoursAgo;
+            const isEligible = eligibleStatuses.includes(encounter.status) && serviceDate < thirtyMinutesAgo;
             
             if (!isEligible) {
               console.debug(`⏰ Skipping encounter ${encounter.id}: status=${encounter.status}, dateOfService=${encounter.dateOfService} (not eligible - either wrong status or too recent)`);
@@ -814,7 +814,7 @@ app.post('/notes/incomplete', validateSession, async (req: Request, res: Respons
       })
     );
 
-    console.log(`📊 Processed ${encountersWithStatus.length} eligible encounters from ${incompleteNotesData.length} batches (filtered by status and 2+ hour age requirement)`);
+    console.log(`📊 Processed ${encountersWithStatus.length} eligible encounters from ${incompleteNotesData.length} batches (filtered by status and 30+ minute age requirement)`);
     res.json({ success: true, encounters: encountersWithStatus });
   } catch (error: any) {
     console.error('Error fetching incomplete notes:', error);

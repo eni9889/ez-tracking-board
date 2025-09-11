@@ -127,7 +127,7 @@ const NoteCardList: React.FC<NoteCardListProps> = ({
           fontSize: '0.9rem'
         }}>
           {currentFilter === 'all' 
-            ? 'All notes have been completed, signed, or are less than 2 hours old'
+            ? 'All notes have been completed, signed, or are less than 30 minutes old'
             : `No ${
                 currentFilter === 'clean' ? 'clean' :
                 currentFilter === 'issues' ? 'notes with issues' :

@@ -419,10 +419,10 @@ const processAINoteScan = async (job: Job<AINoteScanJobData>) => {
           for (const encounter of patientData.incompleteEncounters) {
             // Apply same eligibility filter as the main endpoint
             const eligibleStatuses = ['PENDING_COSIGN', 'CHECKED_OUT', 'WITH_PROVIDER'];
-            const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+            const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
             const serviceDate = new Date(encounter.dateOfService);
             
-            const isEligible = eligibleStatuses.includes(encounter.status) && serviceDate < twoHoursAgo;
+            const isEligible = eligibleStatuses.includes(encounter.status) && serviceDate < thirtyMinutesAgo;
             
             if (isEligible) {
               totalEligible++;

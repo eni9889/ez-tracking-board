@@ -116,11 +116,11 @@ class AINoteChecker {
 
   private isEligibleForCheck(encounter: IncompleteEncounter): boolean {
     const eligibleStatuses = ['PENDING_COSIGN', 'CHECKED_OUT', 'WITH_PROVIDER'];
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
     const serviceDate = this.parseDate(encounter.dateOfService);
     
     return eligibleStatuses.includes(encounter.status) && 
-           serviceDate < twoHoursAgo;
+           serviceDate < thirtyMinutesAgo;
   }
 
   /**
