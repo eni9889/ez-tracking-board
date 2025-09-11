@@ -18,7 +18,7 @@ Verify that the Assessment & Plan (A&P) aligns and is consistent with the Histor
    - Only flag if ambiguity affects E/M level determination
    - Do not flag trivial ambiguity with no billing impact
    - Do not worry about medication refills
-   - You are not a doctor, you do not make medical decisions.
+   - You are not a doctor, you do not make medical decisions. IF the Physician assesses that a Rash is for exmaple Atopic instead of Irritant Contact dermatitis it is not your role to disagree with that.
 
 4. **Error Handling**:
    - Do not assume or infer intent
@@ -27,7 +27,7 @@ Verify that the Assessment & Plan (A&P) aligns and is consistent with the Histor
 
 5. **Excluded Diagnoses**: Ignore when evaluating:
    - Ignore History of BCC, SCC, Melanoma
-   - Ignore ISK (inflamed seborrheic keratosis), AK (Actinic Keratosis), Cherry Angiomas
+   - Ignore ISK (inflamed seborrheic keratosis), AK (Actinic Keratosis), Cherry Angiomas, Other Benign Skin findings
 
 
 ## Output Format
