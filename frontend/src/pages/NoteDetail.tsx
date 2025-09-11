@@ -189,6 +189,8 @@ const NoteDetail: React.FC = () => {
             filteredNotes = allEncounters.filter(note => !note.lastCheckStatus || note.lastCheckStatus === 'pending');
           } else if (currentFilter === 'issues-no-todos') {
             filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && note.hasValidIssues === true && !note.todoCreated);
+          } else if (currentFilter === 'issues-with-todos') {
+            filteredNotes = allEncounters.filter(note => note.lastCheckStatus === 'completed' && note.hasValidIssues === true && note.todoCreated);
           }
           
           // Apply sorting if sortBy is provided
