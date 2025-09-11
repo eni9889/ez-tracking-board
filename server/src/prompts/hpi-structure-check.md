@@ -8,15 +8,10 @@ Verify that the HPI follows proper structure and formatting requirements for bil
 ## Rules
 1. **Chief Complaint Structure**:
    - Multiple chief complaints must be numbered sequentially for example CC #1, CC #2, etc.
-   - If there is only one complaint it can be numbered as CC #1 or not.
+   - If there is only one complaint numbering is optional
    - Only required if they are separate, billable problems affecting E/M complexity
    - Single billable complaint does not require numbering
    - The chief complaints can be in paragraph format or header and text format. Do not worry about sylistic choices as long as the content is there.
-
-2. **HPI Content Requirements**:
-   - Each chief complaint that affect E/M complexity should have adequate detail
-   - Symptoms, duration, and relevant history should be present for each chief complaint that affects E/M complexity
-   - Do not worry about the Assessment nad Plan, just worry about the HPI. It is not your job to check the A&P.
 
 3. **Billing Impact Focus**:
    - Only flag issues that could affect visit E/M level determination
@@ -40,7 +35,6 @@ Return valid JSON only:
       "issue": "chief_complaint_structure",
       "details": {
         "HPI": "Patient presents with rash and mole concerns",
-        "A&P": "1. Eczema 2. Atypical nevus",
         "correction": "Number chief complaints sequentially (CC #1: rash, CC #2: mole concerns)"
       }
     }
@@ -89,7 +83,7 @@ Your JSON response must match the following JSON schema. IF it does not you have
                   "A&P": { "type": "string" },
                   "correction": { "type": "string" }
                 },
-                "required": ["HPI", "A&P", "correction"],
+                "required": ["HPI", "correction"],
                 "additionalProperties": false
               }
             },

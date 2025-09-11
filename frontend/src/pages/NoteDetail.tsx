@@ -1150,6 +1150,8 @@ const NoteDetail: React.FC = () => {
 
   const getSectionIcon = (sectionType: string) => {
     switch (sectionType) {
+      case 'HPI':
+        return <Description color="primary" />;
       case 'SUBJECTIVE':
         return <Person color="primary" />;
       case 'OBJECTIVE':
@@ -1163,6 +1165,8 @@ const NoteDetail: React.FC = () => {
 
   const getSectionColor = (sectionType: string) => {
     switch (sectionType) {
+      case 'HPI':
+        return '#9c27b0'; // Purple for HPI
       case 'SUBJECTIVE':
         return '#1976d2';
       case 'OBJECTIVE':
@@ -1265,15 +1269,17 @@ const NoteDetail: React.FC = () => {
     );
   };
 
-  // Custom section ordering: Subjective -> Assessment & Plan -> Objective -> Others
+  // Custom section ordering: HPI -> Assessment & Plan -> Subjective (remaining) -> Objective -> Others
   const getSectionOrder = (sectionType: string): number => {
     switch (sectionType) {
-      case 'SUBJECTIVE':
-        return 1;
+      case 'HPI':
+        return 1; // HPI extracted as separate section
       case 'ASSESSMENT_AND_PLAN':
         return 2;
+      case 'SUBJECTIVE':
+        return 3; // Remaining SUBJECTIVE content after HPI extraction
       case 'OBJECTIVE':
-        return 3;
+        return 4;
       default:
         return 999; // Put any other sections at the end
     }
@@ -1308,8 +1314,46 @@ const NoteDetail: React.FC = () => {
       );
     }
 
-    // Sort sections according to our custom order: Subjective -> Assessment & Plan -> Objective -> Others
-    const sections = [...rawSections].sort((a, b) => {
+    // Extract HPI from SUBJECTIVE section and create new sections array
+    const processedSections = [];
+    
+    for (const section of rawSections) {
+      if (section.sectionType === 'SUBJECTIVE') {
+        // Extract HPI items
+        const hpiItems = section.items.filter((item: any) => 
+          item.elementType === 'HISTORY_OF_PRESENT_ILLNESS'
+        );
+        
+        // Get remaining SUBJECTIVE items (non-HPI)
+        const subjectiveItems = section.items.filter((item: any) => 
+          item.elementType !== 'HISTORY_OF_PRESENT_ILLNESS'
+        );
+        
+        // Add HPI as a separate section if it exists
+        if (hpiItems.length > 0) {
+          processedSections.push({
+            sectionType: 'HPI',
+            locked: section.locked,
+            order: 1,
+            items: hpiItems
+          });
+        }
+        
+        // Add remaining SUBJECTIVE content if it exists
+        if (subjectiveItems.length > 0) {
+          processedSections.push({
+            ...section,
+            items: subjectiveItems
+          });
+        }
+      } else {
+        // Keep other sections as is
+        processedSections.push(section);
+      }
+    }
+    
+    // Sort sections according to our custom order: HPI -> Assessment & Plan -> Subjective (remaining) -> Objective -> Others
+    const sections = processedSections.sort((a, b) => {
       const orderA = getSectionOrder(a.sectionType);
       const orderB = getSectionOrder(b.sectionType);
       return orderA - orderB;
