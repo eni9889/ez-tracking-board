@@ -30,7 +30,8 @@ class AINoteChecker {
   private readonly CHECK_TYPES = {
     CHRONICITY: 'chronicity-check',
     HPI_STRUCTURE: 'hpi-structure-check',
-    PLAN: 'plan-check'
+    PLAN: 'plan-check',
+    CLINICAL_COURSE: 'clinical-course-check'
   } as const;
 
   // Model configuration for different check types
@@ -40,6 +41,7 @@ class AINoteChecker {
     'chronicity-check': 'gpt-5',     // Simple chronicity detection
     'hpi-structure-check': 'gpt-5-nano',       // Complex HPI structure analysis
     'plan-check': 'gpt-5-mini',                // Detailed plan evaluation
+    'clinical-course-check': 'gpt-5',          // Clinical course consistency check
   } as const;
 
   // Default model fallback
@@ -310,6 +312,10 @@ class AINoteChecker {
           // Chronicity checks: only SUBJECTIVE (HPI) and ASSESSMENT_AND_PLAN
           return sectionType === 'SUBJECTIVE' || sectionType === 'ASSESSMENT_AND_PLAN';
         
+        case this.CHECK_TYPES.CLINICAL_COURSE:
+          // Clinical course checks: only SUBJECTIVE (HPI) and ASSESSMENT_AND_PLAN
+          return sectionType === 'SUBJECTIVE' || sectionType === 'ASSESSMENT_AND_PLAN';
+        
         case this.CHECK_TYPES.PLAN:
           // Plan check: only ASSESSMENT_AND_PLAN section
           return sectionType === 'ASSESSMENT_AND_PLAN';
@@ -334,6 +340,16 @@ class AINoteChecker {
         
         case this.CHECK_TYPES.CHRONICITY:
           // Chronicity checks: include HPI and A&P elements, exclude PHYSICAL_EXAM
+          if (sectionType === 'SUBJECTIVE') {
+            return elementType === 'HISTORY_OF_PRESENT_ILLNESS';
+          }
+          if (sectionType === 'ASSESSMENT_AND_PLAN') {
+            return true; // Include all A&P elements
+          }
+          return false;
+        
+        case this.CHECK_TYPES.CLINICAL_COURSE:
+          // Clinical course checks: include HPI and A&P elements, exclude PHYSICAL_EXAM
           if (sectionType === 'SUBJECTIVE') {
             return elementType === 'HISTORY_OF_PRESENT_ILLNESS';
           }
@@ -432,8 +448,6 @@ class AINoteChecker {
         throw new Error(`No response content received from OpenAI for ${checkType}`);
       }
       
-      console.log(`📝 Raw AI response for ${checkType}:`, aiResponse);
-
       // Parse the JSON response from OpenAI
       let analysisResult: AIAnalysisResult;
       try {
