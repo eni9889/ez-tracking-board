@@ -31,7 +31,8 @@ class AINoteChecker {
     CHRONICITY: 'chronicity-check',
     HPI_STRUCTURE: 'hpi-structure-check',
     PLAN: 'plan-check',
-    CLINICAL_COURSE: 'clinical-course-check'
+    CLINICAL_COURSE: 'clinical-course-check',
+    EM_LEVEL: 'em-level-check'
   } as const;
 
   // Model configuration for different check types
@@ -42,6 +43,7 @@ class AINoteChecker {
     'hpi-structure-check': 'gpt-5-nano',       // Complex HPI structure analysis
     'plan-check': 'gpt-5-mini',                // Detailed plan evaluation
     'clinical-course-check': 'gpt-5',          // Clinical course consistency check
+    'em-level-check': 'gpt-5',                 // E/M level documentation validation
   } as const;
 
   // Default model fallback
@@ -88,6 +90,8 @@ class AINoteChecker {
         return `You are a dermatology medical coder. Check if the HPI structure is correct for billing. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
       case this.CHECK_TYPES.PLAN:
         return `You are a dermatology medical coder. Check if every assessment in the A&P has a documented plan. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
+      case this.CHECK_TYPES.EM_LEVEL:
+        return `You are a dermatology medical coder. Check if every assessment in the A&P that affects E/M level has adequate HPI documentation. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
       default:
         return `You are a dermatology medical coder. Analyze the note for issues. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
     }
@@ -320,6 +324,10 @@ class AINoteChecker {
           // Plan check: only ASSESSMENT_AND_PLAN section
           return sectionType === 'ASSESSMENT_AND_PLAN';
         
+        case this.CHECK_TYPES.EM_LEVEL:
+          // E/M level checks: both SUBJECTIVE (HPI) and ASSESSMENT_AND_PLAN
+          return sectionType === 'SUBJECTIVE' || sectionType === 'ASSESSMENT_AND_PLAN';
+        
         default:
           // Unknown check type: include all sections
           return true;
@@ -361,6 +369,16 @@ class AINoteChecker {
         case this.CHECK_TYPES.PLAN:
           // Plan check: only include A&P elements
           return sectionType === 'ASSESSMENT_AND_PLAN';
+        
+        case this.CHECK_TYPES.EM_LEVEL:
+          // E/M level checks: include HPI and A&P elements, exclude PHYSICAL_EXAM
+          if (sectionType === 'SUBJECTIVE') {
+            return elementType === 'HISTORY_OF_PRESENT_ILLNESS';
+          }
+          if (sectionType === 'ASSESSMENT_AND_PLAN') {
+            return true; // Include all A&P elements
+          }
+          return false;
         
         default:
           // Unknown check type: exclude PHYSICAL_EXAM by default
@@ -641,7 +659,7 @@ class AINoteChecker {
     if (!hasIssues) {
       return {
         status: 'ok',
-        reason: 'All checks passed: chronicity, HPI structure, plan documentation, accuracy validation, and vital signs verification completed successfully'
+        reason: 'All checks passed: chronicity, HPI structure, plan documentation, E/M level validation, clinical course analysis, and vital signs verification completed successfully'
       };
     }
 

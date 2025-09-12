@@ -19,7 +19,7 @@ export interface EligibleEncounter {
 
 export interface AIAnalysisIssue {
   assessment: string;
-  issue: 'no_explicit_plan' | 'chronicity_mismatch' | 'unclear_documentation' | 'chief_complaint_structure';
+  issue: 'no_explicit_plan' | 'chronicity_mismatch' | 'unclear_documentation' | 'chief_complaint_structure' | 'em_level_documentation';
   checkType?: string; // Added to track which check found this issue
   details: {
     HPI?: string;

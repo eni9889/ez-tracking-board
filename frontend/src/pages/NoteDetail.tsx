@@ -900,14 +900,16 @@ const NoteDetail: React.FC = () => {
       'no_explicit_plan': 'Missing Explicit Plan',
       'chronicity_mismatch': 'Chronicity Mismatch', 
       'unclear_documentation': 'Unclear Documentation',
-      'chief_complaint_structure': 'Chief Complaint Structure'
+      'chief_complaint_structure': 'Chief Complaint Structure',
+      'em_level_documentation': 'E/M Level Documentation'
     };
 
     const issueColors: { [key: string]: "error" | "warning" | "info" | "secondary" | "default" } = {
       'no_explicit_plan': 'error',
       'chronicity_mismatch': 'warning',
       'unclear_documentation': 'info',
-      'chief_complaint_structure': 'secondary'
+      'chief_complaint_structure': 'secondary',
+      'em_level_documentation': 'warning'
     };
 
     const checkTypeMap: { [key: string]: string } = {
@@ -915,7 +917,8 @@ const NoteDetail: React.FC = () => {
       'hpi-structure-check': 'HPI Structure Analysis', 
       'plan-check': 'Plan Documentation Analysis',
       'clinical-course-check': 'Clinical Course Analysis',
-      'vital-signs-check': 'Vital Signs Validation'
+      'vital-signs-check': 'Vital Signs Validation',
+      'em-level-check': 'E/M Level Validation'
     };
 
     const checkTypeColors: { [key: string]: string } = {
@@ -923,7 +926,8 @@ const NoteDetail: React.FC = () => {
       'hpi-structure-check': '#2196f3',
       'plan-check': '#ff9800',
       'clinical-course-check': '#4caf50',
-      'vital-signs-check': '#9c27b0'
+      'vital-signs-check': '#9c27b0',
+      'em-level-check': '#f44336'
     };
 
     // Group issues by check type
