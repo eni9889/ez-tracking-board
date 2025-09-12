@@ -18,6 +18,11 @@ For dermatology encounters, proper E/M level billing requires that assessments a
 3. **Incidental findings** - Minor findings not requiring treatment or follow-up
 4. **Preventive care items** - Routine skin cancer screening of normal areas
 
+### Excluded Assessments**:
+1. Diagnoses treated with procedures (destruction, excision, injection) - ignore
+2. Actinic Keratosis, ISK, Verruca, Molluscum when treated procedurally
+3. Do not worry about medication refills
+
 ## HPI Elements to Look For:
 
 When checking if an A&P assessment has proper HPI support, look for a combination of these elements:
