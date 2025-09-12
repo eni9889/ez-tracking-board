@@ -22,6 +22,7 @@ For dermatology encounters, proper E/M level billing requires that assessments a
 1. Diagnoses treated with procedures (destruction, excision, injection) - ignore
 2. Actinic Keratosis, ISK, Verruca, Molluscum when treated procedurally
 3. Do not worry about medication refills
+4. Ignore ISK (inflamed seborrheic keratosis), AK (Actinic Keratosis), Verruca (Warts), Dermatofibroma, Verruca, Intradermal nevus, Skin tag
 
 ## HPI Elements to Look For:
 
