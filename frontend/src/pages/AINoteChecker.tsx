@@ -1171,7 +1171,7 @@ const AINoteChecker: React.FC = () => {
                 opacity: refreshing ? 0.7 : 1,
                 transition: 'opacity 0.3s ease'
               }}>
-            <Table stickyHeader size={isMobile ? "medium" : "small"} sx={{ 
+            <Table size={isMobile ? "medium" : "small"} sx={{ 
               tableLayout: isMobile ? 'auto' : 'fixed',
               minWidth: isMobile ? 'unset' : '1200px'
             }}>
