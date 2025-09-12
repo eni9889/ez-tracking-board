@@ -324,6 +324,20 @@ class VitalSignsDatabase {
         )
       `;
 
+      // Create processed_benefits_eligibility table
+      const createBenefitsEligibilityTableQuery = `
+        CREATE TABLE IF NOT EXISTS processed_benefits_eligibility (
+          id SERIAL PRIMARY KEY,
+          encounter_id TEXT UNIQUE NOT NULL,
+          patient_id TEXT NOT NULL,
+          processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          checks_enqueued INTEGER DEFAULT 0,
+          success BOOLEAN NOT NULL DEFAULT true,
+          error_message TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+
       // Execute table creation queries
       await client.query(createVitalSignsTableQuery);
       await client.query(createUserCredentialsTableQuery);
@@ -334,6 +348,7 @@ class VitalSignsDatabase {
       await client.query(createCreatedTodosTableQuery);
       await client.query(createInvalidIssuesTableQuery);
       await client.query(createResolvedIssuesTableQuery);
+      await client.query(createBenefitsEligibilityTableQuery);
 
       // Add MD5 and note content columns if they don't exist (migration)
       const addMd5ColumnQuery = `
@@ -343,7 +358,7 @@ class VitalSignsDatabase {
       `;
       await client.query(addMd5ColumnQuery);
 
-      console.log('Database tables created/verified: processed_vital_signs, user_credentials, user_sessions, refresh_tokens, note_checks, note_check_queue, created_todos, invalid_issues, resolved_issues');
+      console.log('Database tables created/verified: processed_vital_signs, user_credentials, user_sessions, refresh_tokens, note_checks, note_check_queue, created_todos, invalid_issues, resolved_issues, processed_benefits_eligibility');
     } finally {
       client.release();
     }
@@ -1339,6 +1354,73 @@ class VitalSignsDatabase {
     }
 
     return false; // All issues have been marked as invalid
+  }
+
+  // Benefits eligibility tracking methods
+  async hasBenefitsEligibilityBeenProcessed(encounterId: string): Promise<boolean> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = 'SELECT COUNT(*) as count FROM processed_benefits_eligibility WHERE encounter_id = $1';
+    const result = await this.pool.query(query, [encounterId]);
+    return parseInt(result.rows[0].count) > 0;
+  }
+
+  async markBenefitsEligibilityAsProcessed(
+    encounterId: string,
+    patientId: string,
+    checksEnqueued: number = 0,
+    success: boolean = true,
+    errorMessage?: string
+  ): Promise<void> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      INSERT INTO processed_benefits_eligibility 
+      (encounter_id, patient_id, checks_enqueued, success, error_message)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (encounter_id) 
+      DO UPDATE SET 
+        patient_id = EXCLUDED.patient_id,
+        checks_enqueued = EXCLUDED.checks_enqueued,
+        success = EXCLUDED.success,
+        error_message = EXCLUDED.error_message,
+        processed_at = CURRENT_TIMESTAMP
+    `;
+
+    await this.pool.query(query, [
+      encounterId, patientId, checksEnqueued, success, errorMessage
+    ]);
+
+    console.log(`Marked encounter ${encounterId} as processed for benefits eligibility check`);
+  }
+
+  async getBenefitsEligibilityStats(): Promise<{ total: number; successful: number; failed: number; totalChecksEnqueued: number }> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN success = true THEN 1 ELSE 0 END) as successful,
+        SUM(CASE WHEN success = false THEN 1 ELSE 0 END) as failed,
+        SUM(checks_enqueued) as total_checks_enqueued
+      FROM processed_benefits_eligibility
+    `;
+    
+    const result = await this.pool.query(query);
+    const row = result.rows[0];
+
+    return {
+      total: parseInt(row.total) || 0,
+      successful: parseInt(row.successful) || 0,
+      failed: parseInt(row.failed) || 0,
+      totalChecksEnqueued: parseInt(row.total_checks_enqueued) || 0
+    };
   }
 
   async close(): Promise<void> {

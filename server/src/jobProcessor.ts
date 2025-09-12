@@ -4,8 +4,16 @@ import axios from './axiosConfig';
 import { AxiosResponse } from 'axios';
 import { vitalSignsDb } from './database';
 import { vitalSignsService } from './vitalSignsService';
+import { benefitsService } from './benefitsService';
 import { aiNoteChecker } from './aiNoteChecker';
 import { appConfig } from './config';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+// Configure dayjs
+dayjs.extend(utc);
+dayjs.extend(timezone);
 import {
   EZDermLoginRequest,
   EZDermLoginResponse,
@@ -75,6 +83,20 @@ export const aiNoteCheckQueue = new Queue('ai-note-check', {
     backoff: {
       type: 'exponential',
       delay: 15000,
+    },
+  },
+});
+
+// Create queue for benefits eligibility processing
+export const benefitsEligibilityQueue = new Queue('benefits-eligibility-processing', {
+  connection: redis,
+  defaultJobOptions: {
+    removeOnComplete: 10, // Keep only last 10 completed jobs
+    removeOnFail: 50,     // Keep last 50 failed jobs
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 5000,
     },
   },
 });
@@ -310,6 +332,51 @@ async function getTodaysEncounters(accessToken: string, serverUrl: string): Prom
   }
 }
 
+// Get tomorrow's encounters from EZDerm for benefits eligibility checks
+async function getTomorrowsEncounters(accessToken: string, serverUrl: string): Promise<Encounter[]> {
+  try {
+    // Use dayjs for proper date handling in Eastern timezone
+    const tomorrow = dayjs().tz('America/Detroit').add(1, 'day');
+    const tomorrowStart = tomorrow.startOf('day');
+    const tomorrowEnd = tomorrow.endOf('day');
+    
+    // Use the exact format from encounters.md
+    const encounterData = {
+      practiceId: DEFAULT_PRACTICE_ID,
+      lightBean: true,
+      includeVirtualEncounters: false,
+      dateSelection: 'SPECIFY_RANGE',
+      dateOfServiceRangeLow: tomorrowStart.format('YYYY-MM-DDTHH:mm:ss.SSS[Z]').replace('Z', '-04:00'),
+      dateOfServiceRangeHigh: tomorrowEnd.format('YYYY-MM-DDTHH:mm:ss.SSS[Z]').replace('Z', '-04:00')
+    };
+
+    console.log(`Today: ${dayjs().tz('America/Detroit').format('YYYY-MM-DD HH:mm:ss')} (EDT)`);
+    console.log(`Tomorrow: ${tomorrow.format('YYYY-MM-DD')} (EDT)`);
+    console.log(`Fetching tomorrow's encounters: ${encounterData.dateOfServiceRangeLow} to ${encounterData.dateOfServiceRangeHigh}`);
+
+    const response: AxiosResponse<EZDermEncounter[]> = await axios.post(
+      `${serverUrl}ezderm-webservice/rest/encounter/getByFilter`,
+      encounterData,
+      {
+        headers: {
+          'accept': 'application/json',
+          'accept-language': 'en-US,en;q=0.9',
+          'authorization': `Bearer ${accessToken}`,
+          'content-type': 'application/json',
+          'origin': 'https://pms.ezderm.com',
+          'referer': 'https://pms.ezderm.com/',
+          'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+        }
+      }
+    );
+
+    return response.data.map(transformEZDermEncounter);
+  } catch (error: any) {
+    console.error('Failed to fetch tomorrow\'s encounters:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
 // Job processor function
 async function processVitalSignsCarryforward(job: Job): Promise<{ processed: number; successful: number; failed: number }> {
   console.log('🔄 Starting vital signs carryforward job...');
@@ -387,6 +454,119 @@ const getValidTokensForAI = async (): Promise<{ accessToken: string; refreshToke
   // Use the service user token management function
   return await getValidTokensForJob();
 };
+
+// Helper function to find the first appointment time for tomorrow
+function getFirstAppointmentTime(encounters: Encounter[]): dayjs.Dayjs | null {
+  if (encounters.length === 0) {
+    return null;
+  }
+
+  // Sort encounters by appointment time and get the earliest one
+  const sortedEncounters = encounters
+    .filter(encounter => encounter.appointmentTime)
+    .map(encounter => ({
+      ...encounter,
+      appointmentTimeDayjs: dayjs(encounter.appointmentTime).tz('America/Detroit')
+    }))
+    .sort((a, b) => a.appointmentTimeDayjs.valueOf() - b.appointmentTimeDayjs.valueOf());
+
+  if (sortedEncounters.length === 0) {
+    return null;
+  }
+
+  const firstEncounter = sortedEncounters[0];
+  return firstEncounter ? firstEncounter.appointmentTimeDayjs : null;
+}
+
+// Benefits eligibility job processor function
+async function processBenefitsEligibilityCheck(job: Job): Promise<{ processed: number; successful: number; failed: number }> {
+  console.log('💰 Starting benefits eligibility check job...');
+  
+  try {
+    // Get valid tokens using service user credentials
+    let authData = await getValidTokensForJob();
+    
+    if (!authData) {
+      throw new Error('Failed to obtain valid EZDerm tokens');
+    }
+
+    // Get tomorrow's encounters
+    const allEncounters = await getTomorrowsEncounters(authData.accessToken, authData.serverUrl);
+    
+    if (allEncounters.length === 0) {
+      const statusMsg = 'No appointments found for tomorrow';
+      console.log(`ℹ️ ${statusMsg}`);
+      return { processed: 0, successful: 0, failed: 0 };
+    }
+
+    // Find the first appointment time
+    const firstAppointmentTime = getFirstAppointmentTime(allEncounters);
+    
+    if (!firstAppointmentTime) {
+      console.log('ℹ️ No valid appointment times found for tomorrow');
+      return { processed: 0, successful: 0, failed: 0 };
+    }
+
+    console.log(`🎯 Running benefits eligibility check. First appointment at ${firstAppointmentTime.format('YYYY-MM-DD HH:mm:ss')} (EDT), running at optimal time.`);
+
+    // Process each encounter
+    let processed = 0;
+    let successful = 0;
+    let failed = 0;
+
+    for (const encounter of allEncounters) {
+      try {
+        // Check if already processed
+        const alreadyProcessed = await vitalSignsDb.hasBenefitsEligibilityBeenProcessed(encounter.id);
+        if (alreadyProcessed) {
+          console.debug(`⏭️ Skipping ${encounter.patientName} - already processed`);
+          continue;
+        }
+
+        processed++;
+        console.log(`💰 Processing benefits eligibility for ${encounter.patientName} (appointment at ${encounter.appointmentTime})`);
+        console.log(`📋 Encounter data: ID=${encounter.id}, PatientID=${(encounter.patientInfo as any)?.id}, PatientName=${encounter.patientInfo?.firstName} ${encounter.patientInfo?.lastName}`);
+        
+        // Map the encounter to the benefits encounter interface
+        const benefitsEncounter = {
+          id: encounter.id,
+          patientInfo: {
+            id: encounter.patientInfo.id,
+            firstName: encounter.patientInfo.firstName,
+            lastName: encounter.patientInfo.lastName,
+            dateOfBirth: encounter.patientInfo.dateOfBirth,
+          },
+          appointmentTime: encounter.appointmentTime,
+          status: encounter.status,
+          establishedPatient: encounter.establishedPatient
+        };
+        
+        const result = await benefitsService.processBenefitsEligibilityCheck(benefitsEncounter, authData.accessToken);
+        
+        if (result) {
+          successful++;
+          console.log(`✅ Successfully processed benefits eligibility for ${encounter.patientName}`);
+        } else {
+          failed++;
+          console.log(`❌ Failed to process benefits eligibility for ${encounter.patientName}`);
+        }
+      } catch (error) {
+        processed++;
+        failed++;
+        console.error(`💥 Error processing ${encounter.patientName}:`, error);
+      }
+    }
+
+    const summary = { processed, successful, failed };
+    console.log(`🏁 Benefits eligibility job completed: ${JSON.stringify(summary)}`);
+    
+    return summary;
+    
+  } catch (error) {
+    console.error('💥 Benefits eligibility job failed:', error);
+    throw error;
+  }
+}
 
 // AI Note Scan Job Processor
 const processAINoteScan = async (job: Job<AINoteScanJobData>) => {
@@ -593,6 +773,7 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
 
 // Workers - will be created only when explicitly started
 export let vitalSignsWorker: Worker | null = null;
+export let benefitsEligibilityWorker: Worker | null = null;
 export let aiNoteScanWorker: Worker | null = null;
 export let aiNoteCheckWorker: Worker | null = null;
 
@@ -644,6 +825,56 @@ export async function startVitalSignsJob(): Promise<void> {
     console.log('🚀 Vital signs carryforward job started (every 10 seconds)');
   } catch (error) {
     console.error('Failed to start vital signs job:', error);
+    throw error;
+  }
+}
+
+// Start the benefits eligibility job
+export async function startBenefitsEligibilityJob(): Promise<void> {
+  try {
+    // Create the worker if it doesn't exist
+    if (!benefitsEligibilityWorker) {
+      benefitsEligibilityWorker = new Worker('benefits-eligibility-processing', processBenefitsEligibilityCheck, {
+        connection: redis,
+        concurrency: 1, // Only one job at a time
+      });
+
+      // Set up event handlers
+      benefitsEligibilityWorker.on('completed', (job) => {
+        console.log(`✅ Benefits eligibility job ${job.id} completed successfully`);
+      });
+
+      benefitsEligibilityWorker.on('failed', (job, err) => {
+        console.error(`❌ Benefits eligibility job ${job?.id} failed:`, err);
+      });
+
+      benefitsEligibilityWorker.on('error', (err) => {
+        console.error('🚨 Benefits eligibility worker error:', err);
+      });
+    }
+
+    // Pause the queue first, then clear any existing jobs
+    await benefitsEligibilityQueue.pause();
+    await benefitsEligibilityQueue.obliterate({ force: true });
+    
+    // Resume the queue
+    await benefitsEligibilityQueue.resume();
+    
+    // Add recurring job every 5 minutes to check if it's time to run
+    await benefitsEligibilityQueue.add(
+      'process-benefits-eligibility',
+      {},
+      {
+        repeat: {
+          every: 1 * 60 * 60 * 1000, // 1 hour in production
+        },
+        jobId: 'benefits-eligibility-check', // Ensures only one instance
+      }
+    );
+
+    console.log('🚀 Benefits eligibility job started (checks every 5 minutes)');
+  } catch (error) {
+    console.error('Failed to start benefits eligibility job:', error);
     throw error;
   }
 }
@@ -804,6 +1035,19 @@ export async function stopVitalSignsJob(): Promise<void> {
   }
 }
 
+export async function stopBenefitsEligibilityJob(): Promise<void> {
+  try {
+    if (benefitsEligibilityWorker) {
+      await benefitsEligibilityWorker.close();
+      benefitsEligibilityWorker = null;
+    }
+    await benefitsEligibilityQueue.close();
+    console.log('🛑 Benefits eligibility job system stopped');
+  } catch (error) {
+    console.error('Error stopping benefits eligibility job system:', error);
+  }
+}
+
 export async function stopAINoteCheckingJob(): Promise<void> {
   try {
     if (aiNoteScanWorker) {
@@ -834,14 +1078,22 @@ async function main() {
     console.log('✅ Database initialized successfully');
 
     // Start vital signs job processor
-    console.log('🔄 Starting vital signs job processor...');
-    await startVitalSignsJob();
-    console.log('✅ Vital signs job processor started');
+    if (process.env.NODE_ENV === 'production') {
+      console.log('🔄 Starting vital signs job processor...');
+      await startVitalSignsJob();
+      console.log('✅ Vital signs job processor started');
 
-    // Start AI note checking job processor
-    console.log('🤖 Starting AI note checking job processor...');
-    await startAINoteCheckingJob();
-    console.log('✅ AI note checking job processor started');
+       // Start AI note checking job processor
+      console.log('🤖 Starting AI note checking job processor...');
+      await startAINoteCheckingJob();
+      console.log('✅ AI note checking job processor started');
+
+      // Start benefits eligibility job processor
+      console.log('💰 Starting benefits eligibility job processor...');
+      await startBenefitsEligibilityJob();
+      console.log('✅ Benefits eligibility job processor started');
+    }
+
 
     console.log('🚀 Worker process is ready and listening for jobs!');
 
@@ -849,6 +1101,7 @@ async function main() {
     process.on('SIGTERM', async () => {
       console.log('📡 Received SIGTERM, shutting down gracefully...');
       await stopVitalSignsJob();
+      await stopBenefitsEligibilityJob();
       await stopAINoteCheckingJob();
       process.exit(0);
     });
@@ -856,6 +1109,7 @@ async function main() {
     process.on('SIGINT', async () => {
       console.log('📡 Received SIGINT, shutting down gracefully...');
       await stopVitalSignsJob();
+      await stopBenefitsEligibilityJob();
       await stopAINoteCheckingJob();
       process.exit(0);
     });
