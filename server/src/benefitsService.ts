@@ -12,6 +12,19 @@ function requiresProviderLevelCheck(policyId: string): boolean {
   return PROVIDER_LEVEL_INSURANCE_IDS.includes(policyId);
 }
 
+// Helper function to get random delay between patient checks
+function getPatientCheckDelay(): number {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  if (isProduction) {
+    // Random delay between 10-30 seconds in production
+    return Math.floor(Math.random() * (30000 - 10000 + 1)) + 10000;
+  } else {
+    // Fixed 5 seconds in development
+    return 5000;
+  }
+}
+
 interface PatientInsuranceProfile {
   id: string;
   patientName: string;
@@ -451,7 +464,14 @@ class BenefitsService {
     let successful = 0;
     let failed = 0;
 
-    for (const encounter of encounters) {
+    for (let i = 0; i < encounters.length; i++) {
+      const encounter = encounters[i];
+      
+      if (!encounter) {
+        console.error(`Encounter at index ${i} is undefined, skipping`);
+        continue;
+      }
+      
       try {
         const result = await this.processBenefitsEligibilityCheck(encounter, accessToken);
         if (this.isEligibleForEligibilityCheck(encounter)) {
@@ -466,6 +486,14 @@ class BenefitsService {
         console.error(`Error processing encounter ${encounter.id}:`, error);
         processed++;
         failed++;
+      }
+
+      // Add delay between patient checks (except for the last patient)
+      if (i < encounters.length - 1) {
+        const delay = getPatientCheckDelay();
+        const isProduction = process.env.NODE_ENV === 'production';
+        console.log(`⏱️ Waiting ${delay / 1000} seconds before processing next patient (${isProduction ? 'production' : 'development'} mode)...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
 
