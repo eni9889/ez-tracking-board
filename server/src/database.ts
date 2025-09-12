@@ -324,6 +324,21 @@ class VitalSignsDatabase {
         )
       `;
 
+      // Create todo_completion_tracking table to track when we've detected ToDo completion
+      const createToDoCompletionTrackingTableQuery = `
+        CREATE TABLE IF NOT EXISTS todo_completion_tracking (
+          id SERIAL PRIMARY KEY,
+          encounter_id TEXT NOT NULL,
+          ezderm_todo_id TEXT NOT NULL,
+          completed_status VARCHAR(20) NOT NULL,
+          completion_detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          followup_ai_check_triggered BOOLEAN DEFAULT FALSE,
+          followup_ai_check_id INTEGER,
+          UNIQUE(encounter_id, ezderm_todo_id),
+          FOREIGN KEY (followup_ai_check_id) REFERENCES note_checks(id) ON DELETE SET NULL
+        )
+      `;
+
       // Create processed_benefits_eligibility table
       const createBenefitsEligibilityTableQuery = `
         CREATE TABLE IF NOT EXISTS processed_benefits_eligibility (
@@ -348,6 +363,7 @@ class VitalSignsDatabase {
       await client.query(createCreatedTodosTableQuery);
       await client.query(createInvalidIssuesTableQuery);
       await client.query(createResolvedIssuesTableQuery);
+      await client.query(createToDoCompletionTrackingTableQuery);
       await client.query(createBenefitsEligibilityTableQuery);
 
       // Add MD5 and note content columns if they don't exist (migration)
@@ -358,7 +374,7 @@ class VitalSignsDatabase {
       `;
       await client.query(addMd5ColumnQuery);
 
-      console.log('Database tables created/verified: processed_vital_signs, user_credentials, user_sessions, refresh_tokens, note_checks, note_check_queue, created_todos, invalid_issues, resolved_issues, processed_benefits_eligibility');
+      console.log('Database tables created/verified: processed_vital_signs, user_credentials, user_sessions, refresh_tokens, note_checks, note_check_queue, created_todos, invalid_issues, resolved_issues, todo_completion_tracking, processed_benefits_eligibility');
     } finally {
       client.release();
     }
@@ -1430,6 +1446,91 @@ class VitalSignsDatabase {
       this.pool = null;
       console.log('Database connection pool closed');
     }
+  }
+  /**
+   * Track ToDo completion detection
+   */
+  async trackToDoCompletion(
+    encounterId: string,
+    ezDermToDoId: string,
+    completedStatus: string,
+    followupAiCheckId?: number
+  ): Promise<void> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      INSERT INTO todo_completion_tracking (
+        encounter_id, ezderm_todo_id, completed_status, 
+        followup_ai_check_triggered, followup_ai_check_id
+      )
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (encounter_id, ezderm_todo_id) 
+      DO UPDATE SET
+        completed_status = EXCLUDED.completed_status,
+        completion_detected_at = CURRENT_TIMESTAMP,
+        followup_ai_check_triggered = EXCLUDED.followup_ai_check_triggered,
+        followup_ai_check_id = EXCLUDED.followup_ai_check_id
+    `;
+
+    await this.pool.query(query, [
+      encounterId,
+      ezDermToDoId,
+      completedStatus,
+      followupAiCheckId ? true : false,
+      followupAiCheckId || null
+    ]);
+  }
+
+  /**
+   * Check if ToDo completion has already been tracked
+   */
+  async isToDoCompletionTracked(encounterId: string, ezDermToDoId: string): Promise<boolean> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      SELECT 1 FROM todo_completion_tracking 
+      WHERE encounter_id = $1 AND ezderm_todo_id = $2 
+      LIMIT 1
+    `;
+
+    const result = await this.pool.query(query, [encounterId, ezDermToDoId]);
+    return result.rows.length > 0;
+  }
+
+  /**
+   * Get ToDos that need status checking (have not been checked for completion)
+   */
+  async getToDosForStatusCheck(): Promise<any[]> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const query = `
+      SELECT ct.encounter_id, ct.patient_id, ct.ezderm_todo_id, ct.patient_name,
+             ct.subject, ct.created_at
+      FROM created_todos ct
+      LEFT JOIN todo_completion_tracking tct 
+        ON ct.encounter_id = tct.encounter_id AND ct.ezderm_todo_id = tct.ezderm_todo_id
+      WHERE tct.id IS NULL
+        AND ct.created_at > NOW() - INTERVAL '30 days'
+      ORDER BY ct.created_at ASC
+      LIMIT 50
+    `;
+
+    const result = await this.pool.query(query);
+    
+    return result.rows.map(row => ({
+      encounterId: row.encounter_id,
+      patientId: row.patient_id,
+      ezDermToDoId: row.ezderm_todo_id,
+      patientName: row.patient_name,
+      subject: row.subject,
+      createdAt: row.created_at
+    }));
   }
 }
 

@@ -9,7 +9,8 @@ import { vitalSignsDb } from './database';
 import { vitalSignsService } from './vitalSignsService';
 import { 
   triggerAINoteScan, 
-  getAINoteJobStats 
+  getAINoteJobStats,
+  triggerToDoCompletionCheck
 } from './jobProcessor';
 import { aiNoteChecker } from './aiNoteChecker';
 import { appConfig } from './config';
@@ -686,6 +687,25 @@ app.post('/ai-notes/jobs/scan', validateSession, async (req: Request, res: Respo
     console.error('Error triggering AI note scan:', error);
     res.status(500).json({ 
       error: 'Failed to trigger AI note scan', 
+      details: error.message 
+    });
+  }
+});
+
+// Trigger manual ToDo completion check
+app.post('/todos/jobs/completion-check', validateSession, async (req: Request, res: Response) => {
+  try {
+    const scanId = await triggerToDoCompletionCheck();
+    
+    res.json({ 
+      success: true, 
+      message: 'ToDo completion check triggered successfully',
+      scanId 
+    });
+  } catch (error: any) {
+    console.error('Error triggering ToDo completion check:', error);
+    res.status(500).json({ 
+      error: 'Failed to trigger ToDo completion check', 
       details: error.message 
     });
   }

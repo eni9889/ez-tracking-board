@@ -202,6 +202,11 @@ export interface AINoteCheckJobData {
   force?: boolean; // Optional force flag to bypass MD5 checking
 }
 
+export interface ToDoCompletionCheckJobData {
+  scanId: string;
+  batchSize?: number;
+}
+
 // EZDerm ToDo Types
 export interface EZDermToDoUser {
   userId: string;
