@@ -244,9 +244,33 @@ const NoteDetail: React.FC = () => {
   // Get current note
   const currentNote = notes[currentIndex];
   
+  // Debug logging for cache investigation
+  if (currentNote) {
+    console.log('🔍 Current note:', {
+      encounterId: currentNote.encounterId,
+      patientName: currentNote.patientName,
+      currentIndex,
+      cacheKeys: Array.from(noteDataCache.keys()),
+      hasCachedData: noteDataCache.has(currentNote.encounterId)
+    });
+  }
+  
   // Get current note data from cache or defaults
   const currentNoteData = currentNote ? noteDataCache.get(currentNote.encounterId) : null;
   const progressNoteData = currentNoteData?.progressNoteData || null;
+  
+  // Debug progress note data retrieval
+  if (currentNote && progressNoteData) {
+    const patientNameFromNote = progressNoteData?.patientInfo?.name || 
+                               progressNoteData?.patientName || 
+                               'Unknown Patient';
+    console.log('📋 Progress note data retrieved:', {
+      encounterId: currentNote.encounterId,
+      expectedPatient: currentNote.patientName,
+      actualPatientFromNote: patientNameFromNote,
+      isCorrectPatient: patientNameFromNote === currentNote.patientName || patientNameFromNote === 'Unknown Patient'
+    });
+  }
   const careTeam = currentNoteData?.careTeam || [];
   const checkHistory = currentNoteData?.checkHistory || [];
   const createdTodos = currentNoteData?.createdTodos || [];
@@ -486,8 +510,16 @@ const NoteDetail: React.FC = () => {
   const handleNextNote = useCallback(() => {
     if (currentIndex < notes.length - 1) {
       const newIndex = currentIndex + 1;
-      setCurrentIndex(newIndex);
       const newNote = notes[newIndex];
+      console.log('➡️ Navigating to next note:', {
+        fromIndex: currentIndex,
+        toIndex: newIndex,
+        fromEncounter: notes[currentIndex]?.encounterId,
+        toEncounter: newNote.encounterId,
+        fromPatient: notes[currentIndex]?.patientName,
+        toPatient: newNote.patientName
+      });
+      setCurrentIndex(newIndex);
       // Preserve the location state context when navigating
       navigate(`/ai-note-checker/${newNote.encounterId}`, { 
         replace: true,
@@ -869,6 +901,13 @@ const NoteDetail: React.FC = () => {
   const handleSignOffNote = async () => {
     if (!currentNote) return;
     
+    console.log('📝 Starting sign-off for:', {
+      encounterId: currentNote.encounterId,
+      patientName: currentNote.patientName,
+      currentIndex,
+      cacheKeysBefore: Array.from(noteDataCache.keys())
+    });
+    
     setSigningOff(true);
     try {
       await aiNoteCheckerService.signOffNote(currentNote.encounterId, currentNote.patientId);
@@ -877,6 +916,8 @@ const NoteDetail: React.FC = () => {
       setNoteDataCache(prev => {
         const newCache = new Map(prev);
         newCache.delete(currentNote.encounterId);
+        console.log('🗑️ Removed from cache:', currentNote.encounterId);
+        console.log('🗂️ Cache after deletion:', Array.from(newCache.keys()));
         return newCache;
       });
       
@@ -887,7 +928,10 @@ const NoteDetail: React.FC = () => {
       setShowSignOffModal(false);
       setShowSignOffSuccessAlert(true);
       
-      console.log('✅ Note signed off successfully');
+      console.log('✅ Note signed off successfully for:', {
+        encounterId: currentNote.encounterId,
+        patientName: currentNote.patientName
+      });
       
     } catch (err: any) {
       console.error('Error signing off note:', err);

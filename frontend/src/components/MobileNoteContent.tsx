@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Tabs,
@@ -138,6 +138,40 @@ const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [collapsedIssues, setCollapsedIssues] = useState<Set<string>>(new Set());
 
+  // Auto-collapse resolved/invalid issues when data loads
+  useEffect(() => {
+    if (!checkHistory.length || (!invalidIssues.length && !resolvedIssues.length)) return;
+
+    const issuesToCollapse = new Set<string>();
+
+    // Go through check history and find all resolved/invalid issues
+    checkHistory.forEach(result => {
+      if (result.aiAnalysis?.issues) {
+        result.aiAnalysis.issues.forEach((issue: any, index: number) => {
+          const isInvalid = invalidIssues.some(invalid => 
+            invalid.checkId === result.id && invalid.issueIndex === index
+          );
+          const isResolved = resolvedIssues?.some(resolved => 
+            resolved.checkId === result.id && resolved.issueIndex === index
+          );
+          
+          if (isInvalid || isResolved) {
+            const issueKey = `${result.id}-${index}`;
+            issuesToCollapse.add(issueKey);
+          }
+        });
+      }
+    });
+
+    if (issuesToCollapse.size > 0) {
+      setCollapsedIssues(prev => {
+        const newSet = new Set(prev);
+        issuesToCollapse.forEach(key => newSet.add(key));
+        return newSet;
+      });
+    }
+  }, [checkHistory, invalidIssues, resolvedIssues]);
+
   // Only show on mobile
   if (!isMobile) {
     return null;
@@ -221,40 +255,6 @@ const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
     const issueKey = `${checkId}-${issueIndex}`;
     return collapsedIssues.has(issueKey);
   };
-
-  // Auto-collapse resolved/invalid issues when data loads
-  React.useEffect(() => {
-    if (!checkHistory.length || (!invalidIssues.length && !resolvedIssues.length)) return;
-
-    const issuesToCollapse = new Set<string>();
-
-    // Go through check history and find all resolved/invalid issues
-    checkHistory.forEach(result => {
-      if (result.aiAnalysis?.issues) {
-        result.aiAnalysis.issues.forEach((issue: any, index: number) => {
-          const isInvalid = invalidIssues.some(invalid => 
-            invalid.checkId === result.id && invalid.issueIndex === index
-          );
-          const isResolved = resolvedIssues?.some(resolved => 
-            resolved.checkId === result.id && resolved.issueIndex === index
-          );
-          
-          if (isInvalid || isResolved) {
-            const issueKey = `${result.id}-${index}`;
-            issuesToCollapse.add(issueKey);
-          }
-        });
-      }
-    });
-
-    if (issuesToCollapse.size > 0) {
-      setCollapsedIssues(prev => {
-        const newSet = new Set(prev);
-        issuesToCollapse.forEach(key => newSet.add(key));
-        return newSet;
-      });
-    }
-  }, [checkHistory, invalidIssues, resolvedIssues]);
 
   const getValidIssues = (result: any) => {
     if (!result.aiAnalysis?.issues) return [];
