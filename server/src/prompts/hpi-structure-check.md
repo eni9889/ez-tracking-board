@@ -19,6 +19,9 @@ Verify that the HPI follows proper structure and formatting requirements for bil
    - Do not flag stylistic preferences that don't impact billing
    - Focus on structure that affects MDM scoring
 
+## Important Considerations 
+- Don't say things like "Remove or harmonize the header line so all CCs are clearly enumerated, with distinct HPI details for each complaint.", this is not your job. You do not check grammer or sentence structure. 
+
 ## Output Format
 Return valid JSON only:
 
