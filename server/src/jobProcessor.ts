@@ -328,13 +328,14 @@ async function getTodaysEncounters(accessToken: string, serverUrl: string): Prom
 // Get tomorrow's encounters from EZDerm for benefits eligibility checks
 async function getTomorrowsEncounters(accessToken: string, serverUrl: string): Promise<Encounter[]> {
   try {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    // Format dates to match the encounters.md format (Eastern time with timezone offset)
-    const tomorrowStart = new Date(tomorrow);
+    // Create tomorrow's date properly
+    const today = new Date();
+    const tomorrowStart = new Date(today);
+    tomorrowStart.setDate(today.getDate() + 1);
     tomorrowStart.setHours(0, 0, 0, 0);
-    const tomorrowEnd = new Date(tomorrow);
+    
+    const tomorrowEnd = new Date(today);
+    tomorrowEnd.setDate(today.getDate() + 1);
     tomorrowEnd.setHours(23, 59, 59, 999);
     
     // Use the exact format from encounters.md
