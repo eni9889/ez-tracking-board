@@ -350,7 +350,7 @@ async function getTomorrowsEncounters(accessToken: string, serverUrl: string): P
     console.log(`Fetching tomorrow's encounters: ${encounterData.dateOfServiceRangeLow} to ${encounterData.dateOfServiceRangeHigh}`);
 
     const response: AxiosResponse<EZDermEncounter[]> = await axios.post(
-      `http${serverUrl}/ezderm-webservice/rest/encounter/getByFilter`,
+      `${serverUrl}ezderm-webservice/rest/encounter/getByFilter`,
       encounterData,
       {
         headers: {
@@ -873,7 +873,7 @@ export async function startBenefitsEligibilityJob(): Promise<void> {
       {},
       {
         repeat: {
-          every: 1 * 60 * 1000, // 1 minute
+          every: 1 * 30 * 1000, // 3 seconds
         },
         jobId: 'benefits-eligibility-check', // Ensures only one instance
       }
