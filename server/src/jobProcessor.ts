@@ -507,22 +507,6 @@ async function processBenefitsEligibilityCheck(job: Job): Promise<{ processed: n
       return { processed: 0, successful: 0, failed: 0 };
     }
 
-    // Check if we're running within 30 minutes of the first appointment
-    const now = dayjs().tz('America/Detroit');
-    const thirtyMinutesBeforeFirst = firstAppointmentTime.subtract(30, 'minutes');
-    const fiveMinutesBeforeFirst = firstAppointmentTime.subtract(5, 'minutes');
-
-    // Only run the job if current time is between 30 minutes and 5 minutes before first appointment
-    if (now.isBefore(thirtyMinutesBeforeFirst)) {
-      console.log(`⏰ Too early to run benefits eligibility check. First appointment at ${firstAppointmentTime.format('YYYY-MM-DD HH:mm:ss')} (EDT), will run at ${thirtyMinutesBeforeFirst.format('YYYY-MM-DD HH:mm:ss')} (EDT)`);
-      return { processed: 0, successful: 0, failed: 0 };
-    }
-
-    if (now.isAfter(fiveMinutesBeforeFirst)) {
-      console.log(`⏰ Too late to run benefits eligibility check. First appointment at ${firstAppointmentTime.format('YYYY-MM-DD HH:mm:ss')} (EDT), should have run by ${fiveMinutesBeforeFirst.format('YYYY-MM-DD HH:mm:ss')} (EDT)`);
-      return { processed: 0, successful: 0, failed: 0 };
-    }
-
     console.log(`🎯 Running benefits eligibility check. First appointment at ${firstAppointmentTime.format('YYYY-MM-DD HH:mm:ss')} (EDT), running at optimal time.`);
 
     // Process each encounter

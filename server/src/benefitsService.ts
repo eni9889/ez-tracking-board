@@ -1,6 +1,17 @@
 import axios from './axiosConfig';
 import { vitalSignsDb } from './database';
 
+// Insurance policy IDs that require PROVIDER level eligibility checks
+// All other insurance policies will use PRACTICE level checks
+const PROVIDER_LEVEL_INSURANCE_IDS: string[] = [
+  // TODO: Add insurance policy IDs that require provider-level checks
+];
+
+// Helper function to determine if a policy requires provider-level checks
+function requiresProviderLevelCheck(policyId: string): boolean {
+  return PROVIDER_LEVEL_INSURANCE_IDS.includes(policyId);
+}
+
 interface PatientInsuranceProfile {
   id: string;
   patientName: string;
@@ -344,56 +355,60 @@ class BenefitsService {
             continue;
           }
 
-          // Enqueue eligibility check as PROVIDER
-          console.log(`Enqueuing PROVIDER eligibility check for profile ${profile.id}`);
-          const providerCheckResponses = await this.enqueueEligibilityCheck(
-            profile.id,
-            eligibilityEntities.providerId,
-            'PROVIDER',
-            accessToken
+          // Determine if this profile requires provider-level checks
+          const needsProviderCheck = profile.insurancePolicies.some(policy => 
+            requiresProviderLevelCheck(policy.id)
           );
 
-          totalChecksEnqueued++;
+          if (needsProviderCheck) {
+            // Enqueue eligibility check as PROVIDER
+            console.log(`Enqueuing PROVIDER eligibility check for profile ${profile.id} (requires provider-level check)`);
+            const providerCheckResponses = await this.enqueueEligibilityCheck(
+              profile.id,
+              eligibilityEntities.providerId,
+              'PROVIDER',
+              accessToken
+            );
 
-          // Check if the provider request was successful
-          if (providerCheckResponses && providerCheckResponses.length > 0) {
-            const response = providerCheckResponses[0];
-            if (response && response.eligibilityStatusValue === 'PENDING_RESPONSE') {
-              successfulChecks++;
-              console.log(`✅ Successfully enqueued PROVIDER eligibility check for profile ${profile.id}`);
-            } else {
-              console.log(`❌ Provider eligibility check response for profile ${profile.id}: ${response?.eligibilityStatusValue || 'unknown'}`);
+            totalChecksEnqueued++;
+
+            // Check if the provider request was successful
+            if (providerCheckResponses && providerCheckResponses.length > 0) {
+              const response = providerCheckResponses[0];
+              if (response && response.eligibilityStatusValue === 'PENDING_RESPONSE') {
+                successfulChecks++;
+                console.log(`✅ Successfully enqueued PROVIDER eligibility check for profile ${profile.id}`);
+              } else {
+                console.log(`❌ Provider eligibility check response for profile ${profile.id}: ${response?.eligibilityStatusValue || 'unknown'}`);
+              }
             }
-          }
+          } else {
+            // Enqueue eligibility check as PRACTICE (default for most insurances)
+            console.log(`Enqueuing PRACTICE eligibility check for profile ${profile.id} (default level)`);
+            const practiceCheckResponses = await this.enqueueEligibilityCheck(
+              profile.id,
+              eligibilityEntities.practiceId,
+              'PRACTICE',
+              accessToken
+            );
 
-          // Wait a moment between requests to avoid rate limiting
-          await new Promise(resolve => setTimeout(resolve, 1000));
+            totalChecksEnqueued++;
 
-          // Enqueue eligibility check as PRACTICE
-          console.log(`Enqueuing PRACTICE eligibility check for profile ${profile.id}`);
-          const practiceCheckResponses = await this.enqueueEligibilityCheck(
-            profile.id,
-            eligibilityEntities.practiceId,
-            'PRACTICE',
-            accessToken
-          );
-
-          totalChecksEnqueued++;
-
-          // Check if the practice request was successful
-          if (practiceCheckResponses && practiceCheckResponses.length > 0) {
-            const response = practiceCheckResponses[0];
-            if (response && response.eligibilityStatusValue === 'PENDING_RESPONSE') {
-              successfulChecks++;
-              console.log(`✅ Successfully enqueued PRACTICE eligibility check for profile ${profile.id}`);
-            } else {
-              console.log(`❌ Practice eligibility check response for profile ${profile.id}: ${response?.eligibilityStatusValue || 'unknown'}`);
+            // Check if the practice request was successful
+            if (practiceCheckResponses && practiceCheckResponses.length > 0) {
+              const response = practiceCheckResponses[0];
+              if (response && response.eligibilityStatusValue === 'PENDING_RESPONSE') {
+                successfulChecks++;
+                console.log(`✅ Successfully enqueued PRACTICE eligibility check for profile ${profile.id}`);
+              } else {
+                console.log(`❌ Practice eligibility check response for profile ${profile.id}: ${response?.eligibilityStatusValue || 'unknown'}`);
+              }
             }
           }
 
         } catch (error) {
           console.error(`Error processing eligibility checks for profile ${profile.id}:`, error);
-          totalChecksEnqueued += 2; // We attempted both provider and practice checks
+          totalChecksEnqueued += 1; // We attempted one eligibility check
           // Continue with other profiles
         }
       }
@@ -410,8 +425,7 @@ class BenefitsService {
 
       if (totalChecksEnqueued > 0) {
         const profileCount = insuranceProfiles.length;
-        const expectedChecks = profileCount * 2; // 2 checks per profile (provider + practice)
-        console.log(`Successfully processed benefits eligibility for encounter ${encounter.id}: ${successfulChecks}/${totalChecksEnqueued} checks enqueued (${profileCount} profiles × 2 checks each)`);
+        console.log(`Successfully processed benefits eligibility for encounter ${encounter.id}: ${successfulChecks}/${totalChecksEnqueued} checks enqueued (${profileCount} profiles × 1 check each)`);
         return allSuccessful;
       } else {
         console.log(`No eligibility checks needed for encounter ${encounter.id}`);
