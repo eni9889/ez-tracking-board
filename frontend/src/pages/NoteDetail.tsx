@@ -573,6 +573,45 @@ const NoteDetail: React.FC = () => {
     setCollapsedIssues(prev => new Set(prev).add(issueKey));
   };
 
+  // Helper function to auto-collapse all resolved/invalid issues when data loads
+  const autoCollapseResolvedAndInvalidIssues = useCallback(() => {
+    if (!checkHistory.length || (!invalidIssues.length && !resolvedIssues.length)) return;
+
+    const issuesToCollapse = new Set<string>();
+
+    // Go through check history and find all resolved/invalid issues
+    checkHistory.forEach(result => {
+      if (result.aiAnalysis?.issues) {
+        result.aiAnalysis.issues.forEach((issue: AIAnalysisIssue, index: number) => {
+          const isInvalid = invalidIssues.some(invalid => 
+            invalid.checkId === result.id && invalid.issueIndex === index
+          );
+          const isResolved = resolvedIssues.some(resolved => 
+            resolved.checkId === result.id && resolved.issueIndex === index
+          );
+          
+          if (isInvalid || isResolved) {
+            const issueKey = `${result.id}-${index}`;
+            issuesToCollapse.add(issueKey);
+          }
+        });
+      }
+    });
+
+    if (issuesToCollapse.size > 0) {
+      setCollapsedIssues(prev => {
+        const newSet = new Set(prev);
+        issuesToCollapse.forEach(key => newSet.add(key));
+        return newSet;
+      });
+    }
+  }, [checkHistory, invalidIssues, resolvedIssues]);
+
+  // Auto-collapse resolved/invalid issues when data loads
+  useEffect(() => {
+    autoCollapseResolvedAndInvalidIssues();
+  }, [autoCollapseResolvedAndInvalidIssues]);
+
   // Check if the current user is the attending provider for this note
   const isAttendingProvider = (): boolean => {
     if (!currentUserProviderId || !careTeam.length) return false;
