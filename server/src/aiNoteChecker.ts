@@ -382,17 +382,14 @@ class AINoteChecker {
           continue;
         }
 
-        if (item.elementType === 'HISTORY_OF_PRESENT_ILLNESS') {
-          const HPIIntroText = item.text.split('\n\n')[0]
-          console.log('HPIIntroText:', HPIIntroText)
-          formattedNote += `\n${item.elementType}:\n${HPIIntroText}\n${item.note}\n`;
-        } else if (item.text && item.text.trim()) {
-          formattedNote += `\n${item.elementType}:\n${item.text}\n`;
-          
-          if (item.note && item.note.trim()) {
-            formattedNote += `Note: ${item.note}\n`;
-          }
+        if (item.text && item.text.trim()) {
+          formattedNote += `${item.text}\n`;
         }
+
+        if (item.note && item.note.trim()) {
+          formattedNote += `${item.note}\n`;
+        }
+
       }
     }
 
