@@ -1076,19 +1076,22 @@ async function main() {
     console.log('✅ Database initialized successfully');
 
     // Start vital signs job processor
-    console.log('🔄 Starting vital signs job processor...');
-    await startVitalSignsJob();
-    console.log('✅ Vital signs job processor started');
+    if (process.env.NODE_ENV === 'production') {
+      console.log('🔄 Starting vital signs job processor...');
+      await startVitalSignsJob();
+      console.log('✅ Vital signs job processor started');
+
+       // Start AI note checking job processor
+      console.log('🤖 Starting AI note checking job processor...');
+      await startAINoteCheckingJob();
+      console.log('✅ AI note checking job processor started');
+    }
 
     // Start benefits eligibility job processor
     console.log('💰 Starting benefits eligibility job processor...');
     await startBenefitsEligibilityJob();
     console.log('✅ Benefits eligibility job processor started');
 
-    // Start AI note checking job processor
-    console.log('🤖 Starting AI note checking job processor...');
-    await startAINoteCheckingJob();
-    console.log('✅ AI note checking job processor started');
 
     console.log('🚀 Worker process is ready and listening for jobs!');
 

@@ -46,7 +46,7 @@ interface EligibilityCheckRequest {
     type: string;
   }>;
   id: string;
-  type: string;
+  type: 'PROVIDER' | 'PRACTICE';
 }
 
 interface EligibilityCheckResponse {
@@ -177,7 +177,8 @@ class BenefitsService {
    */
   private async enqueueEligibilityCheck(
     profileId: string, 
-    providerId: string, 
+    entityId: string, 
+    entityType: 'PROVIDER' | 'PRACTICE',
     accessToken: string
   ): Promise<EligibilityCheckResponse[]> {
     try {
@@ -189,11 +190,11 @@ class BenefitsService {
           dateForEligibilityCheck: checkDate,
           type: "PROFILE"
         }],
-        id: providerId,
-        type: "PROVIDER"
+        id: entityId,
+        type: entityType
       };
 
-      console.log(`Enqueuing eligibility check for profile ${profileId} with provider ${providerId}`);
+      console.log(`Enqueuing eligibility check for profile ${profileId} with ${entityType} ${entityId}`);
 
       const response = await axios.post(
         `${this.EZDERM_BASE_URL}/ezderm-webservice/rest/patient/checkEligibility`,
@@ -211,15 +212,15 @@ class BenefitsService {
 
       return response.data;
     } catch (error) {
-      console.error('Error enqueuing eligibility check:', error);
+      console.error(`Error enqueuing ${entityType} eligibility check:`, error);
       throw error;
     }
   }
 
   /**
-   * Get default provider ID for practice
+   * Get default provider and practice IDs for eligibility checks
    */
-  private async getDefaultProviderId(accessToken: string): Promise<string> {
+  private async getEligibilityEntities(accessToken: string): Promise<{ providerId: string; practiceId: string }> {
     try {
       console.log('Fetching practice and providers for eligibility settings');
       
@@ -236,18 +237,29 @@ class BenefitsService {
         }
       );
 
-      const providers = response.data;
-      // Find the first provider (not practice) in the list
-      const provider = providers.find((p: any) => p.eligibilityCheckEntity === 'PROVIDER');
+      const entities = response.data;
       
-      if (provider) {
-        console.log(`Using provider: ${provider.defaultPracticeOrProviderDescription} (${provider.defaultPracticeOrProviderId})`);
-        return provider.defaultPracticeOrProviderId;
+      // Find the first provider and practice in the list
+      const provider = entities.find((p: any) => p.eligibilityCheckEntity === 'PROVIDER');
+      const practice = entities.find((p: any) => p.eligibilityCheckEntity === 'PRACTICE');
+      
+      if (!provider) {
+        throw new Error('No suitable provider found for eligibility checks');
+      }
+      
+      if (!practice) {
+        throw new Error('No suitable practice found for eligibility checks');
       }
 
-      throw new Error('No suitable provider found for eligibility checks');
+      console.log(`Using provider: ${provider.defaultPracticeOrProviderDescription} (${provider.defaultPracticeOrProviderId})`);
+      console.log(`Using practice: ${practice.defaultPracticeOrProviderDescription} (${practice.defaultPracticeOrProviderId})`);
+      
+      return {
+        providerId: provider.defaultPracticeOrProviderId,
+        practiceId: practice.defaultPracticeOrProviderId
+      };
     } catch (error) {
-      console.error('Error fetching default provider:', error);
+      console.error('Error fetching eligibility entities:', error);
       throw error;
     }
   }
@@ -313,8 +325,8 @@ class BenefitsService {
         return false;
       }
 
-      // Get default provider for eligibility checks
-      const defaultProviderId = await this.getDefaultProviderId(accessToken);
+      // Get default provider and practice for eligibility checks
+      const eligibilityEntities = await this.getEligibilityEntities(accessToken);
 
       let totalChecksEnqueued = 0;
       let successfulChecks = 0;
@@ -332,29 +344,56 @@ class BenefitsService {
             continue;
           }
 
-          // Enqueue eligibility check for this profile
-          const checkResponses = await this.enqueueEligibilityCheck(
+          // Enqueue eligibility check as PROVIDER
+          console.log(`Enqueuing PROVIDER eligibility check for profile ${profile.id}`);
+          const providerCheckResponses = await this.enqueueEligibilityCheck(
             profile.id,
-            defaultProviderId,
+            eligibilityEntities.providerId,
+            'PROVIDER',
             accessToken
           );
 
           totalChecksEnqueued++;
 
-          // Check if the request was successful
-          if (checkResponses && checkResponses.length > 0) {
-            const response = checkResponses[0];
+          // Check if the provider request was successful
+          if (providerCheckResponses && providerCheckResponses.length > 0) {
+            const response = providerCheckResponses[0];
             if (response && response.eligibilityStatusValue === 'PENDING_RESPONSE') {
               successfulChecks++;
-              console.log(`Successfully enqueued eligibility check for profile ${profile.id}`);
+              console.log(`✅ Successfully enqueued PROVIDER eligibility check for profile ${profile.id}`);
             } else {
-              console.log(`Eligibility check response for profile ${profile.id}: ${response?.eligibilityStatusValue || 'unknown'}`);
+              console.log(`❌ Provider eligibility check response for profile ${profile.id}: ${response?.eligibilityStatusValue || 'unknown'}`);
+            }
+          }
+
+          // Wait a moment between requests to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          // Enqueue eligibility check as PRACTICE
+          console.log(`Enqueuing PRACTICE eligibility check for profile ${profile.id}`);
+          const practiceCheckResponses = await this.enqueueEligibilityCheck(
+            profile.id,
+            eligibilityEntities.practiceId,
+            'PRACTICE',
+            accessToken
+          );
+
+          totalChecksEnqueued++;
+
+          // Check if the practice request was successful
+          if (practiceCheckResponses && practiceCheckResponses.length > 0) {
+            const response = practiceCheckResponses[0];
+            if (response && response.eligibilityStatusValue === 'PENDING_RESPONSE') {
+              successfulChecks++;
+              console.log(`✅ Successfully enqueued PRACTICE eligibility check for profile ${profile.id}`);
+            } else {
+              console.log(`❌ Practice eligibility check response for profile ${profile.id}: ${response?.eligibilityStatusValue || 'unknown'}`);
             }
           }
 
         } catch (error) {
-          console.error(`Error processing eligibility check for profile ${profile.id}:`, error);
-          totalChecksEnqueued++;
+          console.error(`Error processing eligibility checks for profile ${profile.id}:`, error);
+          totalChecksEnqueued += 2; // We attempted both provider and practice checks
           // Continue with other profiles
         }
       }
@@ -370,7 +409,9 @@ class BenefitsService {
       );
 
       if (totalChecksEnqueued > 0) {
-        console.log(`Successfully processed benefits eligibility for encounter ${encounter.id}: ${successfulChecks}/${totalChecksEnqueued} checks enqueued`);
+        const profileCount = insuranceProfiles.length;
+        const expectedChecks = profileCount * 2; // 2 checks per profile (provider + practice)
+        console.log(`Successfully processed benefits eligibility for encounter ${encounter.id}: ${successfulChecks}/${totalChecksEnqueued} checks enqueued (${profileCount} profiles × 2 checks each)`);
         return allSuccessful;
       } else {
         console.log(`No eligibility checks needed for encounter ${encounter.id}`);
