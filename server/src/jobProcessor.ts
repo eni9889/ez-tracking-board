@@ -7,6 +7,13 @@ import { vitalSignsService } from './vitalSignsService';
 import { benefitsService } from './benefitsService';
 import { aiNoteChecker } from './aiNoteChecker';
 import { appConfig } from './config';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+// Configure dayjs
+dayjs.extend(utc);
+dayjs.extend(timezone);
 import {
   EZDermLoginRequest,
   EZDermLoginResponse,
@@ -328,15 +335,10 @@ async function getTodaysEncounters(accessToken: string, serverUrl: string): Prom
 // Get tomorrow's encounters from EZDerm for benefits eligibility checks
 async function getTomorrowsEncounters(accessToken: string, serverUrl: string): Promise<Encounter[]> {
   try {
-    // Create tomorrow's date properly
-    const today = new Date();
-    const tomorrowStart = new Date(today);
-    tomorrowStart.setDate(today.getDate() + 1);
-    tomorrowStart.setHours(0, 0, 0, 0);
-    
-    const tomorrowEnd = new Date(today);
-    tomorrowEnd.setDate(today.getDate() + 1);
-    tomorrowEnd.setHours(23, 59, 59, 999);
+    // Use dayjs for proper date handling in Eastern timezone
+    const tomorrow = dayjs().tz('America/Detroit').add(1, 'day');
+    const tomorrowStart = tomorrow.startOf('day');
+    const tomorrowEnd = tomorrow.endOf('day');
     
     // Use the exact format from encounters.md
     const encounterData = {
@@ -344,10 +346,12 @@ async function getTomorrowsEncounters(accessToken: string, serverUrl: string): P
       lightBean: true,
       includeVirtualEncounters: false,
       dateSelection: 'SPECIFY_RANGE',
-      dateOfServiceRangeLow: tomorrowStart.toISOString().replace('Z', '-04:00'), // Eastern time format
-      dateOfServiceRangeHigh: tomorrowEnd.toISOString().replace('Z', '-04:00')
+      dateOfServiceRangeLow: tomorrowStart.format('YYYY-MM-DDTHH:mm:ss.SSS[Z]').replace('Z', '-04:00'),
+      dateOfServiceRangeHigh: tomorrowEnd.format('YYYY-MM-DDTHH:mm:ss.SSS[Z]').replace('Z', '-04:00')
     };
 
+    console.log(`Today: ${dayjs().tz('America/Detroit').format('YYYY-MM-DD HH:mm:ss')} (EDT)`);
+    console.log(`Tomorrow: ${tomorrow.format('YYYY-MM-DD')} (EDT)`);
     console.log(`Fetching tomorrow's encounters: ${encounterData.dateOfServiceRangeLow} to ${encounterData.dateOfServiceRangeHigh}`);
 
     const response: AxiosResponse<EZDermEncounter[]> = await axios.post(
@@ -452,7 +456,7 @@ const getValidTokensForAI = async (): Promise<{ accessToken: string; refreshToke
 };
 
 // Helper function to find the first appointment time for tomorrow
-function getFirstAppointmentTime(encounters: Encounter[]): Date | null {
+function getFirstAppointmentTime(encounters: Encounter[]): dayjs.Dayjs | null {
   if (encounters.length === 0) {
     return null;
   }
@@ -460,14 +464,18 @@ function getFirstAppointmentTime(encounters: Encounter[]): Date | null {
   // Sort encounters by appointment time and get the earliest one
   const sortedEncounters = encounters
     .filter(encounter => encounter.appointmentTime)
-    .sort((a, b) => new Date(a.appointmentTime).getTime() - new Date(b.appointmentTime).getTime());
+    .map(encounter => ({
+      ...encounter,
+      appointmentTimeDayjs: dayjs(encounter.appointmentTime).tz('America/Detroit')
+    }))
+    .sort((a, b) => a.appointmentTimeDayjs.valueOf() - b.appointmentTimeDayjs.valueOf());
 
   if (sortedEncounters.length === 0) {
     return null;
   }
 
   const firstEncounter = sortedEncounters[0];
-  return firstEncounter ? new Date(firstEncounter.appointmentTime) : null;
+  return firstEncounter ? firstEncounter.appointmentTimeDayjs : null;
 }
 
 // Benefits eligibility job processor function
@@ -500,22 +508,22 @@ async function processBenefitsEligibilityCheck(job: Job): Promise<{ processed: n
     }
 
     // Check if we're running within 30 minutes of the first appointment
-    const now = new Date();
-    const thirtyMinutesBeforeFirst = new Date(firstAppointmentTime.getTime() - 30 * 60 * 1000);
-    const fiveMinutesBeforeFirst = new Date(firstAppointmentTime.getTime() - 5 * 60 * 1000);
+    const now = dayjs().tz('America/Detroit');
+    const thirtyMinutesBeforeFirst = firstAppointmentTime.subtract(30, 'minutes');
+    const fiveMinutesBeforeFirst = firstAppointmentTime.subtract(5, 'minutes');
 
     // Only run the job if current time is between 30 minutes and 5 minutes before first appointment
-    if (now < thirtyMinutesBeforeFirst) {
-      console.log(`⏰ Too early to run benefits eligibility check. First appointment at ${firstAppointmentTime.toISOString()}, will run at ${thirtyMinutesBeforeFirst.toISOString()}`);
+    if (now.isBefore(thirtyMinutesBeforeFirst)) {
+      console.log(`⏰ Too early to run benefits eligibility check. First appointment at ${firstAppointmentTime.format('YYYY-MM-DD HH:mm:ss')} (EDT), will run at ${thirtyMinutesBeforeFirst.format('YYYY-MM-DD HH:mm:ss')} (EDT)`);
       return { processed: 0, successful: 0, failed: 0 };
     }
 
-    if (now > fiveMinutesBeforeFirst) {
-      console.log(`⏰ Too late to run benefits eligibility check. First appointment at ${firstAppointmentTime.toISOString()}, should have run by ${fiveMinutesBeforeFirst.toISOString()}`);
+    if (now.isAfter(fiveMinutesBeforeFirst)) {
+      console.log(`⏰ Too late to run benefits eligibility check. First appointment at ${firstAppointmentTime.format('YYYY-MM-DD HH:mm:ss')} (EDT), should have run by ${fiveMinutesBeforeFirst.format('YYYY-MM-DD HH:mm:ss')} (EDT)`);
       return { processed: 0, successful: 0, failed: 0 };
     }
 
-    console.log(`🎯 Running benefits eligibility check. First appointment at ${firstAppointmentTime.toISOString()}, running at optimal time.`);
+    console.log(`🎯 Running benefits eligibility check. First appointment at ${firstAppointmentTime.format('YYYY-MM-DD HH:mm:ss')} (EDT), running at optimal time.`);
 
     // Process each encounter
     let processed = 0;
