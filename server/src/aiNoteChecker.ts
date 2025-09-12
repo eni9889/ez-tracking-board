@@ -31,7 +31,6 @@ class AINoteChecker {
     CHRONICITY: 'chronicity-check',
     HPI_STRUCTURE: 'hpi-structure-check',
     PLAN: 'plan-check',
-    CLINICAL_COURSE: 'clinical-course-check',
     EM_LEVEL: 'em-level-check'
   } as const;
 
@@ -42,7 +41,6 @@ class AINoteChecker {
     'chronicity-check': 'gpt-5',     // Simple chronicity detection
     'hpi-structure-check': 'gpt-5-nano',       // Complex HPI structure analysis
     'plan-check': 'gpt-5-mini',                // Detailed plan evaluation
-    'clinical-course-check': 'gpt-5',          // Clinical course consistency check
     'em-level-check': 'gpt-5',                 // E/M level documentation validation
   } as const;
 
@@ -316,10 +314,6 @@ class AINoteChecker {
           // Chronicity checks: only SUBJECTIVE (HPI) and ASSESSMENT_AND_PLAN
           return sectionType === 'SUBJECTIVE' || sectionType === 'ASSESSMENT_AND_PLAN';
         
-        case this.CHECK_TYPES.CLINICAL_COURSE:
-          // Clinical course checks: only SUBJECTIVE (HPI) and ASSESSMENT_AND_PLAN
-          return sectionType === 'SUBJECTIVE' || sectionType === 'ASSESSMENT_AND_PLAN';
-        
         case this.CHECK_TYPES.PLAN:
           // Plan check: only ASSESSMENT_AND_PLAN section
           return sectionType === 'ASSESSMENT_AND_PLAN';
@@ -348,16 +342,6 @@ class AINoteChecker {
         
         case this.CHECK_TYPES.CHRONICITY:
           // Chronicity checks: include HPI and A&P elements, exclude PHYSICAL_EXAM
-          if (sectionType === 'SUBJECTIVE') {
-            return elementType === 'HISTORY_OF_PRESENT_ILLNESS';
-          }
-          if (sectionType === 'ASSESSMENT_AND_PLAN') {
-            return true; // Include all A&P elements
-          }
-          return false;
-        
-        case this.CHECK_TYPES.CLINICAL_COURSE:
-          // Clinical course checks: include HPI and A&P elements, exclude PHYSICAL_EXAM
           if (sectionType === 'SUBJECTIVE') {
             return elementType === 'HISTORY_OF_PRESENT_ILLNESS';
           }
@@ -659,7 +643,7 @@ class AINoteChecker {
     if (!hasIssues) {
       return {
         status: 'ok',
-        reason: 'All checks passed: chronicity, HPI structure, plan documentation, E/M level validation, clinical course analysis, and vital signs verification completed successfully'
+        reason: 'All checks passed: chronicity, HPI structure, plan documentation, E/M level validation, and vital signs verification completed successfully'
       };
     }
 
