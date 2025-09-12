@@ -866,7 +866,7 @@ export async function startBenefitsEligibilityJob(): Promise<void> {
       {},
       {
         repeat: {
-          every: 1 * 30 * 1000, // 3 seconds
+          every: process.env.NODE_ENV === 'production' ? 1 * 60 * 60 * 1000 : 1 * 5 * 1000, // 1 hour in production, 5 seconds in development
         },
         jobId: 'benefits-eligibility-check', // Ensures only one instance
       }
