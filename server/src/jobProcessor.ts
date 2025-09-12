@@ -866,7 +866,7 @@ export async function startBenefitsEligibilityJob(): Promise<void> {
       {},
       {
         repeat: {
-          every: process.env.NODE_ENV === 'production' ? 1 * 60 * 60 * 1000 : 1 * 5 * 1000, // 1 hour in production, 5 seconds in development
+          every: 1 * 60 * 60 * 1000, // 1 hour in production
         },
         jobId: 'benefits-eligibility-check', // Ensures only one instance
       }
@@ -1087,12 +1087,12 @@ async function main() {
       console.log('🤖 Starting AI note checking job processor...');
       await startAINoteCheckingJob();
       console.log('✅ AI note checking job processor started');
-    }
 
-    // Start benefits eligibility job processor
-    console.log('💰 Starting benefits eligibility job processor...');
-    await startBenefitsEligibilityJob();
-    console.log('✅ Benefits eligibility job processor started');
+      // Start benefits eligibility job processor
+      console.log('💰 Starting benefits eligibility job processor...');
+      await startBenefitsEligibilityJob();
+      console.log('✅ Benefits eligibility job processor started');
+    }
 
 
     console.log('🚀 Worker process is ready and listening for jobs!');
