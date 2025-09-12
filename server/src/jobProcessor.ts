@@ -331,27 +331,36 @@ async function getTomorrowsEncounters(accessToken: string, serverUrl: string): P
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     
-    const encounterData: EZDermEncounterFilter = {
-      dateOfServiceRangeHigh: formatDateEndOfDay(tomorrow),
-      clinicId: DEFAULT_CLINIC_ID,
-      providerIds: [],
+    // Format dates to match the encounters.md format (Eastern time with timezone offset)
+    const tomorrowStart = new Date(tomorrow);
+    tomorrowStart.setHours(0, 0, 0, 0);
+    const tomorrowEnd = new Date(tomorrow);
+    tomorrowEnd.setHours(23, 59, 59, 999);
+    
+    // Use the exact format from encounters.md
+    const encounterData = {
       practiceId: DEFAULT_PRACTICE_ID,
-      dateOfServiceRangeLow: formatDateStartOfDay(tomorrow),
       lightBean: true,
-      dateSelection: 'SPECIFY_RANGE'
+      includeVirtualEncounters: false,
+      dateSelection: 'SPECIFY_RANGE',
+      dateOfServiceRangeLow: tomorrowStart.toISOString().replace('Z', '-04:00'), // Eastern time format
+      dateOfServiceRangeHigh: tomorrowEnd.toISOString().replace('Z', '-04:00')
     };
 
+    console.log(`Fetching tomorrow's encounters: ${encounterData.dateOfServiceRangeLow} to ${encounterData.dateOfServiceRangeHigh}`);
+
     const response: AxiosResponse<EZDermEncounter[]> = await axios.post(
-      `${serverUrl}ezderm-webservice/rest/encounter/getByFilter`,
+      `http${serverUrl}/ezderm-webservice/rest/encounter/getByFilter`,
       encounterData,
       {
         headers: {
-          'Host': 'srvprod.ezinfra.net',
           'accept': 'application/json',
-          'content-type': 'application/json',
+          'accept-language': 'en-US,en;q=0.9',
           'authorization': `Bearer ${accessToken}`,
-          'user-agent': 'ezDerm/4.28.0 (build:132.19; macOS(Catalyst) 15.5.0)',
-          'accept-language': 'en-US;q=1.0'
+          'content-type': 'application/json',
+          'origin': 'https://pms.ezderm.com',
+          'referer': 'https://pms.ezderm.com/',
+          'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
         }
       }
     );
@@ -864,7 +873,7 @@ export async function startBenefitsEligibilityJob(): Promise<void> {
       {},
       {
         repeat: {
-          every: 5 * 60 * 1000, // 5 minutes
+          every: 1 * 60 * 1000, // 1 minute
         },
         jobId: 'benefits-eligibility-check', // Ensures only one instance
       }
