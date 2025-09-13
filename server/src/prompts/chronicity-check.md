@@ -22,6 +22,7 @@ Verify that every diagnosis in the Assessment & Plan (A&P) matches the chronicit
    - Procedural diagnoses (destruction, excision): Can ignore chronicity requirements
 
 4. **Always Chornic Diagnosis**: These diagnosis must always be chronic According to AMA/AAD E/M guidelines
+  - Psoriasis vulgaris - L40.0
   - Atopic Dermatitis (eczema) – L20.9  
   - Acne Vulgaris – L70.0  
   - Rosacea – L71.9  
