@@ -43,7 +43,7 @@ services:
       DB_PASSWORD: postgres
     volumes:
       - ./server:/app
-      - /app/node_modules
+      - server_node_modules:/app/node_modules
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,7 +76,7 @@ services:
       EZDERM_PASS: ${EZDERM_PASS}
     volumes:
       - ./server:/app
-      - /app/node_modules
+      - server_node_modules:/app/node_modules
       - /app/dist
     depends_on:
       postgres:
@@ -109,7 +109,7 @@ services:
       EZDERM_PASS: ${EZDERM_PASS}
     volumes:
       - ./server:/app
-      - /app/node_modules
+      - server_node_modules:/app/node_modules
       - /app/dist
     depends_on:
       postgres:
@@ -138,7 +138,7 @@ services:
       BULL_BOARD_SESSION_SECRET: ${BULL_BOARD_SESSION_SECRET:-super-secret-session-key}
     volumes:
       - ./server:/app
-      - /app/node_modules
+      - server_node_modules:/app/node_modules
       - /app/dist
     depends_on:
       redis:
@@ -162,7 +162,7 @@ services:
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
-      - /app/node_modules
+      - frontend_node_modules:/app/node_modules
     depends_on:
       - backend
     stdin_open: true
@@ -202,6 +202,8 @@ volumes:
   postgres_data:
   redis_data:
   pgadmin_data:
+  server_node_modules:
+  frontend_node_modules:
 
 networks:
   default:
