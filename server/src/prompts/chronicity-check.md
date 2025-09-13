@@ -32,11 +32,16 @@ Verify that every diagnosis in the Assessment & Plan (A&P) matches the chronicit
   - Bullous Pemphigoid  
   - Pemphigus Vulgaris 
   - Chronic Urticaria (>6 weeks)
+  - Dermatitis herpetiformis
   - Seborrheic Dermatitis
   - Actinic Keratosis
-  - Alopecia Areata
-  - Androgenetic Alopecia (pattern hair loss)
+  - Prurigo nodularis
+  - Lichen simplex chronicus
+  - Androgenetic Alopecia
   - History of Skin Cancer (melanoma and non-melanoma skin cancer)
+  - Discoid lupus erythematosus
+  - Chloasma
+  - Melasma
 
 5. **Always Self-Limited Diagnosis**: These diagnosis must always be documented as Self-Limited According to AMA/AAD E/M guidelines
   - Pityriasis Rosea
@@ -49,8 +54,19 @@ Verify that every diagnosis in the Assessment & Plan (A&P) matches the chronicit
   - Scabies
   - Sunburn
   - Insect Bite Reaction (local)
+  - Viral warts
+  - Herpes zoster (shingles, uncomplicated)
+  - Benign neoplasm of skin
 
-6. **Excluded Diagnoses**: Ignore when evaluating:
+6. **Chronic if >12 Months**: These conditions can be chornic if duration is greater than or equal to 12 months
+  - Acne vulgaris
+  - Chronic urticaria (>6 weeks)
+  - Alopecia areata – L63.9  
+  - Onychomycosis (chronic nail fungus)
+  - Granuloma annulare
+  - Lichen planus
+
+7. **Excluded Diagnoses**: Ignore when evaluating:
    - Actinic Keratosis, ISK, Verruca, Molluscum (when treated with destruction/injection)
    - Ignore History of BCC, SCC, Melanoma
    - Ignore any Neoplasm of uncertain behavior of skin or Puch Rash or Biopsy
