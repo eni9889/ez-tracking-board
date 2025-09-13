@@ -22,49 +22,83 @@ Verify that every diagnosis in the Assessment & Plan (A&P) matches the chronicit
    - Procedural diagnoses (destruction, excision): Can ignore chronicity requirements
 
 4. **Always Chornic Diagnosis**: These diagnosis must always be chronic According to AMA/AAD E/M guidelines
-  - Psoriasis vulgaris
   - Psoriatic arthritis
-  - Atopic Dermatitis (eczema) 
-  - Acne Vulgaris
-  - Rosacea
-  - Hidradenitis Suppurativa
-  - Vitiligo
-  - Bullous Pemphigoid  
-  - Pemphigus Vulgaris 
-  - Chronic Urticaria (>6 weeks)
-  - Dermatitis herpetiformis
-  - Seborrheic Dermatitis
-  - Actinic Keratosis
-  - Prurigo nodularis
-  - Lichen simplex chronicus
-  - Androgenetic Alopecia
-  - History of Skin Cancer (melanoma and non-melanoma skin cancer)
-  - Discoid lupus erythematosus
-  - Chloasma
-  - Melasma
+  - Psoriasis (all types)  
+  - Atopic dermatitis (eczema)  
+  - Seborrheic dermatitis  
+  - Rosacea  
+  - Hidradenitis suppurativa  
+  - Prurigo nodularis  
+  - Lichen simplex chronicus  
+  - Pemphigus vulgaris  
+  - Bullous pemphigoid  
+  - Dermatitis herpetiformis  
+  - Cicatricial (scarring) alopecias  
+  - Androgenetic alopecia (male/female pattern hair loss)  
+  - Discoid lupus erythematosus  
+  - Systemic lupus erythematosus with cutaneous involvement  
+  - Vitiligo  
+  - Chloasma / Melasma  
+  - Morphea (localized scleroderma)  
+  - Scleroderma (systemic cutaneous involvement)  
+  - Ichthyosis (all hereditary forms)  
+  - Neurofibromatosis (cutaneous manifestations)  
+  - Tuberous sclerosis (cutaneous findings)  
+  - Xeroderma pigmentosum  
+  - Albinism  
+  - Chronic actinic damage / field cancerization  
+  - Actinic keratosis  
+  - Personal history of skin cancer (melanoma, BCC, SCC)  
+  - Genetic syndromes with chronic skin findings (e.g., Cowden syndrome)
 
 5. **Always Self-Limited Diagnosis**: These diagnosis must always be documented as Self-Limited According to AMA/AAD E/M guidelines
-  - Pityriasis Rosea
-  - Erythema Multiforme (minor)
-  - Erythema Nodosum
-  - Acute Urticaria (<6 weeks)
-  - Allergic Contact Dermatitis (acute exposure)
-  - Impetigo
-  - Molluscum Contagiosum
-  - Scabies
-  - Sunburn
-  - Insect Bite Reaction (local)
-  - Viral warts
-  - Herpes zoster (shingles, uncomplicated)
   - Benign neoplasm of skin
+  - Pityriasis rosea  
+  - Impetigo  
+  - Molluscum contagiosum  
+  - Viral warts (common, plantar, flat)  
+  - Herpes zoster (shingles, uncomplicated)  
+  - Herpes simplex (primary infection)  
+  - Varicella (chickenpox)  
+  - Hand-foot-and-mouth disease  
+  - Gianotti-Crosti syndrome  
+  - Scarlet fever exanthem  
+  - Fifth disease (erythema infectiosum)  
+  - Roseola infantum  
+  - Scabies (with treatment)  
+  - Pediculosis (head/body/pubic lice)  
+  - Sunburn  
+  - Insect bite reaction (localized)  
+  - Allergic contact dermatitis (from acute single exposure)  
+  - Irritant contact dermatitis (acute)  
+  - Urticaria (acute, <6 weeks)  
+  - Erythema multiforme (minor)  
+  - Erythema nodosum (acute episode)  
+  - Fixed drug eruption (single episode)  
+  - Viral exanthems (measles, rubella, etc.)  
+  - Folliculitis (acute, bacterial)  
+  - Tinea corporis (if treated promptly and resolved)  
+  - Cellulitis  
+  - Abscess (skin/soft tissue, drained)
 
 6. **Chronic if >12 Months**: These conditions can be chornic if duration is greater than or equal to 12 months
-  - Acne vulgaris
-  - Chronic urticaria (>6 weeks)
-  - Alopecia areata – L63.9  
-  - Onychomycosis (chronic nail fungus)
-  - Granuloma annulare
-  - Lichen planus
+  - Acne vulgaris  
+  - Acne conglobata  
+  - Chronic urticaria (>6 weeks)  
+  - Alopecia areata (persistent or recurrent)  
+  - Onychomycosis (nail fungus)  
+  - Tinea pedis / tinea corporis / tinea cruris (if recurrent >12 months)  
+  - Candidal intertrigo (chronic/recurrent)  
+  - Granuloma annulare (generalized or persistent)  
+  - Lichen planus (skin, mucosal, or nail involvement)  
+  - Perioral/periorificial dermatitis (if persistent)  
+  - Chronic leg ulcers (venous stasis, arterial, diabetic)  
+  - Stasis dermatitis  
+  - Chronic eczema/dermatitis not otherwise specified  
+  - Chronic paronychia  
+  - Chronic folliculitis / folliculitis decalvans  
+  - Chronic nail dystrophies (e.g., trachyonychia)  
+  - Post-inflammatory hyperpigmentation / hypopigmentation (if lasting >12 months)  
 
 7. **Excluded Diagnoses**: Ignore when evaluating:
    - Actinic Keratosis, ISK, Verruca, Molluscum (when treated with destruction/injection)
