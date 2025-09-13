@@ -1,38 +1,57 @@
-const { Pool } = require('pg');
+/**
+ * Migration: Add todo_completion_tracking table
+ * 
+ * This migration adds a table to track when we've detected ToDo completion
+ * and whether we've triggered follow-up AI checks.
+ */
 
-const up = async (pool) => {
-  const client = await pool.connect();
-  try {
-    // Create todo_completion_tracking table to track when we've detected ToDo completion
-    const createToDoCompletionTrackingTableQuery = `
-      CREATE TABLE IF NOT EXISTS todo_completion_tracking (
-        id SERIAL PRIMARY KEY,
-        encounter_id TEXT NOT NULL,
-        ezderm_todo_id TEXT NOT NULL,
-        completed_status VARCHAR(20) NOT NULL,
-        completion_detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        followup_ai_check_triggered BOOLEAN DEFAULT FALSE,
-        followup_ai_check_id INTEGER,
-        UNIQUE(encounter_id, ezderm_todo_id),
-        FOREIGN KEY (followup_ai_check_id) REFERENCES note_checks(id) ON DELETE SET NULL
-      )
-    `;
-    
-    await client.query(createToDoCompletionTrackingTableQuery);
-    console.log('✅ Created todo_completion_tracking table');
-  } finally {
-    client.release();
-  }
-};
+const shorthands = undefined;
 
-const down = async (pool) => {
-  const client = await pool.connect();
-  try {
-    await client.query('DROP TABLE IF EXISTS todo_completion_tracking CASCADE');
-    console.log('✅ Dropped todo_completion_tracking table');
-  } finally {
-    client.release();
-  }
-};
+async function up(pgm) {
+  // Create todo_completion_tracking table
+  pgm.createTable('todo_completion_tracking', {
+    id: 'id',
+    encounter_id: { type: 'text', notNull: true },
+    ezderm_todo_id: { type: 'text', notNull: true },
+    completed_status: { type: 'varchar(20)', notNull: true },
+    completion_detected_at: { type: 'timestamp', default: pgm.func('CURRENT_TIMESTAMP') },
+    followup_ai_check_triggered: { type: 'boolean', default: false },
+    followup_ai_check_id: { type: 'integer' }
+  }, {
+    ifNotExists: true
+  });
 
-module.exports = { up, down };
+  // Add unique constraint to prevent duplicate completion tracking
+  pgm.addConstraint('todo_completion_tracking', 'todo_completion_tracking_encounter_ezderm_unique', {
+    unique: ['encounter_id', 'ezderm_todo_id']
+  }, {
+    ifNotExists: true
+  });
+
+  // Add foreign key constraint to note_checks table
+  pgm.addConstraint('todo_completion_tracking', 'todo_completion_tracking_followup_ai_check_id_fkey', {
+    foreignKeys: {
+      columns: 'followup_ai_check_id',
+      references: 'note_checks(id)',
+      onDelete: 'SET NULL'
+    }
+  }, {
+    ifNotExists: true
+  });
+
+  // Create indexes for better performance
+  pgm.createIndex('todo_completion_tracking', 'encounter_id', { ifNotExists: true });
+  pgm.createIndex('todo_completion_tracking', 'ezderm_todo_id', { ifNotExists: true });
+  pgm.createIndex('todo_completion_tracking', ['encounter_id', 'ezderm_todo_id'], { ifNotExists: true });
+
+  console.log('✅ Created todo_completion_tracking table with constraints and indexes');
+}
+
+async function down(pgm) {
+  // Drop the todo_completion_tracking table
+  pgm.dropTable('todo_completion_tracking', { cascade: true });
+  
+  console.log('✅ Dropped todo_completion_tracking table');
+}
+
+module.exports = { up, down, shorthands };
