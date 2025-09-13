@@ -208,7 +208,7 @@ const AINoteChecker: React.FC = () => {
     return {
       all: incompleteNotes.length,
       clean: incompleteNotes.filter(note => 
-        note.lastCheckStatus === 'completed' && !note.issuesFound
+        note.lastCheckStatus === 'completed' && (!note.issuesFound || !note.hasValidIssues)
       ).length,
       issues: incompleteNotes.filter(note => 
         note.lastCheckStatus === 'completed' && note.hasValidIssues
