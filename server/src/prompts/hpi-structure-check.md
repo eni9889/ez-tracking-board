@@ -30,8 +30,8 @@ Return valid JSON only:
       "assessment": "Multiple Chief Complaints",
       "issue": "chief_complaint_structure",
       "details": {
-        "HPI": "Patient presents with rash and mole concerns",
-        "correction": "Number chief complaints sequentially (CC #1: rash, CC #2: mole concerns)"
+        "HPI": string,
+        "correction": string
       }
     }
   ],
