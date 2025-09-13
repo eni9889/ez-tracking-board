@@ -50,7 +50,8 @@ Verify that every diagnosis in the Assessment & Plan (A&P) matches the chronicit
   - Actinic keratosis  
   - Personal history of skin cancer (melanoma, BCC, SCC)  
   - Genetic syndromes with chronic skin findings (e.g., Cowden syndrome)
-
+  - Xerosis cutis (chronic dry skin)
+  
 5. **Always Self-Limited Diagnosis**: These diagnosis must always be documented as Self-Limited According to AMA/AAD E/M guidelines
   - Benign neoplasm of skin
   - Pityriasis rosea  
