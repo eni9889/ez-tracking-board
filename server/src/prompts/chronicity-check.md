@@ -22,32 +22,33 @@ Verify that every diagnosis in the Assessment & Plan (A&P) matches the chronicit
    - Procedural diagnoses (destruction, excision): Can ignore chronicity requirements
 
 4. **Always Chornic Diagnosis**: These diagnosis must always be chronic According to AMA/AAD E/M guidelines
-  - Psoriasis vulgaris - L40.0
-  - Atopic Dermatitis (eczema) – L20.9  
-  - Acne Vulgaris – L70.0  
-  - Rosacea – L71.9  
-  - Hidradenitis Suppurativa – L73.2  
-  - Vitiligo – L80  
-  - Bullous Pemphigoid – L12.0  
-  - Pemphigus Vulgaris – L10.0  
-  - Chronic Urticaria (>6 weeks) – L50.8  
-  - Seborrheic Dermatitis – L21.9  
-  - Actinic Keratosis – L57.0  
-  - Alopecia Areata – L63.2  
-  - Androgenetic Alopecia (pattern hair loss) – L64.9  
-  - History of Skin Cancer – Z85.820 (melanoma), Z85.828 (non-melanoma skin cancer)
+  - Psoriasis vulgaris
+  - Psoriatic arthritis
+  - Atopic Dermatitis (eczema) 
+  - Acne Vulgaris
+  - Rosacea
+  - Hidradenitis Suppurativa
+  - Vitiligo
+  - Bullous Pemphigoid  
+  - Pemphigus Vulgaris 
+  - Chronic Urticaria (>6 weeks)
+  - Seborrheic Dermatitis
+  - Actinic Keratosis
+  - Alopecia Areata
+  - Androgenetic Alopecia (pattern hair loss)
+  - History of Skin Cancer (melanoma and non-melanoma skin cancer)
 
 5. **Always Self-Limited Diagnosis**: These diagnosis must always be documented as Self-Limited According to AMA/AAD E/M guidelines
-  - Pityriasis Rosea – L42  
-  - Erythema Multiforme (minor) – L51.0  
-  - Erythema Nodosum – L52  
-  - Acute Urticaria (<6 weeks) – L50.0 or L50.9  
-  - Allergic Contact Dermatitis (acute exposure) – L23.9  
-  - Impetigo – L01.00  
-  - Molluscum Contagiosum – B08.1  
-  - Scabies – B86  
-  - Sunburn – L55.0  
-  - Insect Bite Reaction (local) – T14.8XXA or L50.6  
+  - Pityriasis Rosea
+  - Erythema Multiforme (minor)
+  - Erythema Nodosum
+  - Acute Urticaria (<6 weeks)
+  - Allergic Contact Dermatitis (acute exposure)
+  - Impetigo
+  - Molluscum Contagiosum
+  - Scabies
+  - Sunburn
+  - Insect Bite Reaction (local)
 
 6. **Excluded Diagnoses**: Ignore when evaluating:
    - Actinic Keratosis, ISK, Verruca, Molluscum (when treated with destruction/injection)
