@@ -7,12 +7,9 @@ Verify that the HPI follows proper structure and formatting requirements for bil
 
 ## Rules
 1. **Chief Complaint Structure**:
-   - Multiple chief complaints must be indivudally addressd. They can either be numbered like CC #1, CC #2, CC #3 etc or there should be a seperate paragraph for each complaint
-   - If there is only one complaint numbering is optional
+   - Multiple chief complaints must be indivudally addressd. 
+   - Each chief complaint should have it's own paragraph
    - Only required if they are separate, billable problems affecting E/M complexity
-   - Single billable complaint does not require numbering
-   - The chief complaints can be in paragraph format or header and text format. Do not worry about sylistic choices as long as the content is there.
-   - Do not be super strict on formatting CC#1, CC #1, CC One, Chief Complaint #1, seperate paragraphs etc are all valid.
 
 3. **Billing Impact Focus**:
    - Only flag issues that could affect visit E/M level determination

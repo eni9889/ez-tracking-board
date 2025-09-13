@@ -27,7 +27,6 @@ For dermatology encounters, proper E/M level billing requires that assessments a
 ## HPI Elements to Look For:
 
 When checking if an A&P assessment has proper HPI support, look for a combination of these elements:
-- **Severity** - Mild, Moderate, Severe
 - **Duration** - How long present, when started
 - **Progression** - Improving or Getting Worse
 
