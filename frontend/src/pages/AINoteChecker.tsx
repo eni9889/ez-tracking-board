@@ -134,7 +134,7 @@ const AINoteChecker: React.FC = () => {
     switch (currentFilter) {
       case 'clean':
         filtered = incompleteNotes.filter(note => 
-          note.lastCheckStatus === 'completed' && !note.issuesFound
+          note.lastCheckStatus === 'completed' && (!note.issuesFound || !note.hasValidIssues)
         );
         break;
       case 'issues':

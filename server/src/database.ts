@@ -1332,7 +1332,7 @@ class VitalSignsDatabase {
   }
 
   /**
-   * Check if an encounter has any valid (non-invalid) issues
+   * Check if an encounter has any valid (non-invalid and non-resolved) issues
    */
   async hasValidIssues(encounterId: string): Promise<boolean> {
     if (!this.pool) {
@@ -1361,15 +1361,17 @@ class VitalSignsDatabase {
       return false; // No issues in the analysis
     }
 
-    // Check each issue to see if any are still valid (not marked as invalid)
+    // Check each issue to see if any are still valid (not marked as invalid OR resolved)
     for (let issueIndex = 0; issueIndex < aiAnalysis.issues.length; issueIndex++) {
       const isInvalid = await this.isIssueMarkedInvalid(encounterId, check.id, issueIndex);
-      if (!isInvalid) {
-        return true; // Found at least one valid issue
+      const isResolved = await this.isIssueMarkedResolved(encounterId, check.id, issueIndex);
+      
+      if (!isInvalid && !isResolved) {
+        return true; // Found at least one valid issue (not invalid and not resolved)
       }
     }
 
-    return false; // All issues have been marked as invalid
+    return false; // All issues have been marked as either invalid or resolved
   }
 
   // Benefits eligibility tracking methods
