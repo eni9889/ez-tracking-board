@@ -51,7 +51,7 @@ Verify that every diagnosis in the Assessment & Plan (A&P) matches the chronicit
   - Personal history of skin cancer (melanoma, BCC, SCC)  
   - Genetic syndromes with chronic skin findings (e.g., Cowden syndrome)
   - Xerosis cutis (chronic dry skin)
-  
+
 5. **Always Self-Limited Diagnosis**: These diagnosis must always be documented as Self-Limited According to AMA/AAD E/M guidelines
   - Benign neoplasm of skin
   - Pityriasis rosea  
@@ -100,7 +100,8 @@ Verify that every diagnosis in the Assessment & Plan (A&P) matches the chronicit
   - Chronic folliculitis / folliculitis decalvans  
   - Chronic nail dystrophies (e.g., trachyonychia)  
   - Post-inflammatory hyperpigmentation / hypopigmentation (if lasting >12 months)  
-
+  - Tinea versicolor (pityriasis versicolor)
+  
 7. **Excluded Diagnoses**: Ignore when evaluating:
    - Actinic Keratosis, ISK, Verruca, Molluscum (when treated with destruction/injection)
    - Ignore History of BCC, SCC, Melanoma
