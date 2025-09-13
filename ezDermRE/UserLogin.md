@@ -33,3 +33,20 @@ curl 'https://login.ezinfra.net/api/refreshToken/getAccessToken' \
     "accessToken": "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NTYyMzQxNzQsImV4cCI6MTc1NjIzNDc3NCwibiI6ImRyZ2pva2EiLCJhIjo0LCJ1IjoiMjkzYTFiNjAtNWFjMC0xMWYwLTk5NTUtNmZiM2ZiODFkZWY3IiwicCI6IjRjYzk2OTIyLTRkODMtNDE4My04NjNiLTc0OGQ2OWRlNjIxZiIsImQiOiIwMTM4MSIsInoiOiJBbWVyaWNhL0xvc19BbmdlbGVzIiwiZyI6IjYxZTMxMTJlLWM3ZGQtNGRmMC1iNDVlLTFjMDc1Y2MyMDBkNCIsInMiOjQ3MDM5ODMsInQiOjIsInNyIjozNTYzfQ.M3sTw1qf_j_6hrHDc9ThZyeUNWyk9dpWqKTlkanOEoUny8Lucuq-K19p0-3BbWS9VXfhZ1g5rr3OdJscbrcaqQ"
 }
   ```
+
+# Refresh Access Token - Desktop
+  curl 'https://login.ezinfra.net/api/refreshToken/getAccessToken' \
+  -H 'accept: application/json' \
+  -H 'accept-language: en-US,en;q=0.9' \
+  -H 'authorization: Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJqIjoiOWU1MjIzMjctMzhkZi00YWUxLWJlMWUtMzVjMzdmYWUyMmI3IiwiaWF0IjoxNzU3NjE1OTQ0LCJleHAiOjE3NTc2NTkxNDR9.w4VtlUx1zONnSSoD5mLT1cUA2KXNaniGORTWyj6XoaBbhc1q_C1vzeYjKWl7yJfZ35lVubx8WaYpO8SNL40z0w' \
+  -H 'content-type: application/json' \
+  -H 'origin: https://pms.ezderm.com' \
+  -H 'priority: u=1, i' \
+  -H 'referer: https://pms.ezderm.com/' \
+  -H 'sec-ch-ua: "Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "macOS"' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'

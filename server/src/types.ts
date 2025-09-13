@@ -147,6 +147,7 @@ export type EncounterStatus =
   | 'ARRIVED' 
   | 'IN_ROOM' 
   | 'WITH_PROVIDER' 
+  | 'READY_FOR_PROVIDER'
   | 'WITH_STAFF' 
   | 'PENDING_COSIGN' 
   | 'CHECKED_OUT' 
@@ -215,6 +216,11 @@ export interface AINoteCheckJobData {
   dateOfService: string;
   scanId: string;
   force?: boolean; // Optional force flag to bypass MD5 checking
+}
+
+export interface ToDoCompletionCheckJobData {
+  scanId: string;
+  batchSize?: number;
 }
 
 // EZDerm ToDo Types
@@ -346,6 +352,7 @@ export interface ProgressNoteResponse {
 export interface AIAnalysisIssue {
   assessment: string;
   issue: 'no_explicit_plan' | 'chronicity_mismatch' | 'unclear_documentation' | 'chief_complaint_structure';
+  checkType?: string; // Added to track which check found this issue
   details: {
     HPI?: string;
     'A&P': string;
@@ -357,6 +364,7 @@ export interface AIAnalysisResult {
   issues?: AIAnalysisIssue[];
   status: 'ok' | 'corrections_needed';
   summary?: string;
+  reason?: string; // Reason when status is 'ok'
 }
 
 export interface NoteCheckResult {
@@ -400,6 +408,19 @@ export interface CreatedToDo {
   issuesCount: number;
   createdBy: string;
   createdAt: Date;
+}
+
+export interface EZDermToDoStatus {
+  id: string;
+  status: string;
+  active: boolean;
+  subject: string;
+  description: string;
+  dateCreated: string;
+  overdue: boolean;
+  commentCount: number;
+  unread: boolean;
+  important: boolean;
 }
 
 export interface InvalidIssue {
@@ -495,4 +516,17 @@ export interface FHIRBundle {
   total: number;
   link: FHIRBundleLink[];
   entry: FHIRBundleEntry[];
+}
+
+export interface ResolvedIssue {
+  id: number;
+  encounterId: string;
+  checkId: number;
+  issueIndex: number;
+  issueType: string;
+  assessment: string;
+  issueHash: string;
+  markedResolvedBy: string;
+  markedResolvedAt: Date;
+  reason?: string;
 } 

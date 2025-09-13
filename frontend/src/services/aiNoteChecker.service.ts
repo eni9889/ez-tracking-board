@@ -12,11 +12,15 @@ export interface EligibleEncounter {
   chiefComplaint: string;
   dateOfService: string;
   status: string;
+  todoCreated?: boolean;
+  todoCount?: number;
+  hasValidIssues?: boolean;
 }
 
 export interface AIAnalysisIssue {
   assessment: string;
-  issue: 'no_explicit_plan' | 'chronicity_mismatch' | 'unclear_documentation' | 'chief_complaint_structure';
+  issue: 'no_explicit_plan' | 'chronicity_mismatch' | 'unclear_documentation' | 'chief_complaint_structure' | 'em_level_documentation';
+  checkType?: string; // Added to track which check found this issue
   details: {
     HPI?: string;
     'A&P': string;
@@ -28,6 +32,7 @@ export interface AIAnalysisResult {
   issues?: AIAnalysisIssue[];
   status: 'ok' | 'corrections_needed';
   summary?: string;
+  reason?: string; // Reason when status is 'ok'
 }
 
 export interface NoteCheckResult {
@@ -92,6 +97,32 @@ export interface InvalidIssue {
   markedInvalidBy: string;
   markedInvalidAt: Date;
   reason?: string;
+}
+
+export interface ResolvedIssue {
+  id: number;
+  encounterId: string;
+  checkId: number;
+  issueIndex: number;
+  issueType: string;
+  assessment: string;
+  issueHash: string;
+  markedResolvedBy: string;
+  markedResolvedAt: Date;
+  reason?: string;
+}
+
+export interface EZDermToDoStatus {
+  id: string;
+  status: string;
+  active: boolean;
+  subject: string;
+  description: string;
+  dateCreated: string;
+  overdue: boolean;
+  commentCount: number;
+  unread: boolean;
+  important: boolean;
 }
 
 export interface ProgressNoteResponse {
@@ -222,7 +253,7 @@ class AINoteCheckerService {
   ];
 
   /**
-   * Get all incomplete notes from EZDerm
+   * Get all incomplete notes from EZDerm (with pagination)
    */
   async getIncompleteNotes(): Promise<EligibleEncounter[]> {
     if (USE_MOCK_DATA) {
@@ -232,8 +263,36 @@ class AINoteCheckerService {
     }
 
     try {
+      console.log('📖 Fetching ALL incomplete notes from EZDerm with pagination...');
       const response = await axios.post(`${API_BASE_URL}/notes/incomplete`, 
-        { fetchFrom: 0, size: 100 },
+        { fetchAll: true },
+        {
+          headers: this.headers()
+        }
+      );
+
+      const encounters = response.data.encounters || [];
+      console.log(`📋 Fetched ${encounters.length} total encounters from EZDerm`);
+      return encounters;
+    } catch (error: any) {
+      console.error('Error fetching incomplete notes:', error);
+      throw new Error('Failed to fetch incomplete notes: ' + (error.response?.data?.error || error.message));
+    }
+  }
+
+  /**
+   * Get incomplete notes with manual pagination (for specific use cases)
+   */
+  async getIncompleteNotesPage(fetchFrom: number = 0, size: number = 100): Promise<EligibleEncounter[]> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Returning mock incomplete notes page');
+      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
+      return this.mockEligibleEncounters.slice(fetchFrom, fetchFrom + size);
+    }
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}/notes/incomplete`, 
+        { fetchFrom, size },
         {
           headers: this.headers()
         }
@@ -241,7 +300,7 @@ class AINoteCheckerService {
 
       return response.data.encounters || [];
     } catch (error: any) {
-      console.error('Error fetching incomplete notes:', error);
+      console.error('Error fetching incomplete notes page:', error);
       throw new Error('Failed to fetch incomplete notes: ' + (error.response?.data?.error || error.message));
     }
   }
@@ -547,6 +606,29 @@ class AINoteCheckerService {
   }
 
   /**
+   * Get AI check history for specific encounter
+   */
+  async getNoteCheckHistory(encounterId: string): Promise<NoteCheckResult[]> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Finding mock note check history');
+      await new Promise(resolve => setTimeout(resolve, 200)); // Simulate API delay
+      
+      return this.mockNoteCheckResults.filter(result => result.encounterId === encounterId);
+    }
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/notes/history/${encounterId}`, {
+        headers: this.headers()
+      });
+
+      return response.data.history;
+    } catch (error: any) {
+      console.error('Error fetching note check history:', error);
+      throw new Error(error.response?.data?.error || 'Failed to fetch note check history');
+    }
+  }
+
+  /**
    * Format time ago from ISO string
    */
   formatTimeAgo(isoString: string): string {
@@ -605,6 +687,50 @@ class AINoteCheckerService {
         return 'Error';
       default:
         return status;
+    }
+  }
+
+  /**
+   * Get ToDo status for multiple encounters
+   */
+  async getTodoStatusForEncounters(encounterIds: string[]): Promise<Map<string, { todoCreated: boolean; todoCount: number }>> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Returning mock ToDo status');
+      await new Promise(resolve => setTimeout(resolve, 200)); // Simulate API delay
+      
+      // Mock data - some encounters have ToDos created
+      const mockStatuses = new Map<string, { todoCreated: boolean; todoCount: number }>();
+      encounterIds.forEach((encounterId, index) => {
+        // Mock: every 3rd encounter has a ToDo
+        const hasTodo = index % 3 === 0;
+        mockStatuses.set(encounterId, {
+          todoCreated: hasTodo,
+          todoCount: hasTodo ? Math.floor(Math.random() * 3) + 1 : 0
+        });
+      });
+      return mockStatuses;
+    }
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}/notes/todos/bulk-status`, {
+        encounterIds
+      }, {
+        headers: this.headers()
+      });
+
+      const statusMap = new Map<string, { todoCreated: boolean; todoCount: number }>();
+      response.data.todoStatuses?.forEach((status: any) => {
+        statusMap.set(status.encounterId, {
+          todoCreated: status.todoCount > 0,
+          todoCount: status.todoCount
+        });
+      });
+
+      return statusMap;
+    } catch (error: any) {
+      console.error('Error fetching ToDo status:', error);
+      // Return empty map on error instead of throwing
+      return new Map();
     }
   }
 
@@ -724,6 +850,80 @@ class AINoteCheckerService {
   }
 
   /**
+   * Mark an issue as resolved
+   */
+  async markIssueAsResolved(
+    encounterId: string,
+    checkId: number,
+    issueIndex: number,
+    issueType: string,
+    assessment: string,
+    issueHash: string,
+    reason?: string
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/notes/${encounterId}/issues/${checkId}/${issueIndex}/mark-resolved`,
+        {
+          issueType,
+          assessment,
+          issueHash,
+          reason
+        },
+        {
+          headers: this.headers()
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Error marking issue as resolved:', error);
+      throw new Error(error.response?.data?.error || 'Failed to mark issue as resolved');
+    }
+  }
+
+  /**
+   * Remove resolved marking from an issue
+   */
+  async unmarkIssueAsResolved(
+    encounterId: string,
+    checkId: number,
+    issueIndex: number
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const response = await axios.delete(
+        `${API_BASE_URL}/notes/${encounterId}/issues/${checkId}/${issueIndex}/mark-resolved`,
+        {
+          headers: this.headers()
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Error removing resolved marking:', error);
+      throw new Error(error.response?.data?.error || 'Failed to remove resolved marking');
+    }
+  }
+
+  /**
+   * Get resolved issues for an encounter
+   */
+  async getResolvedIssues(encounterId: string): Promise<ResolvedIssue[]> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Returning mock resolved issues');
+      return [];
+    }
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/notes/${encounterId}/resolved-issues`, {
+        headers: this.headers()
+      });
+      return response.data.resolvedIssues || [];
+    } catch (error: any) {
+      console.error('Error fetching resolved issues:', error);
+      throw new Error(error.response?.data?.error || 'Failed to fetch resolved issues');
+    }
+  }
+
+  /**
    * Enqueue bulk force re-check jobs
    */
   async enqueueBulkForceRecheck(jobs: Array<{
@@ -755,6 +955,179 @@ class AINoteCheckerService {
     } catch (error: any) {
       console.error('Error enqueuing bulk force re-check jobs:', error);
       throw new Error(error.response?.data?.error || 'Failed to enqueue bulk force re-check jobs');
+    }
+  }
+
+  /**
+   * Enqueue bulk AI check jobs (without force)
+   */
+  async enqueueBulkCheck(jobs: Array<{
+    encounterId: string;
+    patientId: string;
+    patientName: string;
+    chiefComplaint: string;
+    dateOfService: string;
+  }>): Promise<{ success: boolean; message: string; enqueuedCount: number }> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Simulating bulk AI check job enqueue');
+      return {
+        success: true,
+        message: `Enqueued ${jobs.length} notes for AI check (mock mode)`,
+        enqueuedCount: jobs.length
+      };
+    }
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}/notes/bulk-check`, 
+        { jobs },
+        {
+          headers: this.headers()
+        }
+      );
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error enqueuing bulk AI check jobs:', error);
+      throw new Error(error.response?.data?.error || 'Failed to enqueue bulk AI check jobs');
+    }
+  }
+
+  // Get current user's provider info
+  async getCurrentUserProviderInfo(): Promise<{ username: string; providerId: string }> {
+    if (USE_MOCK_DATA) {
+      console.log('🔄 Mock: Getting current user provider info');
+      return {
+        username: 'mockuser',
+        providerId: 'dd0c986b-1b6d-4ade-89c8-f2b96d5958cc' // Mock provider ID from encounter.json
+      };
+    }
+
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/user/provider-info`,
+        {
+          headers: {
+            'Authorization': `Bearer ${authService.getSessionToken()}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting current user provider info:', error);
+      throw new Error(error.response?.data?.error || 'Failed to get current user provider info');
+    }
+  }
+
+  // Sign off a note
+  async signOffNote(encounterId: string, patientId: string): Promise<void> {
+    if (USE_MOCK_DATA) {
+      console.log('🔄 Mock: Signing off note', { encounterId, patientId });
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return;
+    }
+
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/notes/sign-off`,
+        {
+          encounterId,
+          patientId,
+          status: 'SIGNED_OFF'
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${authService.getSessionToken()}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error signing off note:', error);
+      throw new Error(error.response?.data?.error || 'Failed to sign off note');
+    }
+  }
+
+  // Modify HPI note section
+  async modifyHPI(encounterId: string, patientId: string, noteText: string): Promise<{ type: string; encounterId: string; note: string }> {
+    if (USE_MOCK_DATA) {
+      console.log('🔄 Mock: Modifying HPI', { encounterId, patientId, noteText });
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return {
+        type: 'HISTORY_OF_PRESENT_ILLNESS',
+        encounterId,
+        note: noteText
+      };
+    }
+
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/notes/modify-hpi`,
+        {
+          note: noteText,
+          encounterId,
+          patientId,
+          type: 'HISTORY_OF_PRESENT_ILLNESS'
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${authService.getSessionToken()}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error modifying HPI:', error);
+      throw new Error(error.response?.data?.error || 'Failed to modify HPI');
+    }
+  }
+
+  /**
+   * Get ToDo status from EZDerm
+   */
+  async getToDoStatus(todoId: string, patientId: string): Promise<any> {
+    if (USE_MOCK_DATA) {
+      console.log('🚧 Development Mode: Returning mock ToDo status');
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Mock different statuses based on todoId
+      const statuses = ['OPEN', 'COMPLETED', 'CLOSED'];
+      const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
+      
+      return {
+        id: todoId,
+        status: randomStatus,
+        active: randomStatus === 'OPEN',
+        subject: 'Note Deficiencies - Mock',
+        description: 'Mock ToDo for testing',
+        dateCreated: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        overdue: false,
+        commentCount: 0,
+        unread: false,
+        important: false
+      };
+    }
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/todos/${todoId}/status`, {
+        headers: this.headers(),
+        params: { patientId }
+      });
+
+      return response.data.todo;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null; // ToDo not found
+      }
+      console.error('Error fetching ToDo status:', error);
+      throw new Error(error.response?.data?.error || 'Failed to fetch ToDo status');
     }
   }
 }

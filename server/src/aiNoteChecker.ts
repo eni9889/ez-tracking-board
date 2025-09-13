@@ -4,6 +4,7 @@ import { vitalSignsDb } from './database';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import OpenAI from 'openai';
 import {
   IncompleteNotesRequest,
   IncompleteNotesResponse,
@@ -22,31 +23,75 @@ import {
 
 class AINoteChecker {
   private readonly EZDERM_API_BASE = 'https://srvprod.ezinfra.net';
-  private readonly CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
-  private claudeApiKey: string;
-  private promptTemplate: string = '';
+  private openaiClient: OpenAI;
+  private promptTemplates: Map<string, string> = new Map();
+
+  // Define the check types
+  private readonly CHECK_TYPES = {
+    CHRONICITY: 'chronicity-check',
+    HPI_STRUCTURE: 'hpi-structure-check',
+    PLAN: 'plan-check',
+    EM_LEVEL: 'em-level-check'
+  } as const;
+
+  // Model configuration for different check types
+  // gpt-4o: More capable, better for complex analysis (HPI structure, plan evaluation)
+  // gpt-4o-mini: Faster and cheaper, good for simpler checks (chronicity, accuracy)
+  private readonly CHECK_MODELS = {
+    'chronicity-check': 'gpt-5',     // Simple chronicity detection
+    'hpi-structure-check': 'gpt-5-nano',       // Complex HPI structure analysis
+    'plan-check': 'gpt-5-mini',                // Detailed plan evaluation
+    'em-level-check': 'gpt-5',                 // E/M level documentation validation
+  } as const;
+
+  // Default model fallback
+  private readonly DEFAULT_MODEL = 'gpt-5-nano';
 
   constructor() {
-    this.claudeApiKey = process.env.CLAUDE_API_KEY || '';
-    if (!this.claudeApiKey) {
-      console.warn('⚠️ CLAUDE_API_KEY not found in environment variables. AI analysis will not be available.');
+    const openaiApiKey = process.env.OPENAI_API_KEY || '';
+    if (!openaiApiKey) {
+      console.warn('⚠️ OPENAI_API_KEY not found in environment variables. AI analysis will not be available.');
     }
-    this.loadPromptTemplate();
+    
+    this.openaiClient = new OpenAI({
+      apiKey: openaiApiKey
+    });
+    
+    this.loadAllPromptTemplates();
   }
 
-  private async loadPromptTemplate(): Promise<void> {
-    try {
-      const promptPath = path.join(__dirname, 'ai-prompt.md');
-      console.log('📝 Prompt path:', promptPath);
-      this.promptTemplate = await fs.readFile(promptPath, 'utf8');
-      console.log('📝 AI prompt template loaded successfully');
-    } catch (error) {
-      console.error('❌ Failed to load AI prompt template:', error);
-      this.promptTemplate = `You are a dermatology medical coder. I want you to strictly check two things:
-1. If the chronicity of every diagnosis in the A&P matches what is documented in the HPI.
-2. If every assessment in the A&P has a documented plan.
+  private async loadAllPromptTemplates(): Promise<void> {
+    const checkTypes = Object.values(this.CHECK_TYPES);
+    
+    for (const checkType of checkTypes) {
+      try {
+        const promptPath = path.join(__dirname, 'prompts', `${checkType}.md`);
+        console.log(`📝 Loading ${checkType} prompt from:`, promptPath);
+        const promptContent = await fs.readFile(promptPath, 'utf8');
+        this.promptTemplates.set(checkType, promptContent);
+        const lines = promptContent.split('\n').length;
+        const chars = promptContent.length;
+        console.log(`📝 ${checkType} prompt loaded successfully (${lines} lines, ${chars} characters)`);
+      } catch (error) {
+        console.error(`❌ Failed to load ${checkType} prompt template:`, error);
+        console.log(`🔄 Using fallback prompt for ${checkType}`);
+        this.promptTemplates.set(checkType, this.getFallbackPrompt(checkType));
+      }
+    }
+  }
 
-You must return {status: :ok} only if absolutely everything is correct. If even one issue is found, return a JSON object listing all issues, with details and corrections. Return JSON only.`;
+  private getFallbackPrompt(checkType: string): string {
+    switch (checkType) {
+      case this.CHECK_TYPES.CHRONICITY:
+        return `You are a dermatology medical coder. Check if the chronicity of every diagnosis in the A&P matches what is documented in the HPI. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
+      case this.CHECK_TYPES.HPI_STRUCTURE:
+        return `You are a dermatology medical coder. Check if the HPI structure is correct for billing. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
+      case this.CHECK_TYPES.PLAN:
+        return `You are a dermatology medical coder. Check if every assessment in the A&P has a documented plan. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
+      case this.CHECK_TYPES.EM_LEVEL:
+        return `You are a dermatology medical coder. Check if every assessment in the A&P that affects E/M level has adequate HPI documentation. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
+      default:
+        return `You are a dermatology medical coder. Analyze the note for issues. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
     }
   }
 
@@ -71,11 +116,11 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
 
   private isEligibleForCheck(encounter: IncompleteEncounter): boolean {
     const eligibleStatuses = ['PENDING_COSIGN', 'CHECKED_OUT', 'WITH_PROVIDER'];
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
     const serviceDate = this.parseDate(encounter.dateOfService);
     
     return eligibleStatuses.includes(encounter.status) && 
-           serviceDate < twoHoursAgo;
+           serviceDate < thirtyMinutesAgo;
   }
 
   /**
@@ -248,24 +293,103 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
   }
 
   /**
-   * Format progress note for AI analysis
+   * Format progress note for AI analysis based on check type
    */
-  private formatProgressNoteForAnalysis(progressNote: ProgressNoteResponse): string {
+  private formatProgressNoteForAnalysis(progressNote: ProgressNoteResponse, checkType?: string): string {
     let formattedNote = '';
 
+    // Determine which sections to include based on check type
+    const shouldIncludeSection = (sectionType: string): boolean => {
+      if (!checkType) {
+        // Default behavior: include all sections (for backward compatibility)
+        return true;
+      }
+
+      switch (checkType) {
+        case this.CHECK_TYPES.HPI_STRUCTURE:
+          // HPI check: only SUBJECTIVE section (contains HPI)
+          return sectionType === 'SUBJECTIVE';
+        
+        case this.CHECK_TYPES.CHRONICITY:
+          // Chronicity checks: only SUBJECTIVE (HPI) and ASSESSMENT_AND_PLAN
+          return sectionType === 'SUBJECTIVE' || sectionType === 'ASSESSMENT_AND_PLAN';
+        
+        case this.CHECK_TYPES.PLAN:
+          // Plan check: only ASSESSMENT_AND_PLAN section
+          return sectionType === 'ASSESSMENT_AND_PLAN';
+        
+        case this.CHECK_TYPES.EM_LEVEL:
+          // E/M level checks: both SUBJECTIVE (HPI) and ASSESSMENT_AND_PLAN
+          return sectionType === 'SUBJECTIVE' || sectionType === 'ASSESSMENT_AND_PLAN';
+        
+        default:
+          // Unknown check type: include all sections
+          return true;
+      }
+    };
+
+    // Determine which element types to include within a section
+    const shouldIncludeElement = (elementType: string, sectionType: string, checkType?: string): boolean => {
+      if (!checkType) {
+        // Default behavior: include all elements except PHYSICAL_EXAM
+        return elementType !== 'PHYSICAL_EXAM';
+      }
+
+      switch (checkType) {
+        case this.CHECK_TYPES.HPI_STRUCTURE:
+          // HPI check: only include HPI-related elements
+          return elementType === 'HISTORY_OF_PRESENT_ILLNESS';
+        
+        case this.CHECK_TYPES.CHRONICITY:
+          // Chronicity checks: include HPI and A&P elements, exclude PHYSICAL_EXAM
+          if (sectionType === 'SUBJECTIVE') {
+            return elementType === 'HISTORY_OF_PRESENT_ILLNESS';
+          }
+          if (sectionType === 'ASSESSMENT_AND_PLAN') {
+            return true; // Include all A&P elements
+          }
+          return false;
+        
+        case this.CHECK_TYPES.PLAN:
+          // Plan check: only include A&P elements
+          return sectionType === 'ASSESSMENT_AND_PLAN';
+        
+        case this.CHECK_TYPES.EM_LEVEL:
+          // E/M level checks: include HPI and A&P elements, exclude PHYSICAL_EXAM
+          if (sectionType === 'SUBJECTIVE') {
+            return elementType === 'HISTORY_OF_PRESENT_ILLNESS';
+          }
+          if (sectionType === 'ASSESSMENT_AND_PLAN') {
+            return true; // Include all A&P elements
+          }
+          return false;
+        
+        default:
+          // Unknown check type: exclude PHYSICAL_EXAM by default
+          return elementType !== 'PHYSICAL_EXAM';
+      }
+    };
+
     for (const section of progressNote.progressNotes) {
+      if (!shouldIncludeSection(section.sectionType)) {
+        continue;
+      }
+
       formattedNote += `\n\n--- ${section.sectionType} ---\n`;
       
       for (const item of section.items) {
-        if (item.elementType === 'HISTORY_OF_PRESENT_ILLNESS') {
-          formattedNote += `\n${item.elementType}:\n${item.note}\n`;
-        } else if (item.text && item.text.trim()) {
-          formattedNote += `\n${item.elementType}:\n${item.text}\n`;
-          
-          if (item.note && item.note.trim()) {
-            formattedNote += `Note: ${item.note}\n`;
-          }
+        if (!shouldIncludeElement(item.elementType, section.sectionType, checkType)) {
+          continue;
         }
+
+        if (item.text && item.text.trim()) {
+          formattedNote += `${item.text}\n`;
+        }
+
+        if (item.note && item.note.trim()) {
+          formattedNote += `${item.note}\n`;
+        }
+
       }
     }
 
@@ -273,84 +397,262 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
   }
 
   /**
-   * Analyze progress note using Claude AI
+   * Get the AI model to use for a specific check type
    */
-  async analyzeProgressNote(progressNote: ProgressNoteResponse): Promise<AIAnalysisResult> {
-    if (!this.claudeApiKey) {
-      throw new Error('Claude API key not configured');
+  private getModelForCheck(checkType: string): string {
+    return this.CHECK_MODELS[checkType as keyof typeof this.CHECK_MODELS] || this.DEFAULT_MODEL;
+  }
+
+  /**
+   * Get model configuration summary for logging
+   */
+  private getModelConfigSummary(): string {
+    const configs = Object.entries(this.CHECK_MODELS).map(([check, model]) => `${check}: ${model}`);
+    return configs.join(', ');
+  }
+
+  /**
+   * Perform a single AI check with specific prompt
+   */
+  private async performSingleCheck(
+    checkType: string, 
+    progressNote: ProgressNoteResponse
+  ): Promise<AIAnalysisResult> {
+    if (!this.openaiClient.apiKey) {
+      throw new Error('OpenAI API key not configured');
     }
 
+    const prompt = this.promptTemplates.get(checkType);
+    if (!prompt) {
+      throw new Error(`Prompt template not found for check type: ${checkType}`);
+    }
+
+    // Generate filtered note content based on check type
+    const noteText = this.formatProgressNoteForAnalysis(progressNote, checkType);
+
+    // Get the model for this specific check type
+    const modelToUse = this.getModelForCheck(checkType);
+
     try {
-      console.log('🤖 Analyzing progress note with Claude AI...');
+      console.log(`🤖 Performing ${checkType} check with OpenAI ${modelToUse}...`);
+      console.log(`📄 Filtered note content for ${checkType}:`, noteText.substring(0, 200) + '...');
+
+      const response = await this.openaiClient.responses.create({
+        model: modelToUse,
+        input: `${prompt}\n\nProgress Note to analyze:\n${noteText}`
+      });
+
+      const aiResponse = response.output_text;
+      if (!aiResponse) {
+        throw new Error(`No response content received from OpenAI for ${checkType}`);
+      }
       
-      const noteText = this.formatProgressNoteForAnalysis(progressNote);
-      const fullPrompt = `${this.promptTemplate}\n\nProgress Note to analyze:\n${noteText}`;
-
-      const response = await axios.post(
-        this.CLAUDE_API_URL,
-        {
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 4000,
-          system: 'You are a medical coding assistant. You must respond with ONLY valid JSON. Do not include any explanations, comments, or additional text outside the JSON object.',
-          messages: [
-            {
-              role: 'user',
-              content: fullPrompt
-            }
-          ]
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': this.claudeApiKey,
-            'anthropic-version': '2023-06-01'
-          },
-          timeout: 120000 // 2 minutes timeout for Anthropic API calls
-        }
-      );
-
-      const aiResponse = response.data.content[0].text;
-      console.log('📝 Raw AI response:', aiResponse);
-
-      // Parse the JSON response from Claude
+      // Parse the JSON response from OpenAI
       let analysisResult: AIAnalysisResult;
       try {
         // Extract JSON from the response (might have extra text)
         let jsonText = this.extractJSON(aiResponse);
         
-        // Fix common JSON syntax issues from Claude
+        // Fix common JSON syntax issues from AI responses
         jsonText = this.fixCommonJSONIssues(jsonText);
         
         const parsedResponse = JSON.parse(jsonText);
-        console.log('🔍 Parsed AI response:', JSON.stringify(parsedResponse, null, 2));
+        console.log(`🔍 Parsed AI response for ${checkType}:`, JSON.stringify(parsedResponse, null, 2));
         
         analysisResult = this.normalizeAIResponse(parsedResponse);
-        console.log('🔧 Normalized result:', JSON.stringify(analysisResult, null, 2));
       } catch (parseError) {
-        console.error('❌ Failed to parse AI response as JSON:', parseError);
+        console.error(`❌ Failed to parse AI response as JSON for ${checkType}:`, parseError);
         console.error('Raw response:', aiResponse);
         
         // Fallback response
         analysisResult = {
           status: 'corrections_needed',
-          summary: 'AI analysis failed to parse response properly',
+          summary: `${checkType} analysis failed to parse response properly`,
           issues: [{
             assessment: 'Analysis Error',
-            issue: 'no_explicit_plan',
+            issue: 'unclear_documentation',
             details: {
-              'A&P': 'Could not parse AI response',
+              'A&P': `Could not parse AI response for ${checkType}`,
               correction: 'Manual review required'
             }
           }]
         };
       }
 
-      console.log('✅ AI analysis completed');
+      console.log(`✅ ${checkType} check completed`);
       return analysisResult;
+    } catch (error: any) {
+      console.error(`❌ Error performing ${checkType} check:`, error.response?.data || error.message);
+      throw new Error(`${checkType} check failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Analyze progress note using multiple specialized AI checks
+   */
+  async analyzeProgressNote(progressNote: ProgressNoteResponse): Promise<AIAnalysisResult> {
+    if (!this.openaiClient.apiKey) {
+      throw new Error('OpenAI API key not configured');
+    }
+
+    try {
+      console.log('🤖 Starting comprehensive AI note analysis with multiple checks...');
+      
+      // In development mode, reload all prompt templates
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔄 Development mode: Reloading all AI prompt templates...');
+        await this.loadAllPromptTemplates();
+        console.log('✅ All AI prompt templates reloaded successfully');
+      }
+      
+      // Perform all checks in parallel for better performance
+      const checkPromises = Object.values(this.CHECK_TYPES).map(checkType => 
+        this.performSingleCheck(checkType, progressNote).then(result => ({
+          checkType,
+          result
+        }))
+      );
+
+      console.log(`🔄 Running ${checkPromises.length} AI checks in parallel...`);
+      console.log(`🤖 Model configuration: ${this.getModelConfigSummary()}`);
+      const aiCheckResults = await Promise.all(checkPromises);
+
+      // Perform local vital signs check (no AI call needed)
+      const vitalSignsResult = { checkType: 'vital-signs-check', result: this.checkVitalSigns(progressNote) };
+
+      // Combine all results (AI checks + vital signs check)
+      const allCheckResults = [...aiCheckResults, vitalSignsResult];
+      const combinedResult = this.combineCheckResults(allCheckResults);
+      
+      console.log('✅ Comprehensive note analysis completed (AI checks + local validation)');
+      console.log('📊 Combined analysis result:', JSON.stringify(combinedResult, null, 2));
+      
+      return combinedResult;
     } catch (error: any) {
       console.error('❌ Error analyzing progress note with AI:', error.response?.data || error.message);
       throw new Error(`AI analysis failed: ${error.message}`);
     }
+  }
+
+  /**
+   * Check for presence of height and weight in vital signs (local validation)
+   */
+  private checkVitalSigns(progressNote: ProgressNoteResponse): AIAnalysisResult {
+    console.log('🔍 Checking vital signs for height and weight...');
+    
+    // Find the OBJECTIVE section
+    const objectiveSection = progressNote.progressNotes.find(
+      section => section.sectionType === 'OBJECTIVE'
+    );
+    
+    if (!objectiveSection) {
+      console.log('⚠️ No OBJECTIVE section found');
+      return {
+        status: 'corrections_needed',
+        summary: 'Missing OBJECTIVE section with vital signs',
+        issues: [{
+          assessment: 'Vital Signs',
+          issue: 'unclear_documentation',
+          details: {
+            HPI: 'No OBJECTIVE section found',
+            'A&P': 'Vital signs section missing',
+            correction: 'Add OBJECTIVE section with height and weight measurements'
+          }
+        }]
+      };
+    }
+    
+    // Find the VITAL_SIGNS element
+    const vitalSignsItem = objectiveSection.items.find(
+      item => item.elementType === 'VITAL_SIGNS'
+    );
+    
+    if (!vitalSignsItem || !vitalSignsItem.text) {
+      console.log('⚠️ No VITAL_SIGNS element found');
+      return {
+        status: 'corrections_needed',
+        summary: 'Missing vital signs documentation',
+        issues: [{
+          assessment: 'Vital Signs',
+          issue: 'unclear_documentation',
+          details: {
+            HPI: 'Vital signs not documented',
+            'A&P': 'Height and weight required for billing',
+            correction: 'Add height and weight measurements to vital signs'
+          }
+        }]
+      };
+    }
+    
+    const vitalSignsText = vitalSignsItem.text.toLowerCase();
+    const hasHeight = vitalSignsText.includes('height') || vitalSignsText.includes('ht');
+    const hasWeight = vitalSignsText.includes('weight') || vitalSignsText.includes('wt') || vitalSignsText.includes('lbs') || vitalSignsText.includes('kg');
+    
+    const missingVitals: string[] = [];
+    if (!hasHeight) missingVitals.push('height');
+    if (!hasWeight) missingVitals.push('weight');
+    
+    if (missingVitals.length > 0) {
+      console.log(`⚠️ Missing vital signs: ${missingVitals.join(', ')}`);
+      return {
+        status: 'corrections_needed',
+        summary: `Missing required vital signs: ${missingVitals.join(' and ')}`,
+        issues: [{
+          assessment: 'Vital Signs',
+          issue: 'unclear_documentation',
+          details: {
+            HPI: `Current vital signs: ${vitalSignsItem.text}`,
+            'A&P': `Missing ${missingVitals.join(' and ')} measurements`,
+            correction: `Add ${missingVitals.join(' and ')} to vital signs documentation`
+          }
+        }]
+      };
+    }
+    
+    console.log('✅ Height and weight found in vital signs');
+    return {
+      status: 'ok',
+      reason: 'Height and weight are properly documented in vital signs'
+    };
+  }
+
+  /**
+   * Combine results from multiple AI checks into a single result
+   */
+  private combineCheckResults(checkResults: { checkType: string; result: AIAnalysisResult }[]): AIAnalysisResult {
+    const allIssues: AIAnalysisIssue[] = [];
+    let hasIssues = false;
+
+    // Collect all issues from all checks, adding check type information
+    for (const { checkType, result } of checkResults) {
+      if (result.status === 'corrections_needed' && result.issues) {
+        // Add check type to each issue
+        const issuesWithCheckType = result.issues.map(issue => ({
+          ...issue,
+          checkType
+        }));
+        allIssues.push(...issuesWithCheckType);
+        hasIssues = true;
+      }
+    }
+
+    // If no issues found across all checks
+    if (!hasIssues) {
+      return {
+        status: 'ok',
+        reason: 'All checks passed: chronicity, HPI structure, plan documentation, E/M level validation, and vital signs verification completed successfully'
+      };
+    }
+
+    // If issues found, combine them
+    const issueTypes = Array.from(new Set(allIssues.map(issue => issue.issue)));
+    const issueCount = allIssues.length;
+    
+    return {
+      status: 'corrections_needed',
+      summary: `Found ${issueCount} issue${issueCount > 1 ? 's' : ''} across multiple checks: ${issueTypes.join(', ')}`,
+      issues: allIssues
+    };
   }
 
   /**
@@ -603,10 +905,11 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
    * Normalize AI response to match expected format
    */
   private normalizeAIResponse(response: any): AIAnalysisResult {
-    // Handle the case where Claude returns "ok" status
-    if (response.status === 'ok') {
+    // Handle the case where Claude returns "ok" or ":ok" status
+    if (response.status === 'ok' || response.status === ':ok') {
       return {
-        status: 'ok'
+        status: 'ok',
+        reason: response.reason || undefined
       };
     }
 
@@ -772,6 +1075,102 @@ You must return {status: :ok} only if absolutely everything is correct. If even 
     } catch (error: any) {
       console.error('❌ Error creating note deficiency ToDo:', error.response?.data || error.message);
       throw new Error(`Failed to create ToDo: ${error.message}`);
+    }
+  }
+
+  /**
+   * Fetch ToDo status from EZDerm by ToDo ID
+   */
+  async fetchToDoStatus(accessToken: string, todoId: string, patientId: string): Promise<any> {
+    try {
+      console.log('📋 Fetching ToDo status for ID:', todoId);
+
+      // Use the getByFilter endpoint with the specific ToDo ID
+      const requestData = {
+        unread: false,
+        linkEntityId: patientId,
+        important: false,
+        reminder: "ACTIVATED",
+        maxResults: 50,
+        status: "OPEN", // We'll try OPEN first, then if not found, try with no status filter
+        linkType: "PATIENT",
+        searchText: ""
+      };
+
+      const response: AxiosResponse<any> = await axios.post(
+        `${this.EZDERM_API_BASE}/ezderm-webservice/rest/task/getByFilter`,
+        requestData,
+        {
+          headers: {
+            'Host': 'srvprod.ezinfra.net',
+            'accept': 'application/json',
+            'content-type': 'application/json',
+            'authorization': `Bearer ${accessToken}`,
+            'user-agent': 'ezDerm/4.28.1 (build:133.1; macOS(Catalyst) 15.6.1)',
+            'accept-language': 'en-US;q=1.0'
+          }
+        }
+      );
+
+      if (response.data && response.data.tasks) {
+        // Find the specific ToDo by ID
+        const todo = response.data.tasks.find((task: any) => task.id === todoId);
+        if (todo) {
+          return {
+            id: todo.id,
+            status: todo.status,
+            active: todo.active,
+            subject: todo.subject,
+            description: todo.description,
+            dateCreated: todo.dateCreated,
+            overdue: todo.overdue,
+            commentCount: todo.commentCount,
+            unread: todo.unread,
+            important: todo.important
+          };
+        }
+
+        // If not found in OPEN status, try without status filter
+        const { status, ...requestDataAll } = requestData;
+
+        const responseAll: AxiosResponse<any> = await axios.post(
+          `${this.EZDERM_API_BASE}/ezderm-webservice/rest/task/getByFilter`,
+          requestDataAll,
+          {
+            headers: {
+              'Host': 'srvprod.ezinfra.net',
+              'accept': 'application/json',
+              'content-type': 'application/json',
+              'authorization': `Bearer ${accessToken}`,
+              'user-agent': 'ezDerm/4.28.1 (build:133.1; macOS(Catalyst) 15.6.1)',
+              'accept-language': 'en-US;q=1.0'
+            }
+          }
+        );
+
+        if (responseAll.data && responseAll.data.tasks) {
+          const todoAll = responseAll.data.tasks.find((task: any) => task.id === todoId);
+          if (todoAll) {
+            return {
+              id: todoAll.id,
+              status: todoAll.status,
+              active: todoAll.active,
+              subject: todoAll.subject,
+              description: todoAll.description,
+              dateCreated: todoAll.dateCreated,
+              overdue: todoAll.overdue,
+              commentCount: todoAll.commentCount,
+              unread: todoAll.unread,
+              important: todoAll.important
+            };
+          }
+        }
+      }
+
+      return null; // ToDo not found
+    } catch (error: any) {
+      console.error('❌ Error fetching ToDo status:', error.message);
+      throw new Error(`Failed to fetch ToDo status: ${error.message}`);
     }
   }
 }

@@ -4,8 +4,16 @@ import axios from './axiosConfig';
 import { AxiosResponse } from 'axios';
 import { vitalSignsDb } from './database';
 import { vitalSignsService } from './vitalSignsService';
+import { benefitsService } from './benefitsService';
 import { aiNoteChecker } from './aiNoteChecker';
 import { appConfig } from './config';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+// Configure dayjs
+dayjs.extend(utc);
+dayjs.extend(timezone);
 import {
   EZDermAPILoginRequest,
   EZDermLoginResponse,
@@ -15,6 +23,7 @@ import {
   EncounterStatus,
   AINoteScanJobData,
   AINoteCheckJobData,
+  ToDoCompletionCheckJobData,
   StoredTokens
 } from './types';
 
@@ -75,6 +84,34 @@ export const aiNoteCheckQueue = new Queue('ai-note-check', {
     backoff: {
       type: 'exponential',
       delay: 15000,
+    },
+  },
+});
+
+// Create queue for benefits eligibility processing
+export const benefitsEligibilityQueue = new Queue('benefits-eligibility-processing', {
+  connection: redis,
+  defaultJobOptions: {
+    removeOnComplete: 10, // Keep only last 10 completed jobs
+    removeOnFail: 50,     // Keep last 50 failed jobs
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 5000,
+    },
+  },
+});
+
+// Create queue for ToDo completion checking
+export const todoCompletionCheckQueue = new Queue('todo-completion-check', {
+  connection: redis,
+  defaultJobOptions: {
+    removeOnComplete: 5,  // Keep only last 5 completed scans
+    removeOnFail: 20,     // Keep last 20 failed scans
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 10000,
     },
   },
 });
@@ -310,6 +347,51 @@ async function getTodaysEncounters(accessToken: string, serverUrl: string): Prom
   }
 }
 
+// Get tomorrow's encounters from EZDerm for benefits eligibility checks
+async function getTomorrowsEncounters(accessToken: string, serverUrl: string): Promise<Encounter[]> {
+  try {
+    // Use dayjs for proper date handling in Eastern timezone
+    const tomorrow = dayjs().tz('America/Detroit').add(1, 'day');
+    const tomorrowStart = tomorrow.startOf('day');
+    const tomorrowEnd = tomorrow.endOf('day');
+    
+    // Use the exact format from encounters.md
+    const encounterData = {
+      practiceId: DEFAULT_PRACTICE_ID,
+      lightBean: true,
+      includeVirtualEncounters: false,
+      dateSelection: 'SPECIFY_RANGE',
+      dateOfServiceRangeLow: tomorrowStart.format('YYYY-MM-DDTHH:mm:ss.SSS[Z]').replace('Z', '-04:00'),
+      dateOfServiceRangeHigh: tomorrowEnd.format('YYYY-MM-DDTHH:mm:ss.SSS[Z]').replace('Z', '-04:00')
+    };
+
+    console.log(`Today: ${dayjs().tz('America/Detroit').format('YYYY-MM-DD HH:mm:ss')} (EDT)`);
+    console.log(`Tomorrow: ${tomorrow.format('YYYY-MM-DD')} (EDT)`);
+    console.log(`Fetching tomorrow's encounters: ${encounterData.dateOfServiceRangeLow} to ${encounterData.dateOfServiceRangeHigh}`);
+
+    const response: AxiosResponse<EZDermEncounter[]> = await axios.post(
+      `${serverUrl}ezderm-webservice/rest/encounter/getByFilter`,
+      encounterData,
+      {
+        headers: {
+          'accept': 'application/json',
+          'accept-language': 'en-US,en;q=0.9',
+          'authorization': `Bearer ${accessToken}`,
+          'content-type': 'application/json',
+          'origin': 'https://pms.ezderm.com',
+          'referer': 'https://pms.ezderm.com/',
+          'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+        }
+      }
+    );
+
+    return response.data.map(transformEZDermEncounter);
+  } catch (error: any) {
+    console.error('Failed to fetch tomorrow\'s encounters:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
 // Job processor function
 async function processVitalSignsCarryforward(job: Job): Promise<{ processed: number; successful: number; failed: number }> {
   console.log('🔄 Starting vital signs carryforward job...');
@@ -388,6 +470,119 @@ const getValidTokensForAI = async (): Promise<{ accessToken: string; refreshToke
   return await getValidTokensForJob();
 };
 
+// Helper function to find the first appointment time for tomorrow
+function getFirstAppointmentTime(encounters: Encounter[]): dayjs.Dayjs | null {
+  if (encounters.length === 0) {
+    return null;
+  }
+
+  // Sort encounters by appointment time and get the earliest one
+  const sortedEncounters = encounters
+    .filter(encounter => encounter.appointmentTime)
+    .map(encounter => ({
+      ...encounter,
+      appointmentTimeDayjs: dayjs(encounter.appointmentTime).tz('America/Detroit')
+    }))
+    .sort((a, b) => a.appointmentTimeDayjs.valueOf() - b.appointmentTimeDayjs.valueOf());
+
+  if (sortedEncounters.length === 0) {
+    return null;
+  }
+
+  const firstEncounter = sortedEncounters[0];
+  return firstEncounter ? firstEncounter.appointmentTimeDayjs : null;
+}
+
+// Benefits eligibility job processor function
+async function processBenefitsEligibilityCheck(job: Job): Promise<{ processed: number; successful: number; failed: number }> {
+  console.log('💰 Starting benefits eligibility check job...');
+  
+  try {
+    // Get valid tokens using service user credentials
+    let authData = await getValidTokensForJob();
+    
+    if (!authData) {
+      throw new Error('Failed to obtain valid EZDerm tokens');
+    }
+
+    // Get tomorrow's encounters
+    const allEncounters = await getTomorrowsEncounters(authData.accessToken, authData.serverUrl);
+    
+    if (allEncounters.length === 0) {
+      const statusMsg = 'No appointments found for tomorrow';
+      console.log(`ℹ️ ${statusMsg}`);
+      return { processed: 0, successful: 0, failed: 0 };
+    }
+
+    // Find the first appointment time
+    const firstAppointmentTime = getFirstAppointmentTime(allEncounters);
+    
+    if (!firstAppointmentTime) {
+      console.log('ℹ️ No valid appointment times found for tomorrow');
+      return { processed: 0, successful: 0, failed: 0 };
+    }
+
+    console.log(`🎯 Running benefits eligibility check. First appointment at ${firstAppointmentTime.format('YYYY-MM-DD HH:mm:ss')} (EDT), running at optimal time.`);
+
+    // Process each encounter
+    let processed = 0;
+    let successful = 0;
+    let failed = 0;
+
+    for (const encounter of allEncounters) {
+      try {
+        // Check if already processed
+        const alreadyProcessed = await vitalSignsDb.hasBenefitsEligibilityBeenProcessed(encounter.id);
+        if (alreadyProcessed) {
+          console.debug(`⏭️ Skipping ${encounter.patientName} - already processed`);
+          continue;
+        }
+
+        processed++;
+        console.log(`💰 Processing benefits eligibility for ${encounter.patientName} (appointment at ${encounter.appointmentTime})`);
+        console.log(`📋 Encounter data: ID=${encounter.id}, PatientID=${(encounter.patientInfo as any)?.id}, PatientName=${encounter.patientInfo?.firstName} ${encounter.patientInfo?.lastName}`);
+        
+        // Map the encounter to the benefits encounter interface
+        const benefitsEncounter = {
+          id: encounter.id,
+          patientInfo: {
+            id: encounter.patientInfo.id,
+            firstName: encounter.patientInfo.firstName,
+            lastName: encounter.patientInfo.lastName,
+            dateOfBirth: encounter.patientInfo.dateOfBirth,
+          },
+          appointmentTime: encounter.appointmentTime,
+          status: encounter.status,
+          establishedPatient: encounter.establishedPatient
+        };
+        
+        const result = await benefitsService.processBenefitsEligibilityCheck(benefitsEncounter, authData.accessToken);
+        
+        if (result) {
+          successful++;
+          console.log(`✅ Successfully processed benefits eligibility for ${encounter.patientName}`);
+        } else {
+          failed++;
+          console.log(`❌ Failed to process benefits eligibility for ${encounter.patientName}`);
+        }
+      } catch (error) {
+        processed++;
+        failed++;
+        console.error(`💥 Error processing ${encounter.patientName}:`, error);
+      }
+    }
+
+    const summary = { processed, successful, failed };
+    console.log(`🏁 Benefits eligibility job completed: ${JSON.stringify(summary)}`);
+    
+    return summary;
+    
+  } catch (error) {
+    console.error('💥 Benefits eligibility job failed:', error);
+    throw error;
+  }
+}
+
 // AI Note Scan Job Processor
 const processAINoteScan = async (job: Job<AINoteScanJobData>) => {
   const { scanId, batchSize = 100 } = job.data;
@@ -419,10 +614,10 @@ const processAINoteScan = async (job: Job<AINoteScanJobData>) => {
           for (const encounter of patientData.incompleteEncounters) {
             // Apply same eligibility filter as the main endpoint
             const eligibleStatuses = ['PENDING_COSIGN', 'CHECKED_OUT', 'WITH_PROVIDER'];
-            const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+            const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
             const serviceDate = new Date(encounter.dateOfService);
             
-            const isEligible = eligibleStatuses.includes(encounter.status) && serviceDate < twoHoursAgo;
+            const isEligible = eligibleStatuses.includes(encounter.status) && serviceDate < thirtyMinutesAgo;
             
             if (isEligible) {
               totalEligible++;
@@ -496,7 +691,7 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
     console.log('✅ AI Job: Got valid tokens using service user credentials');
 
     // Perform the AI check with force flag
-    const checkId = await aiNoteChecker.checkSingleNote(
+    const checkResult = await aiNoteChecker.checkSingleNote(
       tokens.accessToken,  // 1st: accessToken
       encounterId,         // 2nd: encounterId  
       patientId,           // 3rd: patientId
@@ -510,74 +705,20 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
     // Get the AI analysis result to check for issues
     const noteCheckResult = await vitalSignsDb.getNoteCheckResult(encounterId);
     
-    // if (noteCheckResult && noteCheckResult.issues_found && noteCheckResult.ai_analysis?.issues) {
-    //   console.log(`📝 Issues found in note ${encounterId}, creating ToDo...`);
-      
-    //   try {
-    //     // Get the progress note to access encounterRoleInfoList
-    //     const progressNote = await aiNoteChecker.fetchProgressNote(tokens.accessToken, encounterId, patientId);
-        
-    //     // Find encounterRoleInfoList from the original incomplete encounter data
-    //     // We'll need to fetch this from the incomplete notes API
-    //     const incompleteNotes = await aiNoteChecker.fetchIncompleteNotes(tokens.accessToken, {
-    //       fetchFrom: 0,
-    //       size: 100
-    //     });
-        
-    //     let encounterRoleInfoList: any[] = [];
-        
-    //     // Search for the encounter in incomplete notes to get role info
-    //     for (const batch of incompleteNotes) {
-    //       if (batch.incompletePatientEncounters) {
-    //         for (const patientData of batch.incompletePatientEncounters) {
-    //           const encounter = patientData.incompleteEncounters.find(enc => enc.id === encounterId);
-    //           if (encounter && encounter.encounterRoleInfoList) {
-    //             encounterRoleInfoList = encounter.encounterRoleInfoList;
-    //             break;
-    //           }
-    //         }
-    //       }
-    //       if (encounterRoleInfoList.length > 0) break;
-    //     }
-        
-    //     if (encounterRoleInfoList.length > 0) {
-    //       const todoId = await aiNoteChecker.createNoteDeficiencyToDo(
-    //         tokens.accessToken,
-    //         encounterId,
-    //         patientId,
-    //         patientName,
-    //         dateOfService,
-    //         noteCheckResult.ai_analysis.issues,
-    //         encounterRoleInfoList
-    //       );
-          
-    //       console.log(`✅ ToDo created successfully: ${todoId} for encounter: ${encounterId}`);
-          
-    //       return {
-    //         encounterId,
-    //         patientName,
-    //         checkId,
-    //         scanId,
-    //         todoId,
-    //         issuesFound: true,
-    //         completedAt: new Date().toISOString()
-    //       };
-    //     } else {
-    //       console.warn(`⚠️ Could not find encounter role info for ${encounterId}, skipping ToDo creation`);
-    //     }
-        
-    //   } catch (todoError: any) {
-    //     console.error(`❌ Failed to create ToDo for encounter ${encounterId}:`, todoError.message);
-    //     // Don't fail the entire job if ToDo creation fails
-    //   }
-    // }
-
-    console.log(`✅ AI check completed for encounter: ${encounterId}, checkId: ${checkId}`);
+    console.log(`✅ AI check completed for encounter: ${encounterId}, checkId: ${checkResult.id}`);
+    
+    // Immediately verify the result was saved by reading it back
+    const verifyResult = await vitalSignsDb.getNoteCheckResult(encounterId);
+    if (verifyResult && verifyResult.id === checkResult.id) {
+      console.log(`✅ Verified: Background job result saved and readable for encounter ${encounterId}`);
+    } else {
+      console.error(`❌ Warning: Could not verify saved result for encounter ${encounterId}. Expected ID: ${checkResult.id}, Found: ${verifyResult?.id || 'null'}`);
+    }
     
     return {
       encounterId,
       patientName,
-      checkId,
+      checkId: checkResult.id,
       scanId,
       issuesFound: noteCheckResult?.issues_found || false,
       completedAt: new Date().toISOString()
@@ -645,10 +786,141 @@ const processAINoteCheck = async (job: Job<AINoteCheckJobData>) => {
   }
 };
 
+// ToDo Completion Check Job Processor
+const processToDoCompletionCheck = async (job: Job<ToDoCompletionCheckJobData>) => {
+  const { scanId, batchSize = 50 } = job.data;
+  
+  console.log(`🔍 Starting ToDo completion check, scanId: ${scanId}`);
+  
+  try {
+    // Get valid tokens using service user credentials
+    const tokens = await getValidTokensForJob();
+    if (!tokens) {
+      throw new Error('Failed to get valid tokens for service user');
+    }
+
+    console.log('🔑 Using service user credentials for ToDo completion checking');
+
+    // Get ToDos that need status checking
+    const todosToCheck = await vitalSignsDb.getToDosForStatusCheck();
+    
+    if (todosToCheck.length === 0) {
+      console.log('ℹ️ No ToDos found that need status checking');
+      return {
+        scanId,
+        totalChecked: 0,
+        completedTodos: 0,
+        followupChecksTriggered: 0,
+        completedAt: new Date().toISOString()
+      };
+    }
+
+    console.log(`📋 Found ${todosToCheck.length} ToDos to check for completion`);
+
+    let totalChecked = 0;
+    let completedTodos = 0;
+    let followupChecksTriggered = 0;
+
+    // Process each ToDo (limit by batchSize)
+    const todosToProcess = todosToCheck.slice(0, batchSize);
+    
+    for (const todo of todosToProcess) {
+      try {
+        totalChecked++;
+        
+        console.log(`📋 Checking ToDo status: ${todo.ezDermToDoId} for encounter: ${todo.encounterId}`);
+        
+        // Fetch ToDo status from EZDerm
+        const todoStatus = await aiNoteChecker.fetchToDoStatus(
+          tokens.accessToken,
+          todo.ezDermToDoId,
+          todo.patientId
+        );
+        
+        if (todoStatus) {
+          const isCompleted = todoStatus.status === 'COMPLETED' || todoStatus.status === 'CLOSED';
+          
+          if (isCompleted) {
+            completedTodos++;
+            console.log(`✅ ToDo ${todo.ezDermToDoId} is completed with status: ${todoStatus.status}`);
+            
+            // Track this completion
+            await vitalSignsDb.trackToDoCompletion(
+              todo.encounterId,
+              todo.ezDermToDoId,
+              todoStatus.status
+            );
+            
+            // Check if there was a previous AI check for this encounter
+            const previousAiCheck = await vitalSignsDb.getNoteCheckResult(todo.encounterId);
+            
+            if (previousAiCheck) {
+              console.log(`🤖 Previous AI check found for encounter ${todo.encounterId}, triggering follow-up AI check`);
+              
+              // Queue a new AI check for this encounter with force=true
+              await aiNoteCheckQueue.add('todo-completion-followup-check', {
+                encounterId: todo.encounterId,
+                patientId: todo.patientId,
+                patientName: todo.patientName,
+                chiefComplaint: 'ToDo Completion Follow-up',
+                dateOfService: new Date().toISOString(),
+                scanId: `todo-followup-${Date.now()}`,
+                force: true
+              }, {
+                delay: followupChecksTriggered * 10000, // Stagger by 10 seconds
+              });
+              
+              followupChecksTriggered++;
+              console.log(`📝 Queued follow-up AI check for encounter: ${todo.encounterId}`);
+            } else {
+              console.log(`ℹ️ No previous AI check found for encounter ${todo.encounterId}, skipping follow-up`);
+            }
+          } else {
+            // Still open, track it as checked but not completed
+            await vitalSignsDb.trackToDoCompletion(
+              todo.encounterId,
+              todo.ezDermToDoId,
+              todoStatus.status
+            );
+            console.log(`⏳ ToDo ${todo.ezDermToDoId} is still open with status: ${todoStatus.status}`);
+          }
+        } else {
+          // ToDo not found, might have been deleted
+          await vitalSignsDb.trackToDoCompletion(
+            todo.encounterId,
+            todo.ezDermToDoId,
+            'NOT_FOUND'
+          );
+          console.log(`❓ ToDo ${todo.ezDermToDoId} not found (may have been deleted)`);
+        }
+        
+      } catch (error: any) {
+        console.error(`❌ Error checking ToDo ${todo.ezDermToDoId}:`, error.message);
+      }
+    }
+
+    console.log(`✅ ToDo completion check completed. Checked: ${totalChecked}, Completed: ${completedTodos}, Follow-up checks triggered: ${followupChecksTriggered}`);
+    
+    return {
+      scanId,
+      totalChecked,
+      completedTodos,
+      followupChecksTriggered,
+      completedAt: new Date().toISOString()
+    };
+    
+  } catch (error: any) {
+    console.error(`❌ ToDo completion check failed`, error);
+    throw error;
+  }
+};
+
 // Workers - will be created only when explicitly started
 export let vitalSignsWorker: Worker | null = null;
+export let benefitsEligibilityWorker: Worker | null = null;
 export let aiNoteScanWorker: Worker | null = null;
 export let aiNoteCheckWorker: Worker | null = null;
+export let todoCompletionCheckWorker: Worker | null = null;
 
 // Worker event handlers - will be set up when workers are created
 
@@ -698,6 +970,56 @@ export async function startVitalSignsJob(): Promise<void> {
     console.log('🚀 Vital signs carryforward job started (every 10 seconds)');
   } catch (error) {
     console.error('Failed to start vital signs job:', error);
+    throw error;
+  }
+}
+
+// Start the benefits eligibility job
+export async function startBenefitsEligibilityJob(): Promise<void> {
+  try {
+    // Create the worker if it doesn't exist
+    if (!benefitsEligibilityWorker) {
+      benefitsEligibilityWorker = new Worker('benefits-eligibility-processing', processBenefitsEligibilityCheck, {
+        connection: redis,
+        concurrency: 1, // Only one job at a time
+      });
+
+      // Set up event handlers
+      benefitsEligibilityWorker.on('completed', (job) => {
+        console.log(`✅ Benefits eligibility job ${job.id} completed successfully`);
+      });
+
+      benefitsEligibilityWorker.on('failed', (job, err) => {
+        console.error(`❌ Benefits eligibility job ${job?.id} failed:`, err);
+      });
+
+      benefitsEligibilityWorker.on('error', (err) => {
+        console.error('🚨 Benefits eligibility worker error:', err);
+      });
+    }
+
+    // Pause the queue first, then clear any existing jobs
+    await benefitsEligibilityQueue.pause();
+    await benefitsEligibilityQueue.obliterate({ force: true });
+    
+    // Resume the queue
+    await benefitsEligibilityQueue.resume();
+    
+    // Add recurring job every 5 minutes to check if it's time to run
+    await benefitsEligibilityQueue.add(
+      'process-benefits-eligibility',
+      {},
+      {
+        repeat: {
+          every: 1 * 60 * 60 * 1000, // 1 hour in production
+        },
+        jobId: 'benefits-eligibility-check', // Ensures only one instance
+      }
+    );
+
+    console.log('🚀 Benefits eligibility job started (checks every 5 minutes)');
+  } catch (error) {
+    console.error('Failed to start benefits eligibility job:', error);
     throw error;
   }
 }
@@ -789,6 +1111,70 @@ export async function startAINoteCheckingJob(): Promise<void> {
   }
 }
 
+// Start the ToDo completion checking job system
+export async function startToDoCompletionCheckingJob(): Promise<void> {
+  try {
+    console.log('🚀 Starting ToDo completion checking job system...');
+    
+    // Create the worker if it doesn't exist
+    if (!todoCompletionCheckWorker) {
+      todoCompletionCheckWorker = new Worker('todo-completion-check', processToDoCompletionCheck, {
+        connection: redis,
+        concurrency: 1, // Only one completion check at a time
+      });
+
+      // Set up event handlers for ToDo completion check worker
+      todoCompletionCheckWorker.on('completed', (job) => {
+        console.log(`✅ ToDo Completion Check ${job.id} completed successfully`);
+      });
+
+      todoCompletionCheckWorker.on('failed', (job, err) => {
+        console.error(`❌ ToDo Completion Check ${job?.id} failed:`, err);
+      });
+
+      todoCompletionCheckWorker.on('error', (err) => {
+        console.error('🚨 ToDo Completion Check Worker error:', err);
+      });
+    }
+    
+    // Pause the queue first, then clear any existing jobs
+    console.log('⏸️ Pausing ToDo completion check queue...');
+    try {
+      await todoCompletionCheckQueue.pause();
+    } catch (pauseError) {
+      console.log('⚠️ Queue was already paused or in unknown state, continuing...');
+    }
+    
+    console.log('🧹 Clearing existing ToDo completion check jobs...');
+    try {
+      await todoCompletionCheckQueue.obliterate({ force: true });
+    } catch (obliterateError) {
+      console.log('⚠️ Could not obliterate queue (it may be empty), continuing...');
+    }
+    
+    console.log('▶️ Resuming ToDo completion check queue...');
+    await todoCompletionCheckQueue.resume();
+
+    // Schedule recurring ToDo completion checks every 15 minutes
+    await todoCompletionCheckQueue.add('scan-todo-completions', {
+      scanId: `todo-completion-scan-${Date.now()}`,
+      batchSize: 50
+    }, {
+      repeat: {
+        every: 15 * 60 * 1000, // 15 minutes
+        immediately: true
+      },
+      jobId: 'recurring-todo-completion-check'
+    });
+
+    console.log('✅ ToDo completion checking job system started successfully');
+    console.log('📋 Scheduled recurring ToDo completion checks every 15 minutes');
+  } catch (error) {
+    console.error('Error starting ToDo completion checking job system:', error);
+    throw error;
+  }
+}
+
 // Manually trigger an AI note scan
 export async function triggerAINoteScan(): Promise<string> {
   try {
@@ -803,6 +1189,24 @@ export async function triggerAINoteScan(): Promise<string> {
     return scanId;
   } catch (error) {
     console.error('Error triggering AI note scan:', error);
+    throw error;
+  }
+}
+
+// Manually trigger a ToDo completion check
+export async function triggerToDoCompletionCheck(): Promise<string> {
+  try {
+    const scanId = `manual-todo-completion-check-${Date.now()}`;
+    
+    await todoCompletionCheckQueue.add('manual-todo-completion-check', {
+      scanId,
+      batchSize: 50
+    });
+
+    console.log(`📋 Triggered manual ToDo completion check, scanId: ${scanId}`);
+    return scanId;
+  } catch (error) {
+    console.error('Error triggering ToDo completion check:', error);
     throw error;
   }
 }
@@ -858,6 +1262,19 @@ export async function stopVitalSignsJob(): Promise<void> {
   }
 }
 
+export async function stopBenefitsEligibilityJob(): Promise<void> {
+  try {
+    if (benefitsEligibilityWorker) {
+      await benefitsEligibilityWorker.close();
+      benefitsEligibilityWorker = null;
+    }
+    await benefitsEligibilityQueue.close();
+    console.log('🛑 Benefits eligibility job system stopped');
+  } catch (error) {
+    console.error('Error stopping benefits eligibility job system:', error);
+  }
+}
+
 export async function stopAINoteCheckingJob(): Promise<void> {
   try {
     if (aiNoteScanWorker) {
@@ -876,6 +1293,19 @@ export async function stopAINoteCheckingJob(): Promise<void> {
   }
 }
 
+export async function stopToDoCompletionCheckingJob(): Promise<void> {
+  try {
+    if (todoCompletionCheckWorker) {
+      await todoCompletionCheckWorker.close();
+      todoCompletionCheckWorker = null;
+    }
+    await todoCompletionCheckQueue.close();
+    console.log('🛑 ToDo completion checking job system stopped');
+  } catch (error) {
+    console.error('Error stopping ToDo completion checking job system:', error);
+  }
+}
+
 // Main execution when running as a standalone worker process
 async function main() {
   try {
@@ -888,14 +1318,27 @@ async function main() {
     console.log('✅ Database initialized successfully');
 
     // Start vital signs job processor
-    console.log('🔄 Starting vital signs job processor...');
-    await startVitalSignsJob();
-    console.log('✅ Vital signs job processor started');
+    if (process.env.NODE_ENV === 'production') {
+      console.log('🔄 Starting vital signs job processor...');
+      await startVitalSignsJob();
+      console.log('✅ Vital signs job processor started');
 
-    // Start AI note checking job processor
-    console.log('🤖 Starting AI note checking job processor...');
-    await startAINoteCheckingJob();
-    console.log('✅ AI note checking job processor started');
+       // Start AI note checking job processor
+      console.log('🤖 Starting AI note checking job processor...');
+      await startAINoteCheckingJob();
+      console.log('✅ AI note checking job processor started');
+
+      // Start ToDo completion checking job processor
+      console.log('📋 Starting ToDo completion checking job processor...');
+      await startToDoCompletionCheckingJob();
+      console.log('✅ ToDo completion checking job processor started');
+
+      // Start benefits eligibility job processor
+      console.log('💰 Starting benefits eligibility job processor...');
+      await startBenefitsEligibilityJob();
+      console.log('✅ Benefits eligibility job processor started');
+    }
+
 
     console.log('🚀 Worker process is ready and listening for jobs!');
 
@@ -903,14 +1346,18 @@ async function main() {
     process.on('SIGTERM', async () => {
       console.log('📡 Received SIGTERM, shutting down gracefully...');
       await stopVitalSignsJob();
+      await stopBenefitsEligibilityJob();
       await stopAINoteCheckingJob();
+      await stopToDoCompletionCheckingJob();
       process.exit(0);
     });
 
     process.on('SIGINT', async () => {
       console.log('📡 Received SIGINT, shutting down gracefully...');
       await stopVitalSignsJob();
+      await stopBenefitsEligibilityJob();
       await stopAINoteCheckingJob();
+      await stopToDoCompletionCheckingJob();
       process.exit(0);
     });
 
