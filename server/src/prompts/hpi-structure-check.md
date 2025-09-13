@@ -8,16 +8,11 @@ Verify that the HPI follows proper structure and formatting requirements for bil
 ## Rules
 1. **Chief Complaint Structure**:
    - Multiple chief complaints must be indivudally addressd. 
-   - Each chief complaint should have it's own paragraph
    - Only required if they are separate, billable problems affecting E/M complexity
 
-3. **Billing Impact Focus**:
+2. **Billing Impact Focus**:
    - Only flag issues that could affect visit E/M level determination
    - Do not flag stylistic preferences that don't impact billing
-   - Focus on structure that affects MDM scoring
-
-## Important Considerations 
-- Don't say things like "Remove or harmonize the header line so all CCs are clearly enumerated, with distinct HPI details for each complaint.", this is not your job. You do not check grammer or sentence structure. 
 
 ## Output Format
 Return valid JSON only:
