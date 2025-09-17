@@ -493,17 +493,29 @@ class AINoteChecker {
         console.log('✅ All AI prompt templates reloaded successfully');
       }
       
-      // Perform all checks in parallel for better performance
-      const checkPromises = Object.values(this.CHECK_TYPES).map(checkType => 
-        this.performSingleCheck(checkType, progressNote).then(result => ({
-          checkType,
-          result
-        }))
+      // Perform all checks in parallel and ensure all complete
+      const checkTypes = Object.values(this.CHECK_TYPES);
+      const checkPromises = checkTypes.map(checkType =>
+        this.performSingleCheck(checkType, progressNote)
+          .then(result => ({ checkType, result }))
+          .catch(error => Promise.reject({ checkType, error }))
       );
 
       console.log(`🔄 Running ${checkPromises.length} AI checks in parallel...`);
       console.log(`🤖 Model configuration: ${this.getModelConfigSummary()}`);
-      const aiCheckResults = await Promise.all(checkPromises);
+      const settledResults = await Promise.allSettled(checkPromises);
+
+      const failedResults = settledResults.filter(r => r.status === 'rejected') as Array<PromiseRejectedResult & { reason: { checkType: string; error: any } }>;
+      if (failedResults.length > 0) {
+        const failedSummary = failedResults
+          .map(fr => `${fr.reason.checkType}: ${fr.reason.error?.message || String(fr.reason.error)}`)
+          .join('; ');
+        const failedChecks = failedResults.map(fr => fr.reason.checkType).join(', ');
+        throw new Error(`One or more AI checks failed (${failedChecks}). Details: ${failedSummary}`);
+      }
+
+      const aiCheckResults = (settledResults.filter(r => r.status === 'fulfilled') as Array<PromiseFulfilledResult<{ checkType: string; result: AIAnalysisResult }>>)
+        .map(r => r.value);
 
       // Perform local vital signs check (no AI call needed)
       const vitalSignsResult = { checkType: 'vital-signs-check', result: this.checkVitalSigns(progressNote) };
