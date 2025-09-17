@@ -29,7 +29,6 @@ class AINoteChecker {
   // Define the check types
   private readonly CHECK_TYPES = {
     CHRONICITY: 'chronicity-check',
-    HPI_STRUCTURE: 'hpi-structure-check',
     PLAN: 'plan-check',
     EM_LEVEL: 'em-level-check'
   } as const;
@@ -39,7 +38,6 @@ class AINoteChecker {
   // gpt-4o-mini: Faster and cheaper, good for simpler checks (chronicity, accuracy)
   private readonly CHECK_MODELS = {
     'chronicity-check': 'gpt-5',     // Simple chronicity detection
-    'hpi-structure-check': 'gpt-5-nano',       // Complex HPI structure analysis
     'plan-check': 'gpt-5-mini',                // Detailed plan evaluation
     'em-level-check': 'gpt-5',                 // E/M level documentation validation
   } as const;
@@ -84,8 +82,6 @@ class AINoteChecker {
     switch (checkType) {
       case this.CHECK_TYPES.CHRONICITY:
         return `You are a dermatology medical coder. Check if the chronicity of every diagnosis in the A&P matches what is documented in the HPI. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
-      case this.CHECK_TYPES.HPI_STRUCTURE:
-        return `You are a dermatology medical coder. Check if the HPI structure is correct for billing. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
       case this.CHECK_TYPES.PLAN:
         return `You are a dermatology medical coder. Check if every assessment in the A&P has a documented plan. Return {"status": "ok", "reason": "..."} if correct, or JSON with issues if problems found.`;
       case this.CHECK_TYPES.EM_LEVEL:
@@ -306,10 +302,6 @@ class AINoteChecker {
       }
 
       switch (checkType) {
-        case this.CHECK_TYPES.HPI_STRUCTURE:
-          // HPI check: only SUBJECTIVE section (contains HPI)
-          return sectionType === 'SUBJECTIVE';
-        
         case this.CHECK_TYPES.CHRONICITY:
           // Chronicity checks: only SUBJECTIVE (HPI) and ASSESSMENT_AND_PLAN
           return sectionType === 'SUBJECTIVE' || sectionType === 'ASSESSMENT_AND_PLAN';
@@ -336,10 +328,6 @@ class AINoteChecker {
       }
 
       switch (checkType) {
-        case this.CHECK_TYPES.HPI_STRUCTURE:
-          // HPI check: only include HPI-related elements
-          return elementType === 'HISTORY_OF_PRESENT_ILLNESS';
-        
         case this.CHECK_TYPES.CHRONICITY:
           // Chronicity checks: include HPI and A&P elements, exclude PHYSICAL_EXAM
           if (sectionType === 'SUBJECTIVE') {
@@ -640,7 +628,7 @@ class AINoteChecker {
     if (!hasIssues) {
       return {
         status: 'ok',
-        reason: 'All checks passed: chronicity, HPI structure, plan documentation, E/M level validation, and vital signs verification completed successfully'
+        reason: 'All checks passed: chronicity, plan documentation, E/M level validation, and vital signs verification completed successfully'
       };
     }
 

@@ -750,14 +750,12 @@ const MobileNoteContent: React.FC<MobileNoteContentProps> = ({
                       // Group issues by check type for mobile view  
                       const checkTypeMap: { [key: string]: string } = {
                         'chronicity-check': 'Chronicity Analysis',
-                        'hpi-structure-check': 'HPI Structure Analysis', 
                         'plan-check': 'Plan Documentation Analysis',
                         'vital-signs-check': 'Vital Signs Validation'
                       };
 
                       const checkTypeColors: { [key: string]: string } = {
                         'chronicity-check': '#ff5722',
-                        'hpi-structure-check': '#2196f3',
                         'plan-check': '#ff9800',
                         'vital-signs-check': '#9c27b0'
                       };

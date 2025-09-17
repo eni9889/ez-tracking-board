@@ -999,7 +999,6 @@ const NoteDetail: React.FC = () => {
 
     const checkTypeMap: { [key: string]: string } = {
       'chronicity-check': 'Chronicity Analysis',
-      'hpi-structure-check': 'HPI Structure Analysis', 
       'plan-check': 'Plan Documentation Analysis',
       'vital-signs-check': 'Vital Signs Validation',
       'em-level-check': 'E/M Level Validation'
@@ -1007,7 +1006,6 @@ const NoteDetail: React.FC = () => {
 
     const checkTypeColors: { [key: string]: string } = {
       'chronicity-check': '#ff5722',
-      'hpi-structure-check': '#2196f3',
       'plan-check': '#ff9800',
       'vital-signs-check': '#9c27b0',
       'em-level-check': '#f44336'
