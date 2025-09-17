@@ -10,6 +10,7 @@ Verify that every billable assessment in the Assessment & Plan (A&P) has a clear
    - Every billable assessment must have a clear plan
    - Plan can include: treatment, monitoring, follow-up, referral, education
    - Missing or vague plans should be flagged as "no_explicit_plan"
+   - The plan cannot just be a list of medications
 
 2. **Excluded Assessments**:
    - Diagnoses treated with procedures (destruction, excision, injection) - ignore
